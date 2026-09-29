@@ -19,6 +19,7 @@ First market: Nigeria (IKEDC, naira). Designed to extend to Ghana, Kenya and Sou
 | [`docs/INVARIANTS.md`](docs/INVARIANTS.md) | What must never break, and the test that guards each item. |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Why things are the way they are, including every change to the spec. |
 | [`docs/UX.md`](docs/UX.md) | Message rules, accessibility, languages, adoption. |
+| [`docs/GO_TO_MARKET.md`](docs/GO_TO_MARKET.md) | Pilot segment, price, channel and success measures. |
 | [`docs/EXPANSION.md`](docs/EXPANSION.md) | How a new country is added. |
 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | On-call and support runbook. |
 

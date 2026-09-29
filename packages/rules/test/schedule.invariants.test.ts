@@ -22,7 +22,7 @@ const reason = (i: ScheduleDecisionInput) => {
 
 describe("INV-1 a scheduled buy needs every precondition", () => {
   it("buys the fixed amount when everything holds", () => {
-    expect(decideSchedule(dueSite())).toEqual({ kind: "buy", amountMinor: naira(15_000) });
+    expect(decideSchedule(dueSite())).toEqual({ kind: "buy", amountMinor: naira(15_000), feeMinor: 0n });
   });
 
   it.each<[string, Partial<ScheduleDecisionInput>, string]>([
@@ -52,6 +52,7 @@ describe("INV-1 a scheduled buy needs every precondition", () => {
           hasOpenOrder: fc.boolean(),
           balance: fc.bigInt({ min: 0n, max: naira(200_000) }),
           amount: fc.bigInt({ min: 1n, max: naira(100_000) }),
+          fee: fc.bigInt({ min: 0n, max: naira(500) }),
           spent: fc.bigInt({ min: 0n, max: naira(200_000) }),
           cap: fc.bigInt({ min: 0n, max: naira(200_000) }),
           sinceLastH: fc.option(fc.integer({ min: 0, max: 200 })),
@@ -68,6 +69,7 @@ describe("INV-1 a scheduled buy needs every precondition", () => {
             hasOpenOrder: r.hasOpenOrder,
             balanceMinor: r.balance,
             buyAmountMinor: r.amount,
+            feeMinor: r.fee,
             weeklySpentMinor: r.spent,
             weeklyCapMinor: r.cap,
             lastBuyAt: r.sinceLastH === null ? null : hoursAfter(now, -r.sinceLastH),
@@ -80,7 +82,8 @@ describe("INV-1 a scheduled buy needs every precondition", () => {
           expect(r.mode).toBe("schedule");
           expect(r.verified && !r.frozen && r.vendingEnabled && !r.hasOpenOrder).toBe(true);
           expect(r.dueOffsetMin).toBeLessThanOrEqual(0);
-          expect(r.balance >= r.amount).toBe(true);
+          expect(d.feeMinor).toBe(r.fee);
+          expect(r.balance >= r.amount + r.fee).toBe(true);
           expect(r.spent + r.amount <= r.cap).toBe(true);
           if (r.sinceLastH !== null) expect(r.sinceLastH).toBeGreaterThanOrEqual(r.minH);
         },
@@ -128,6 +131,30 @@ describe("INV-5 no buy above balance or weekly cap", () => {
     expect(effectiveWeeklyCap(null, naira(15_000), [1, 4])).toBe(naira(30_000));
     expect(effectiveWeeklyCap(null, naira(15_000), [1, 1, 4])).toBe(naira(30_000));
     expect(effectiveWeeklyCap(naira(10_000), naira(15_000), [1, 4])).toBe(naira(10_000));
+  });
+});
+
+describe("INV-25 the fee is covered by the balance and never counts against the cap", () => {
+  const fee = naira(100);
+
+  it("buys when the balance covers amount + fee, and reports both", () => {
+    expect(decideSchedule(dueSite({ feeMinor: fee, balanceMinor: naira(15_100) }))).toEqual({
+      kind: "buy",
+      amountMinor: naira(15_000),
+      feeMinor: fee,
+    });
+  });
+
+  it("covering the amount but not the fee is insufficient", () => {
+    expect(reason(dueSite({ feeMinor: fee, balanceMinor: naira(15_000) }))).toBe("insufficient");
+  });
+
+  it("the default cap (amount x days) still allows every chosen day when there is a fee", () => {
+    expect(buys(dueSite({ feeMinor: fee, weeklyCapMinor: naira(15_000) }))).toBe(true);
+  });
+
+  it("a negative fee is a configuration error, never a credit", () => {
+    expect(reason(dueSite({ feeMinor: -1n }))).toBe("misconfigured");
   });
 });
 

@@ -16,13 +16,14 @@ Design for the site phone first. If it works on a basic Nokia with SMS, it works
 1. **Say what happened, then what to do next.** "Thursday's N15,000 did not run. N4,000 left. Transfer to 0123456789 Wema Bank to restart." Never a bare error.
 2. **Always answer.** Every inbound message gets exactly one reply, even if it is the short help. Silence feels like failure.
 3. **Name the meter the way people do:** "meter ending 6781". Never the full number.
-4. **Days as words, times as people say them:** "Monday", "7:00am". Never ISO dates. Never "next_run_at".
-5. **Money:** local symbol on WhatsApp and web (`₦15,000`), letter on SMS (`N15,000`, D-019). Thousands separators. No kobo unless non-zero. Never a second currency.
-6. **Tokens:** in groups of four, on their own, so they can be read aloud over a call: `1234 5678 9012 3456 7890`. When there are key-change tokens, number them: "Key in 1 of 3".
-7. **Short.** Every SMS template is one GSM-7 segment (160 characters). WhatsApp messages under 300 characters.
-8. **Plain words.** No "transaction", "mandate", "vend", "settled". Say "paid", "bought", "token".
-9. **Banned words** (enforced in CI): blockchain, crypto, wallet, seed, gas, USDC, XLM, Stellar, dollar.
-10. **One question per message** during onboarding, and repeat the answer back ("I will buy ₦15,000.") before moving on.
+4. **Days as words, times as people say them:** "Monday", "7:00am". Never ISO dates. Never "next_run_at". Owners whose phone number is outside the market add the zone: "7:00am Lagos time" (D-021).
+5. **Fee up front:** the owner sees the fee before funding and on every paid message: "I will buy ₦15,000 each time, plus ₦100 Constant fee." Never a surprise deduction (D-020).
+6. **Money:** local symbol on WhatsApp and web (`₦15,000`), letter on SMS (`N15,000`, D-019). Thousands separators. No kobo unless non-zero. Never a second currency.
+7. **Tokens:** in groups of four, on their own, so they can be read aloud over a call: `1234 5678 9012 3456 7890`. When there are key-change tokens, number them: "Key in 1 of 3".
+8. **Short.** Every SMS template is one GSM-7 segment (160 characters). WhatsApp messages under 300 characters.
+9. **Plain words.** No "transaction", "mandate", "vend", "settled". Say "paid", "bought", "token".
+10. **Banned words** (enforced in CI): blockchain, crypto, wallet, seed, gas, USDC, XLM, Stellar, dollar.
+11. **One question per message** during onboarding, and repeat the answer back ("I will buy ₦15,000.") before moving on.
 
 All strings live in `packages/copy`, keyed by message id and locale, with a test that renders every template with the longest realistic values and checks length and encoding.
 
@@ -53,7 +54,8 @@ Translations are written and checked by native speakers, never machine-generated
 | Id | Channel | Text |
 |---|---|---|
 | `token_ready` | SMS | `Constant: Token for meter ending 6781, N15,000. Key in: 1234 5678 9012 3456 7890. Receipt: constant.ng/r/Ab3kQ9` |
-| `owner_paid` | WhatsApp | `Paid ₦15,000 for meter ending 6781. Next is Thursday. ₦35,000 left.` |
+| `owner_paid` | WhatsApp | `Paid ₦15,000 for meter ending 6781 (+₦100 fee). Next is Thursday. ₦34,900 left.` |
+| `site_low_notice` | WhatsApp | `Mum's phone asked for light. Paid ₦15,000 for meter ending 6781.` |
 | `low_too_soon` | both | `Last buy was too recent. Nothing bought.` |
 | `insufficient` | WhatsApp | `Thursday's ₦15,000 for meter ending 6781 did not run. ₦4,000 left.` |
 | `missed` | WhatsApp | `Monday's ₦15,000 for meter ending 6781 did not run because of a problem on our side. Next is Thursday. Send LOW to buy now.` |

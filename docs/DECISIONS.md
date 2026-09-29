@@ -58,3 +58,55 @@ The scan is a pg-boss schedule with singleton semantics. Order insert and job en
 
 ### D-019 SMS uses GSM-7 text; "₦" only on WhatsApp and the receipt page
 "₦" is not in the GSM-7 alphabet. One such character switches an SMS to UCS-2, which cuts a segment from 160 to 70 characters and can triple the cost of every token message. SMS copy writes `N15,000`; WhatsApp and the web write `₦15,000`. Test: every SMS template renders to one GSM-7 segment.
+
+---
+
+## Stage decisions (pre-pilot, made 2026-09-29)
+
+These answer the open questions in `PLAN.md`. They are chosen for the stage we are in: no customers yet, one founder, prove the loop and the price with the least to build. Each says what would make us revisit it.
+
+### D-020 Pricing: a flat fee per successful buy, taken from the site balance
+**₦100 per token delivered**, shown before the owner funds ("I will buy ₦15,000 each time, plus ₦100 Constant fee"). Stored as `markets.fee_per_buy_minor`, not hard-coded, so it can change per market and during the pilot.
+- Why not a monthly subscription: it needs billing, dunning and a second payment each month, which the spec rules out for v1, and a subscription is a harder first "yes" than a small fee people already see on every token app.
+- Why per buy: revenue only when we deliver, which is the promise. Nothing to invoice; one extra ledger line written with the vend.
+- Rules: the balance must cover amount + fee; the weekly cap is in token money only, so the default cap still allows every chosen day (`decideSchedule`, INV-25). No fee on a rejected vend. A refund after acceptance refunds the fee too.
+- Alert mode stays free. It is the on-ramp to schedule mode.
+- **Revisit** when an owner has more than 5 sites (landlords, employers): a per-site monthly plan may suit them better. Also revisit if pilot unit economics (PLAN B2) show ₦100 does not cover SMS, WhatsApp, funding-inflow fees and support.
+
+### D-021 First customer: Nigerians abroad paying for a family house in Lagos
+The diaspora owner is the purest version of "a meter you are not standing next to".
+- **Highest pain.** Parents or relatives call when the light goes. The owner cannot buy a token and walk it over.
+- **Money that goes to light.** Cash sent home can be spent on something else. Constant spends only on the fixed meter, which is part of what they pay for.
+- **Funding works without cards.** Remittance apps can pay out to a Nigerian bank account number, so a per-site virtual account is a destination they already know how to send to. We add no card or FX rail. We never show a foreign currency; the owner's app does the conversion before it reaches us.
+- **Easy to reach.** Diaspora associations, alumni groups, church and hometown WhatsApp groups. They are used to paying for services for family back home.
+- **Site phone = parent.** LOW from a parent is the product, which settles D-023.
+- Constraint: IKEDC only at first, so the pilot recruits families whose house is on IKEDC. EKEDC (the rest of Lagos) is the second adapter, after IKEDC has settled real tokens for a week.
+- UX consequence: owners abroad see times as "7:00am Lagos time" (UX.md).
+- **Revisit** if B1 shows that diaspora owners don't fund a second time, or if Lagos landlords convert much faster in the pilot.
+
+### D-022 Funding partner: Paystack Dedicated Virtual Accounts; Monnify is the fallback
+One dedicated account number per site, issued by a partner bank under a CBN-licensed processor. Paystack has signed webhooks, a test mode, well-documented APIs, and a name owners recognise.
+- **Condition before any real money:** written confirmation from Paystack that prefunded balances held for scheduled bill payment are an accepted use of dedicated virtual accounts on our account type (PLAN B3). If they say no, switch to Monnify reserved accounts (Moniepoint). Only the adapter changes.
+- **Pilot exposure limit:** ops policy of at most ₦200,000 balance per site and ₦5,000,000 total float until the licence position is confirmed by a lawyer. An excess transfer is credited, and the owner is told the limit.
+- **Revisit** at ~₦50m monthly volume: move to a banking-as-a-service provider where each site balance is held in a custodial structure at a licensed bank, or apply for our own licence.
+
+### D-023 The site phone may send LOW by default
+Yes, on by default. For the first segment (D-021) a parent sending LOW is the main use. The exposure is bounded by the weekly cap, the minimum gap and one open order. The owner gets one line each time ("Mum's phone asked for light. Paid ₦15,000 for meter ending 6781."). The owner can turn it off per site.
+
+### D-024 Vend partner: VTpass for the IKEDC sandbox and pilot; BuyPower as the second adapter
+VTpass has a public sandbox, electricity for all DisCos behind one API, and a transaction requery endpoint, which is our `fetch(partnerRef)`. It is quick to integrate for a single developer.
+- If its callbacks are not signed, we do not trust them: settlement comes only from requery (INV-13 allows that).
+- BuyPower is electricity-first and is the adapter we add for failover once volume justifies a second.
+- Before signing: commission per DisCo, requery reliability, how multi-token (KCT) vends are returned, and settlement terms. These go in PLAN B2.
+- **Revisit** if pending vends older than 60 minutes exceed 1% in the sandbox week.
+
+### D-025 SMS: Termii first, Africa's Talking second
+Termii for Nigeria: transactional (DND) route and sender ID registration for "Constant". Africa's Talking is the failover and becomes primary in Kenya and Ghana (EXPANSION.md). Both sit behind `Messaging`.
+
+### D-026 Hosting: one managed platform in Europe for the pilot
+A managed PaaS (Render, Frankfurt region) running `api`, `worker` and managed Postgres 16 with point-in-time recovery. One founder should not run infrastructure.
+- NDPA: the privacy notice states the cross-border transfer and its basis (consent and contract). Data held: phone, meter (encrypted), transactions.
+- **Revisit** before 1,000 paying sites, or earlier if a funding or vend partner requires in-country or in-Africa hosting. The next step then is AWS af-south-1 or a Nigerian data centre.
+
+### D-027 No mobile app
+Not in v1, and not as the next thing after v1. See PLAN "Why no app". The first owner-facing screen, when evidence asks for one, is a read-only web page reached by a one-time WhatsApp link, not a store app.

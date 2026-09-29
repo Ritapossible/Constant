@@ -20,6 +20,9 @@ export function dueSite(over: Partial<ScheduleDecisionInput> = {}): ScheduleDeci
     vendingEnabled: true,
     balanceMinor: naira(50_000),
     buyAmountMinor: naira(15_000),
+    // Zero by default so the spec's acceptance numbers (₦50,000 → ₦35,000) hold.
+    // Fee behaviour has its own tests.
+    feeMinor: 0n,
     weeklySpentMinor: 0n,
     weeklyCapMinor: naira(15_000),
     lastBuyAt: null,

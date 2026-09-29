@@ -62,7 +62,7 @@ Money columns are `bigint` minor units with a `currency` on the site. Times are 
 
 ```
 markets            code PK ('NG'), currency ('NGN'), time_zone ('Africa/Lagos'),
-                   default_locale, enabled
+                   default_locale, fee_per_buy_minor (D-020), enabled
 owners             id, phone_e164 UNIQUE, locale, market_code, created_at
 sites              id, owner_id, market_code, site_phone_e164, mode ('schedule'|'alert'),
                    utility_code ('IKEDC'), meter_ciphertext, meter_hmac, meter_last4,
@@ -74,7 +74,7 @@ sites              id, owner_id, market_code, site_phone_e164, mode ('schedule'|
                    funding_account_ref, funding_display (bank + number, or paybill + account),
                    balance_minor  -- cache; written only in the same tx as a ledger entry
                    site_phone_can_low DEFAULT true
-ledger_entries     APPEND ONLY. id, site_id, kind ('fund'|'vend'|'refund'|'adjust'|'reversal'),
+ledger_entries     APPEND ONLY. id, site_id, kind ('fund'|'vend'|'fee'|'refund'|'adjust'|'reversal'),
                    amount_minor (signed), idempotency_key UNIQUE, external_ref, actor, created_at
 orders             id, site_id, trigger ('schedule'|'low'), state, amount_minor,
                    idempotency_key UNIQUE, scheduled_for, partner_ref, error,
@@ -127,7 +127,7 @@ load order FOR UPDATE; if state != 'ready' → already handled, exit
 state → vending (persist)                          -- before the HTTP call
 [mandate spend here, once it exists — D-011]
 res = vending.vend(order)                          -- idempotency key = order id
-  accepted(ref)  → persist partner_ref; INSERT ledger vend (vendLedgerKey) — one tx
+  accepted(ref)  → persist partner_ref; INSERT ledger vend (vendLedgerKey) + fee (feeLedgerKey) — one tx
   token          → as accepted, then store tokens; state → token_stored
   rejected       → state → failed; notify owner (vend failed)
   timeout/unknown→ stay vending; schedule fetch in 1, 5, 15, 60 min
@@ -161,6 +161,8 @@ interface Messaging {
 
 interface Attestor { /* D-011: declared, not implemented */ }
 ```
+
+Chosen adapters for the pilot: VTpass (vending, D-024), Paystack dedicated virtual accounts (funding, D-022), Termii then Africa's Talking (SMS, D-025). Hosting: D-026.
 
 Each has a `Fake*` used in tests and local dev (FakeVending returns a deterministic 20-digit token from the order id) and one real adapter per market.
 

@@ -20,6 +20,12 @@ export interface ScheduleDecisionInput {
   /** The fixed amount the owner chose. Null means the site is not fully onboarded. */
   buyAmountMinor: Minor | null;
   /**
+   * Constant's fee for this buy, from the site's market (D-020). Charged from the
+   * balance with the vend, so the balance must cover amount + fee. Not counted
+   * against the weekly cap: the owner sets the cap in token money.
+   */
+  feeMinor: Minor;
+  /**
    * Vends this week (since local Monday 00:00), counting every order that is not
    * `failed`: accepted, pending and in flight included.
    */
@@ -61,7 +67,7 @@ export type DoNotBuyReason =
   | "insufficient";
 
 export type ScheduleDecision =
-  | { kind: "buy"; amountMinor: Minor }
+  | { kind: "buy"; amountMinor: Minor; feeMinor: Minor }
   | { kind: "do_not_buy"; reason: DoNotBuyReason };
 
 const no = (reason: DoNotBuyReason): ScheduleDecision => ({ kind: "do_not_buy", reason });
@@ -92,9 +98,10 @@ export function decideSchedule(i: ScheduleDecisionInput): ScheduleDecision {
     return no("too_soon");
   }
   if (i.weeklySpentMinor + i.buyAmountMinor > i.weeklyCapMinor) return no("weekly_cap");
-  if (i.balanceMinor < i.buyAmountMinor) return no("insufficient");
+  if (i.feeMinor < 0n) return no("misconfigured");
+  if (i.balanceMinor < i.buyAmountMinor + i.feeMinor) return no("insufficient");
 
-  return { kind: "buy", amountMinor: i.buyAmountMinor };
+  return { kind: "buy", amountMinor: i.buyAmountMinor, feeMinor: i.feeMinor };
 }
 
 /** Default weekly cap: buy amount times the number of chosen days. */
@@ -118,13 +125,13 @@ export function effectiveWeeklyCap(
  *   that clear themselves or need a human (kill switch, open order).
  */
 export type ScanAction =
-  | { kind: "vend"; amountMinor: Minor }
+  | { kind: "vend"; amountMinor: Minor; feeMinor: Minor }
   | { kind: "advance" }
   | { kind: "advance_and_notify"; notice: "insufficient" | "weekly_cap" | "missed" }
   | { kind: "hold" };
 
 export function scanAction(d: ScheduleDecision): ScanAction {
-  if (d.kind === "buy") return { kind: "vend", amountMinor: d.amountMinor };
+  if (d.kind === "buy") return { kind: "vend", amountMinor: d.amountMinor, feeMinor: d.feeMinor };
   switch (d.reason) {
     case "insufficient":
       return { kind: "advance_and_notify", notice: "insufficient" };

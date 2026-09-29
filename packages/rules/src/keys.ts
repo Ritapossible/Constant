@@ -18,6 +18,11 @@ export function vendLedgerKey(orderId: string): string {
   return `ledger:vend:${orderId}`;
 }
 
+/** Constant's fee for an order. Written in the same transaction as the vend entry. */
+export function feeLedgerKey(orderId: string): string {
+  return `ledger:fee:${orderId}`;
+}
+
 export function refundLedgerKey(orderId: string): string {
   return `ledger:refund:${orderId}`;
 }

@@ -93,8 +93,8 @@ export function recoverVending(partnerRef: string | null): RecoveryAction {
 }
 
 /**
- * When the negative ledger entry is written. Invariant: at acceptance, not at
- * SMS. A rejected order never wrote one; a failed-after-acceptance order is
+ * When the negative ledger entries (vend, and fee per D-020) are written.
+ * Invariant: at acceptance, not at SMS. A rejected order never wrote one; a failed-after-acceptance order is
  * reversed by a refund entry written by a human resolution.
  */
 export function writesVendLedgerEntry(event: OrderEvent): boolean {

@@ -35,7 +35,7 @@ packages/db         Postgres 16 schema, migrations, ledger and order repositorie
 packages/partners   Vending, Funding, Messaging interfaces; Fake + one real each    (not started)
 packages/copy       Every customer-facing string, per locale                        (not started)
 contracts/mandate   Soroban mandate. Not scheduled. See DECISIONS D-011.
-docs/               ARCHITECTURE, INVARIANTS, DECISIONS, UX, EXPANSION, OPERATIONS
+docs/               SPEC, ARCHITECTURE, INVARIANTS, DECISIONS, UX, EXPANSION, OPERATIONS, GO_TO_MARKET
 ```
 
 ## Commands
@@ -59,6 +59,10 @@ Node 22 (`.nvmrc`), pnpm 10.
 - Times are stored as `timestamptz` UTC; weekday and "today" are always computed in the site's market time zone (`packages/rules/src/time.ts`).
 - Idempotency keys come from `packages/rules/src/keys.ts` and sit in unique columns.
 - Every decision that deviates from the original spec goes in `docs/DECISIONS.md` with a reason.
+
+## Decided for the pilot
+
+₦100 fee per token, from the site balance (D-020). First customers: diaspora owners of a Lagos family house on IKEDC (D-021, `docs/GO_TO_MARKET.md`). Paystack DVA for funding (D-022), VTpass for vending (D-024), Termii for SMS (D-025), managed PaaS in Frankfurt (D-026). **No mobile app** (D-027).
 
 ## Where we are
 

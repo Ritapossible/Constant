@@ -33,3 +33,4 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 22 | After any buy, the next run is at least `min_hours` away. | A LOW on Sunday must not silently eat Monday (D-007). |
 | 23 | Every owner notice is sent at most once per (site, notice, slot). | `noticeKey`; stops the "notify every minute" loop. |
 | 24 | A token SMS fits in one GSM-7 segment. | Cost and delivery on basic phones (D-019). copy: **pending** |
+| 25 | The balance covers amount + fee before a buy; the fee never counts against the weekly cap; a negative fee never buys. | Fee is revenue, not a way to overspend or block a chosen day (D-020). rules: INV-25 |

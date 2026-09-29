@@ -10,7 +10,7 @@ Each step ends with its exit test passing in CI. No step starts real money until
 
 ### 1. Rules and invariant tests ✅
 `packages/rules`: `decideSchedule`, `scanAction`, `decideAlert`, `parseUnits`, `parseCommand`/`routeInbound`, the order state machine, funding and reversal decisions, the price check, reconciliation, idempotency keys, and time-zone scheduling.
-**Exit:** every rules-level row in `docs/INVARIANTS.md` has a passing test, including property tests on money. *123 tests passing.*
+**Exit:** every rules-level row in `docs/INVARIANTS.md` has a passing test, including property tests on money. *127 tests passing.*
 
 ### 2. Schema, ledger, fake vend, double-submit 🔜
 `packages/db`: migrations for the model in ARCHITECTURE, the append-only ledger (DB trigger rejects UPDATE/DELETE), repositories, `FOR UPDATE` decide transaction, partial unique index for one open order.
@@ -67,21 +67,41 @@ Soroban mandate (D-011). It needs a customer, partner or auditor reason first.
 | # | Task | Why | Output |
 |---|---|---|---|
 | B1 | Manual pilot with 10 owners for 4 weeks: you buy on their days and text the token. | Proves demand and the price before the code is finished. | Retention: how many funded a second time. |
-| B2 | Unit economics per vend: partner commission, funding inflow fee, SMS ×2, WhatsApp templates, support minutes. | Decides the fee. | A spreadsheet and a chosen fee (per buy or per site per month). |
-| B3 | Choose vend partner and funding partner; get written confirmation that the funding licence covers prefunded balances. | Regulatory basis of the company. | Signed terms; sandbox keys. |
+| B2 | Unit economics per vend: partner commission, funding inflow fee, SMS ×2, WhatsApp templates, support minutes. | Confirms ₦100 (D-020) covers cost. | A spreadsheet; keep or change the fee. |
+| B3 | Open accounts with VTpass (D-024) and Paystack (D-022); get written confirmation that prefunded balances are an accepted use. | Regulatory basis of the company. | Signed terms; sandbox keys. |
 | B4 | NDPC registration, privacy page, terms. | Legal to hold phone and meter data. | Published pages. |
 | B5 | Register the "Constant" SMS sender ID; WhatsApp Business verification; template approvals. | These take weeks and block step 4 going live. | Approved IDs and templates. |
-| B6 | Pick the first segment to sell to: diaspora family houses, landlords with caretakers, or shop owners. | Different channels and funding needs. | One segment, one channel, one message. |
+| B6 | ~~Pick the first segment~~ Decided: diaspora family houses in Lagos (D-021). Recruit the 10 pilot owners. | Different channels and funding needs. | 10 owners, IKEDC meters confirmed. |
 | B7 | Pidgin copy by a native speaker. | Reach at the site phone. | `packages/copy/pcm`. |
 
 ## Not in v1
 
 Meter reading or OCR. Buying because nobody replied. Data, airtime, TV. Card payments. Mobile app, web dashboard, wallet, chain picker. Any second chain or bridge. Paying a meter number read from a message. Holding customer money in a personal account. Subscription billing. Diaspora payouts. An LLM on the money path. Auto-tuning the schedule. A second DisCo before step 7 has run clean for a week.
 
-## Open questions for the founder
+## Why no mobile app (D-027)
 
-1. Fee model: per buy, or per site per month?
-2. First segment (B6).
-3. Which licensed funding partner and which vend aggregator?
-4. Should the site phone be allowed to send LOW by default? (Currently yes, owner can switch it off, owner is told each time.)
-5. Hosting region for the NDPA.
+Everything the product needs already works without one:
+
+- **The site phone must be SMS anyway.** The person keying in the token may have a basic phone, no data, or a shared handset. An app cannot replace that step.
+- **The owner acts a few times a month.** Set once, fund occasionally, sometimes LOW, SKIP or STOP. WhatsApp handles that with nothing to install, on any phone, from any country.
+- **An app costs more than it returns at this stage:** two platforms, store review, updates, push setup, login and account recovery, device security, and install drop-off, often worse for data-conscious users. It would take months that belong to the money path and the pilot.
+- **Trust comes from the token arriving,** not from a screen. A new fintech app asking for money is a harder "yes" than a WhatsApp chat that just works.
+
+What would change this, in order:
+
+1. Owners ask to see history across sites (more than 1 in 5 pilot owners asks unprompted) → a **read-only web page** opened from a one-time WhatsApp link. No password, no install.
+2. Landlords or employers with 10+ meters need to manage them in bulk → the same web page gets edit actions, still behind WhatsApp login.
+3. A native app only if a feature needs the phone itself (e.g. contacts-free sharing, offline token wallet for the site phone) and the web page has proven demand.
+
+## Decisions taken (were open questions)
+
+| Question | Decision | Record |
+|---|---|---|
+| Fee model | ₦100 per token delivered, from the site balance; alert mode free | D-020 |
+| First segment | Diaspora owners paying for a family house in Lagos (IKEDC) | D-021, `docs/GO_TO_MARKET.md` |
+| Funding partner | Paystack Dedicated Virtual Accounts, Monnify fallback, conditional on written confirmation (B3) | D-022 |
+| Vend partner | VTpass (sandbox and pilot), BuyPower second | D-024 |
+| SMS | Termii, Africa's Talking failover | D-025 |
+| Site phone LOW by default | Yes, owner told every time, switchable | D-023 |
+| Hosting | Managed PaaS, Frankfurt, PITR; revisit at 1,000 sites | D-026 |
+| Mobile app | No | D-027 |
