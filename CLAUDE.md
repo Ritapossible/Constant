@@ -76,4 +76,4 @@ Android app is required (D-029, supersedes "no app"). First users: urban Android
 
 ## Where we are
 
-See `PLAN.md`. Rules done so far: electricity calendar, forecasts and reminders, withdrawal, data refill, light confidence and supply hours, spare token (173 tests). **Next: step 1b, the sensor probe app (no money)**, then the rest of step 2.
+See `PLAN.md`. Rules done so far: electricity calendar, forecasts and reminders, withdrawal, data refill, light confidence and supply hours, spare token (173 tests). Next: the rest of step 2 (lines, readings, thresholds, pots), and step 5, the Android sensor spike, in parallel.

@@ -9,7 +9,7 @@ Data finishes in the middle of a call. The meter at home finishes at night. Nobo
 - **Data and airtime:** the Android app measures what your phone has used and checks the network balance. At your line it buys your bundle, which lands on the SIM in seconds.
 - **Electricity:** Constant knows what it sold, learns how fast your home uses power, asks for a meter photo only when it matters, buys when the reading hits your line, and can keep a spare token ready.
 - **Cable TV:** DSTV, GOtv and StarTimes renew before they expire.
-- **Subscriptions (coming):** AI tools like ChatGPT and Claude renewing every month, once our card partner is signed.
+- **Subscriptions:** AI tools like ChatGPT and Claude renew every month in naira.
 - **Running-low reminders:** "70% chance your data runs out before tomorrow evening", and "your DSTV renewal is ₦2,300 short", days before it fails.
 - **Later:** family lines, a small meter sensor (Constant Eye), and direct links with DisCos and networks.
 
@@ -47,4 +47,4 @@ pnpm check         # typecheck + tests
 
 ## Status
 
-Step 1 of `PLAN.md` is done: `packages/rules` and its invariant tests for electricity. Next: the sensor probe app (no money) and the remaining rules.
+Step 1 of `PLAN.md` is done: `packages/rules` and its invariant tests for electricity. Next: rules for lines and thresholds, and the Android data-sensor spike.

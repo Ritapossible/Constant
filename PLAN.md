@@ -14,10 +14,6 @@ Each step ends with its exit test passing in CI. No real money moves until the m
 `packages/rules`: `decideSchedule`, `scanAction`, `decideAlert`, `parseUnits`, commands, order state machine, funding, price check, reconciliation, idempotency keys, time zones, per-buy fee.
 **Exit:** every rules-level invariant has a passing test, including property tests on money. *127 tests passing.*
 
-### 1b. Sensor probe app — FIRST, before any money ⬜
-A throwaway Android screen, no payments: for the chosen SIM it shows the phone's mobile-byte count next to the raw USSD reply, and lets the tester share the network's balance SMS or a screenshot into the app (D-046). Every raw reply is uploaded and stored as a test fixture for the network parsers.
-**Exit (Phase 0 gate):** 20 phones (Tecno, Infinix, Itel, Samsung), MTN, Airtel, Glo, 9mobile, two weeks; estimate within 10% of the network on 9 of 10 checks; a table of which codes return a balance in one reply. Alongside it: 10 homes in the light concierge with spare tokens and keypad photos.
-
 ### 2. Rules for lines, readings, thresholds, pots 🔜
 *Done so far:* `forecast.ts` (running-low probability, run-out window, reminders, wallet runway), `decideWithdrawal`, and `refill.ts` (`decideDataRefill`, light forecast confidence, supply-hour rates, `decideSpareToken`), with tests (D-040 to D-049). *173 tests passing.*
 
@@ -41,6 +37,7 @@ Generalise to lines (D-037) without weakening anything in step 1.
 ### 5. Android sensor spike (in parallel with 2–4) ⬜
 `apps/android` (Kotlin): usage-access permission, mobile bytes since a moment, USSD balance on MTN, Airtel, Glo and 9mobile with recorded-reply parser tests, background schedule that survives battery savers on Tecno, Infinix, Itel and Samsung.
 **Exit:** ROADMAP Phase 0 gate: estimate within 10% of the network's balance on 9 of 10 checks.
+From review (D-045, D-046): show the raw USSD reply next to the byte count, record which codes answer in one reply on each network, let testers share the network's balance SMS or a screenshot into the app, upload every raw reply as a parser test fixture, and note night/social/WhatsApp-only bundles and dual-SIM behaviour. Alongside it, the light concierge homes photograph the indoor keypad (D-047).
 
 ### 6. Android app v1: pots, cable, data and airtime autopilot ⬜
 Sign-in by phone number (OTP), account funding details, pots, covered-until screen, withdraw/cancel/pause/reschedule, cable TV renewal, running-low reminders, payday plan, data-left screen, "time at your pace", line and cap settings, freeze, receipts, push. Calls the API; never decides a buy on the device.
@@ -64,8 +61,8 @@ VTpass sandbox, then live, for one data line, one airtime line and one meter. Pa
 ### Later (ROADMAP Phases 3–5)
 Remote and family lines, iPhone, TV renewals, grid-aware forecast, Constant Eye hardware, AI and other subscriptions on merchant-locked cards, DisCo and network partnerships, new countries. Not started until the gates in ROADMAP are met.
 
-### Later rails
-Arc treasury when volume justifies it; Stellar cap and deposits in Phase 3 (D-051).
+### Not scheduled
+Soroban mandate (D-011). Money rails for Base, Arc and Stellar are designed in `docs/RAILS.md` (D-051).
 
 ## Business track (start now)
 
@@ -102,7 +99,7 @@ Arc treasury when volume justifies it; Stellar cap and deposits in Phase 3 (D-05
 | Ideas backlog | `docs/IDEAS.md`, enters PLAN by phase | D-044 |
 | Data reality | Unknown is never low; main balance only; SIM chosen; stacking known; estimate buys opt-in | D-045, D-046 |
 | Light reality | Read the indoor keypad; forecast per grid hour with one-tap supply; confidence levels; spare timing | D-047 to D-049 |
-| Order | Probe → cable + data → light concierge → light in app; pilot DisCo where the founder can visit | D-050 |
+| Pilot homes and marketing | Pilot homes where the founder can visit them; "withdraw any time" marketed only after the partner's letter | D-050 |
 | Money rails | Naira via Paystack; dollars on Base (OTP embedded wallet, spend permission per line, Paycrest off-ramp); Arc treasury; Stellar later; no Agent Stack | D-051 to D-053, `docs/RAILS.md` |
 | Forecasting | Plain statistics, bounded, tested; no LLM | D-034 |
 | AI and other subscriptions | Monthly auto-renewal on merchant-locked cards; Phase 3 if a card issuer is signed | D-039 (amends D-035) |

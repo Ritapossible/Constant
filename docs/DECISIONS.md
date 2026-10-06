@@ -233,12 +233,9 @@ Most prepaid meters in Nigerian homes are split: the measuring unit is outside, 
 ### D-049 Spare token timing
 Buy the spare when the cautious run-out is 3 days or less away. Only one at a time. No buy-early while a spare waits. Remind the household to key it in after 14 days, because old tokens can be rejected after key changes and meters can refuse credit above their maximum. (`decideSpareToken`)
 
-### D-050 Focus and order
-Order: sensor probe app (no money) → cable + data → light concierge, then light in the app.
-- Light stays central; its concierge runs alongside Phase 1, not after it.
-- The pilot DisCo is wherever the founder can visit homes. Other DisCos stay as rows, switched off.
-- Subscriptions are shown as "coming" until a card issuer signs.
-- "Withdraw any time" is not marketed until the funding partner's letter is signed (B4).
+### D-050 Pilot homes and a marketing gate (from review)
+- The light concierge homes are chosen where the founder can visit them, on whichever DisCo that is. The DisCo plan (D-038) is unchanged.
+- "Withdraw any time" is not advertised until the funding partner's written confirmation (B4) is signed. The feature itself is unchanged (D-040).
 
 ### D-051 Money rails: Base for users, Arc for treasury, Stellar later — *amends D-011*
 Full design and sources in `docs/RAILS.md`.
