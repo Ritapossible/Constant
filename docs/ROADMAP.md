@@ -59,6 +59,32 @@ Goal: homes on Constant stop going dark by surprise.
 - **Mobile network APIs** (SENSING D7). Balance and network-side auto top-up with consent; covers iPhone.
 - **New countries** (`docs/EXPANSION.md`): Kenya (M-Pesa, KPLC tokens), Ghana (MoMo), South Africa.
 
+## Phase 6 — Constant for developers (after Phase 3 is stable)
+
+Goal: other apps can offer "never run out" to their own users, running on Constant's rails. It brings distribution through other apps' users and revenue that doesn't depend on our own app.
+
+What developers get, in the order it ships:
+
+1. **Bill payments API.** Look up a meter, decoder or phone number; buy data, airtime, electricity or a cable renewal; get the receipt and the token. It uses the same rules, ledger and partners as the Constant app. Sandbox keys first, live keys after review.
+2. **Webhooks.** `payment.settled`, `token.ready`, `line.running_low`, `pot.short`, `renewal.upcoming`, signed and retried. Developers react to events instead of polling.
+3. **Autopay API.** Create a line with a threshold or a schedule, a cap and a pot; Constant runs the loop and notifies through the developer's channel or ours. "Never run out" is the product we sell, not just one-off top-ups.
+4. **Running-low forecasts API.** Send usage readings, get back the run-out window and probability (`packages/rules/src/forecast.ts`). Useful to fintechs, landlords and estate apps.
+5. **Stablecoin autopay on Base and Arc.** A contract or SDK so any onchain app can let users approve a capped, revocable allowance per bill, which Constant settles in local currency (`docs/RAILS.md`). Shipped as an open-source SDK.
+6. **Delivery API.** Send a token or receipt over WhatsApp, Telegram, SMS or email with automatic fallback (`packages/rules/src/delivery.ts`).
+7. **Embeddable widgets and SDKs.** A drop-in "Keep this paid" button and a covered-until card for web and mobile; TypeScript first, then Kotlin and Swift.
+
+Who it's for: banks and fintech apps, landlord and estate apps, employers paying staff data or power, diaspora remittance apps ("send light, not cash"), and onchain wallets.
+
+How it's built:
+- A versioned public API (`/v1`) beside the app API. Idempotency keys are required on every write, as in our own invariants.
+- Per-developer keys, scopes, rate limits, sandbox with fake partners (the same fakes our tests use), and a usage dashboard.
+- A developer's customers are still bound by every rule: caps, pots, freeze, settlement only on confirmation. No API call can bypass `packages/rules`.
+- Public documentation site at that point, and a status page.
+
+Pricing: a small fee per settled payment, volume tiers, and monthly plans for the forecast and delivery APIs.
+
+**Gate:** our own app has run clean reconciliation for 3 months; partners and our licence position allow resale through third parties (legal opinion); two design partners have signed up to build on it.
+
 ## What we will not do
 
 - Buy data on a forecast.

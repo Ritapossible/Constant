@@ -102,6 +102,7 @@ Soroban mandate (D-011). Money rails for Base, Arc and Stellar are designed in `
 | Data reality | Unknown is never low; main balance only; SIM chosen; stacking known; estimate buys opt-in | D-045, D-046 |
 | Light reality | Read the indoor keypad; forecast per grid hour with one-tap supply; confidence levels; spare timing | D-047 to D-049 |
 | Pilot homes and marketing | Pilot homes where the founder can visit them; "withdraw any time" marketed only after the partner's letter | D-050 |
+| Developer platform | Public API, webhooks and SDKs on the same rails, after the app is stable | D-055, ROADMAP Phase 6 |
 | Delivery | User picks WhatsApp, Telegram, SMS or email; fallback ends in SMS; same stored token every time | D-054, `docs/DELIVERY.md` |
 | Money rails | Naira via Paystack; dollars on Base (OTP embedded wallet, spend permission per line, Paycrest off-ramp); Arc treasury; Stellar later; no Agent Stack | D-051 to D-053, `docs/RAILS.md` |
 | Forecasting | Plain statistics, bounded, tested; no LLM | D-034 |

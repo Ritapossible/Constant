@@ -60,7 +60,7 @@ Effort: S (days) · M (weeks) · L (months) · XL (partnership or licence)
 | F2 | **Small fee on subscriptions** (card issuing and FX cost plus margin), shown up front. | Subscriptions carry real costs; customers expect a fee. | S | Compare with alternatives; stay transparent. | 3 |
 | F3 | **Essentials advance.** When a pot is empty, pay now and repay on payday, using months of on-time history to decide who qualifies. | Large need; Constant has unusually good data on regular bills. | XL | Needs a lending licence or a licensed partner; strict consumer-credit rules. | 5 |
 | F4 | **Interest on money set aside,** through a licensed partner. | A reason to keep larger balances in Constant. | XL | Regulation; never promise returns ourselves. | 5 |
-| F5 | **Embedded Constant for banks and fintechs** (API). Banks offer "auto-renew my bills" powered by Constant. | Distribution through someone else's millions of users. | L | Partner dependency. | 5 |
+| F5 | **Embedded Constant for banks and fintechs** (API). Banks offer "auto-renew my bills" powered by Constant. | Distribution through someone else's millions of users. | L | Partner dependency. | 6 (D-055, ROADMAP Phase 6) |
 
 ## G. Defensibility (why a big app can't just copy this)
 

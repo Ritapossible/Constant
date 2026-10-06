@@ -259,3 +259,6 @@ Each person picks and orders their channels.
 - Telegram is linked only by a one-time code from the app, because Telegram doesn't share phone numbers.
 - Email never carries the token in its subject.
 - Rule: `nextDeliveryStep` in `packages/rules/src/delivery.ts`. Details: `docs/DELIVERY.md`.
+
+### D-055 A developer platform is on the roadmap (Phase 6)
+Constant's rails (bill payments, autopay, forecasts, delivery, stablecoin autopay on Base and Arc) will be opened to other developers through a versioned API, webhooks and SDKs once our own app is stable. Every call goes through the same `packages/rules`, ledger and caps; no API bypasses them. Gate and order in `docs/ROADMAP.md` Phase 6. This expands IDEAS F5.
