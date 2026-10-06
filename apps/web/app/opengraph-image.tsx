@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Constant | Set it once. Never run out.";
+export const alt = "Constant | Autopay for data, electricity, DSTV and subscriptions";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -32,7 +32,7 @@ export default function OpengraphImage() {
           <span>Set it once.</span>
           <span style={{ color: "#a3a3a0" }}>Never run out.</span>
         </div>
-        <div style={{ fontSize: 28, color: "#a3a3a0" }}>Data · Light · Cable TV · Subscriptions</div>
+        <div style={{ fontSize: 28, color: "#a3a3a0" }}>Autopay for data · electricity · DSTV · subscriptions</div>
       </div>
     ),
     size,
