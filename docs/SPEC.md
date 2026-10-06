@@ -1,4 +1,6 @@
-# Constant — build spec
+# Constant — build spec (v1, electricity)
+
+> **Scope superseded by `docs/PRODUCT.md` (D-028).** The money-safety rules here still apply to every product.
 
 > The original product spec, kept as written. Where the build deliberately differs, `docs/DECISIONS.md` says so and why.
 

@@ -4,11 +4,13 @@ Read this first. It is the short version of everything an engineer or coding age
 
 ## What Constant is
 
-A power account for an owner who pays for prepaid electricity meters they are not standing next to: a shop, a family house, a staff room. The owner sets each meter once. Constant buys a fixed amount on the weekdays they chose, and texts the token to the phone at that place. It never spends past the cap. One word freezes it.
+A prepaid autopilot (D-028). Nigeria runs on prepaid, and data, airtime and electricity all run out without warning. Constant watches what it can measure, refills inside limits the owner sets, and says what it spent. Product: `docs/PRODUCT.md`. How we know what's left: `docs/SENSING.md`. Phases: `docs/ROADMAP.md`.
 
-The person at the premises gets a normal 20-digit token by SMS and keys it in. They never make an account.
+- **Data and airtime:** the Android app is the sensor (data-usage counter plus USSD balance); the network credits the bundle directly. Fully automatic.
+- **Electricity:** we know the units we sold, learn the home's usage rate from meter readings, ask for a reading only when it matters, buy on a reading at the line, and can keep one spare token ahead. A person still keys the token in until smart-meter partnerships exist.
+- **Later:** family and remote lines, TV, Constant Eye hardware, AI and other subscriptions, DisCo and network partnerships.
 
-Company and SMS sender name: **Constant**. First market: Nigeria, IKEDC, naira. Built so Ghana, Kenya and South Africa are new adapters and copy, not a rewrite (`docs/EXPANSION.md`).
+Company and sender name: **Constant**. First market: Nigeria, naira, Lagos (D-030). Built so Ghana, Kenya and South Africa are new adapters and copy (`docs/EXPANSION.md`).
 
 ## Non-negotiables
 
@@ -16,26 +18,29 @@ Company and SMS sender name: **Constant**. First market: Nigeria, IKEDC, naira. 
 2. **Every invariant in `docs/INVARIANTS.md` has a test.** Add or change a rule: write the failing test first.
 3. **Money is `bigint` minor units** (kobo, pesewas, cents). No floats, no `number`, no string maths. Columns end in `_minor` and sit next to a `currency`.
 4. **No LLM on the money path.** Not in parsing, routing, deciding or vending.
-5. **The payee is fixed when the site is created.** Never pay a meter or account number read from an inbound message.
+5. **The payee is fixed when the line is created.** Never pay a meter, phone or account number read from an inbound message.
 6. **Settlement comes only from a signed partner webhook or `fetch(partnerRef)`.** HTTP 200 on the vend call is not a token.
 7. **Persist before you act.** `partnerRef` before treating a vend as accepted. The token before any SMS. The raw inbound payload before routing.
 8. **Ambiguous means stop.** Unknown state, or ledger vs partner disagreement: `needs_human`, freeze that site (or kill vending globally on reconciliation mismatch), page a person. Never retry a vend to find out.
 9. **Tokens and meter numbers are secrets.** Never in a URL, a log line, an error message, an analytics event, or the receipt page. Log meter last 4 and a token hash.
 10. **Customers see local currency only.** Never: blockchain, crypto, wallet, seed, gas, USDC, XLM, Stellar, dollars. `scripts/guard.sh` enforces this on `packages/copy`.
-11. **Silence means nothing.** No reply neither cancels a scheduled buy nor creates an early one. Constant does not know units left and must not guess.
-12. **Do not add product surface** that is not in `PLAN.md`. No dashboard, no app, no card payments, no airtime, no second chain.
+11. **Silence never buys, and estimates are labelled.** Only a trusted reading at the owner's line triggers a buy (D-032). Data is never bought on a forecast. Electricity buys early on a forecast only if the owner opted in. A forecast never raises a cap or an amount.
+12. **Do not add product surface** that is not in `PLAN.md`. No web dashboard, no card funding, no chain, no hardware or subscriptions before their ROADMAP gate.
+13. **Privacy on the phone.** The app reads total mobile bytes and USSD balance replies only. Never SMS, contacts, location or per-app usage. Meter photos are read on the phone; only the number leaves it.
 
 ## Layout
 
 ```
 apps/api            Fastify: WhatsApp, funding and vend webhooks; receipt page     (not started)
-apps/worker         pg-boss: schedule scan, vend, notify, reconcile                 (not started)
+apps/worker         pg-boss: threshold + schedule scans, vend, notify, reconcile    (not started)
+apps/android        Kotlin app: data/airtime sensor, wallet, light readings        (not started)
 packages/rules      Pure decisions and their tests                                  (DONE: step 1)
 packages/db         Postgres 16 schema, migrations, ledger and order repositories   (not started)
 packages/partners   Vending, Funding, Messaging interfaces; Fake + one real each    (not started)
 packages/copy       Every customer-facing string, per locale                        (not started)
 contracts/mandate   Soroban mandate. Not scheduled. See DECISIONS D-011.
-docs/               SPEC, ARCHITECTURE, INVARIANTS, DECISIONS, UX, EXPANSION, OPERATIONS, GO_TO_MARKET
+docs/               PRODUCT, SENSING, ROADMAP, SPEC (v1), ARCHITECTURE, INVARIANTS, DECISIONS,
+                    UX, EXPANSION, OPERATIONS, GO_TO_MARKET
 ```
 
 ## Commands
@@ -60,10 +65,10 @@ Node 22 (`.nvmrc`), pnpm 10.
 - Idempotency keys come from `packages/rules/src/keys.ts` and sit in unique columns.
 - Every decision that deviates from the original spec goes in `docs/DECISIONS.md` with a reason.
 
-## Decided for the pilot
+## Decided
 
-₦100 fee per token, from the site balance (D-020). First customers: diaspora owners of a Lagos family house on IKEDC (D-021, `docs/GO_TO_MARKET.md`). Paystack DVA for funding (D-022), VTpass for vending (D-024), Termii for SMS (D-025), managed PaaS in Frankfurt (D-026). **No mobile app** (D-027).
+Android app is required (D-029, supersedes "no app"). First users: Lagos Android users with a data plan and a prepaid meter (D-030). Data and airtime at face value, ₦100 per electricity token (D-031). VTpass for vending (D-024), Paystack virtual accounts for funding (D-022), Termii for SMS (D-025), managed PaaS in Frankfurt (D-026).
 
 ## Where we are
 
-See `PLAN.md`. Step 1 (rules + invariant tests) is done. Next: step 2, schema, ledger, fake vend, double-submit tests against a real Postgres.
+See `PLAN.md`. Step 1 (electricity rules + invariant tests) is done. Next: step 2, rules for lines, readings and thresholds, and step 5, the Android sensor spike, in parallel.

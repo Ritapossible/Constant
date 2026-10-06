@@ -1,107 +1,96 @@
 # PLAN
 
-Two tracks run together. The engineering track makes the loop correct. The business track proves people will pay for it. Neither waits for the other.
+What to build next and in what order. The long view is in `docs/ROADMAP.md`; the product is in `docs/PRODUCT.md`; how we know what's left is in `docs/SENSING.md`.
+
+Two tracks run together. The engineering track makes refills automatic and safe. The business track proves people want them and will keep paying. Neither waits for the other.
 
 Status: ✅ done · 🔜 next · ⬜ not started
 
 ## Engineering track
 
-Each step ends with its exit test passing in CI. No step starts real money until every step before it is green.
+Each step ends with its exit test passing in CI. No real money moves until the money-path steps (3, 4, 9) are green.
 
-### 1. Rules and invariant tests ✅
-`packages/rules`: `decideSchedule`, `scanAction`, `decideAlert`, `parseUnits`, `parseCommand`/`routeInbound`, the order state machine, funding and reversal decisions, the price check, reconciliation, idempotency keys, and time-zone scheduling.
-**Exit:** every rules-level row in `docs/INVARIANTS.md` has a passing test, including property tests on money. *127 tests passing.*
+### 1. Rules and invariant tests (electricity, calendar) ✅
+`packages/rules`: `decideSchedule`, `scanAction`, `decideAlert`, `parseUnits`, commands, order state machine, funding, price check, reconciliation, idempotency keys, time zones, per-buy fee.
+**Exit:** every rules-level invariant has a passing test, including property tests on money. *127 tests passing.*
 
-### 2. Schema, ledger, fake vend, double-submit 🔜
-`packages/db`: migrations for the model in ARCHITECTURE, the append-only ledger (DB trigger rejects UPDATE/DELETE), repositories, `FOR UPDATE` decide transaction, partial unique index for one open order.
-`packages/partners`: `Vending`, `Funding`, `Messaging` interfaces, `FakeVending` (deterministic token from order id, configurable accept/pending/reject/timeout), `FakeFunding`.
-**Exit:** tests against real Postgres (testcontainers or CI service): 50 concurrent LOWs plus a scan on one site produce exactly one order; replaying a funding webhook credits once; ledger sum equals cache.
+### 2. Rules for lines, readings and thresholds 🔜
+Generalise to lines (D-037) without weakening anything in step 1.
+- `Reading { source, value, at }` and `decideRefill`: buy when a trusted reading is at or below the line, per the source table in SENSING.md (D-032). Data needs a USSD calibration under 24h; forecasts never buy data.
+- `estimateRemaining`: data = last calibration − bytes used since, plus bundles bought since. Electricity = last reading + units bought − rate × time, with a pessimistic bound.
+- `whenToAsk`: the next time to ask for a meter reading, from the forecast.
+- Spare-token rules (D-033): exactly one spare outstanding; the next is bought only when the spare is marked used.
+**Exit:** property tests: no buy above caps; no data buy from a forecast; silence never buys; a forecast never raises an amount; at most one spare outstanding.
 
-### 3. Schedule scan and vend worker ⬜
-`apps/worker`: pg-boss scan, vend job, fetch retries, notify job, crash recovery on start.
-**Exit:** crash after `partner_ref` saved → one vend. Crash before → no second vend, `needs_human`, site frozen. SMS failure resends the stored token. Pending neither settles nor refunds. Multi-token vend stored in order.
+### 3. Schema, ledger, fake partners, double-submit ⬜
+`packages/db`: owners, lines, readings, orders, order_tokens, ledger (append-only), funding, notices. One open order per line. `FOR UPDATE` decide transaction.
+`packages/partners`: `Vending` (electricity, data, airtime), `Funding`, `Messaging`, `Push`; fakes for each.
+**Exit:** 50 concurrent triggers on one line produce exactly one order; a replayed funding webhook credits once; ledger sum equals the cached balance.
 
-### 4. WhatsApp and SMS for a seeded site ⬜
-`apps/api`: signature checks, raw payload stored first, `routeInbound`, commands (LOW, SKIP, STOP, START, BALANCE), owner notices, receipt page.
-`packages/copy`: English templates, length and encoding tests, banned-word guard.
-**Exit:** seeded site buys when the clock says so, LOW buys early, SKIP skips once, STOP freezes; receipt URL and HTML contain no 20-digit token.
+### 4. Refill worker ⬜
+`apps/worker`: threshold scan, schedule scan, vend, fetch retries, notify, crash recovery.
+**Exit:** both crash cases (partner ref saved / not saved); SMS failure resends the stored token; pending neither settles nor refunds; a data bundle is credited once.
 
-### 5. Onboarding and fake funding ⬜
-One question per message; meter name confirmation; funding details per site.
-**Exit:** one owner with five sites, separate balances; one site cannot spend another's money.
+### 5. Android sensor spike (in parallel with 2–4) ⬜
+`apps/android` (Kotlin): usage-access permission, mobile bytes since a moment, USSD balance on MTN, Airtel, Glo and 9mobile with recorded-reply parser tests, background schedule that survives battery savers on Tecno, Infinix, Itel and Samsung.
+**Exit:** ROADMAP Phase 0 gate: estimate within 10% of the network's balance on 9 of 10 checks.
 
-### 6. Alert mode ⬜
-**Exit:** an alert site, flooded with readings and LOWs, never creates an order, a ledger vend, or a partner call.
+### 6. Android app v1: data and airtime autopilot ⬜
+Sign-in by phone number (OTP), wallet funding details, data-left screen, "time at your pace", line and cap settings, freeze, receipts, push. Calls the API; never decides a buy on the device.
+**Exit:** dogfood for 2 weeks by the founder and 20 testers without running out; no unexplained ledger line.
 
-### 7. Real IKEDC sandbox, one meter ⬜
-Real vend and funding adapters behind the same interfaces.
-**Exit:** a week of sandbox tokens with clean reconciliation; multi-token case exercised if the sandbox supports it.
+### 7. API: app, WhatsApp, SMS, webhooks ⬜
+`apps/api`: app endpoints (readings in, lines, wallet), WhatsApp and SMS commands (STOP, START, LOW, SKIP, BALANCE, DONE), funding and vend webhooks, receipt page.
+`packages/copy`: English, then Pidgin.
 
-### 8. Reconciliation and kill switch ⬜
-Nightly and on-demand; mismatch sets `vending_enabled=false`; ops clearing is logged.
-**Exit:** injected mismatch stops every buy within one scan.
+### 8. Light in the app ⬜
+Meter onboarding (IKEDC), photo reading read on the phone, typed reading, forecast and ask-when-near prompts, buy on reading, spare token, optional buy-early, calendar and alert modes, token delivery with DONE.
+**Exit:** in the 10 concierge homes, no surprise outage with the spare-token mode on.
 
-### 9. Pilot: one owner, two real meters, a human watching ⬜
-**Exit:** two weeks, zero unexplained ledger lines, every token delivered, owner renews funding without being asked.
+### 9. Reconciliation and kill switch ⬜
+Nightly and on demand; a mismatch turns off all buying; ops clearing is logged.
+
+### 10. Real partners, one line each ⬜
+VTpass sandbox, then live, for one data line, one airtime line and one meter. Paystack virtual accounts.
+**Exit:** a week of clean reconciliation.
+
+### Later (ROADMAP Phases 3–5)
+Remote and family lines, iPhone, TV renewals, grid-aware forecast, Constant Eye hardware, AI and other subscriptions on merchant-locked cards, DisCo and network partnerships, new countries. Not started until the gates in ROADMAP are met.
 
 ### Not scheduled
-Soroban mandate (D-011). It needs a customer, partner or auditor reason first.
+Soroban mandate (D-011).
 
-## Acceptance (end of step 6, all on fakes)
-
-- Seed a schedule site: Monday, ₦15,000, balance ₦50,000, min gap 20h. Send nothing. When due: one token stored, balance ₦35,000.
-- Scan again immediately: no second vend.
-- A silent week: next Monday still buys.
-- LOW inside the gap: no buy. LOW after the gap: one buy, next run moves forward past the gap.
-- SKIP then the due scan: no buy; the run after that buys.
-- STOP then a due scan: no buy.
-- Short balance: no vend, one notice, not a loop.
-- Alert site, send 10: owner notified, no order, no ledger vend.
-- Crash after `partner_ref` saved: one vend. Crash before: no second vend, `needs_human`.
-- Pending does not settle and does not refund.
-- Receipt URL has no 20-digit token.
-- No customer-facing string contains USDC, XLM, wallet, or a dollar amount.
-
-## Business track (start now, in parallel)
+## Business track (start now)
 
 | # | Task | Why | Output |
 |---|---|---|---|
-| B1 | Manual pilot with 10 owners for 4 weeks: you buy on their days and text the token. | Proves demand and the price before the code is finished. | Retention: how many funded a second time. |
-| B2 | Unit economics per vend: partner commission, funding inflow fee, SMS ×2, WhatsApp templates, support minutes. | Confirms ₦100 (D-020) covers cost. | A spreadsheet; keep or change the fee. |
-| B3 | Open accounts with VTpass (D-024) and Paystack (D-022); get written confirmation that prefunded balances are an accepted use. | Regulatory basis of the company. | Signed terms; sandbox keys. |
-| B4 | NDPC registration, privacy page, terms. | Legal to hold phone and meter data. | Published pages. |
-| B5 | Register the "Constant" SMS sender ID; WhatsApp Business verification; template approvals. | These take weeks and block step 4 going live. | Approved IDs and templates. |
-| B6 | ~~Pick the first segment~~ Decided: diaspora family houses in Lagos (D-021). Recruit the 10 pilot owners. | Different channels and funding needs. | 10 owners, IKEDC meters confirmed. |
-| B7 | Pidgin copy by a native speaker. | Reach at the site phone. | `packages/copy/pcm`. |
+| B1 | **Data sensor test** with 20 Android users across four networks (ROADMAP Phase 0). | Proves the core automation is accurate. | Accuracy table per network and phone model. |
+| B2 | **Unit economics**: VTpass discount per network for data and airtime, and per DisCo for electricity; funding inflow fees; SMS, push and WhatsApp costs. | Confirms D-031 pricing. | Spreadsheet; keep or change pricing. |
+| B3 | **Light concierge** with 10 homes: forecast-timed photo requests and the spare-token habit. | Proves "near-automatic" light. | Outages before vs after; keying time. |
+| B4 | Open VTpass and Paystack accounts; get written confirmation that a prefunded wallet for scheduled and threshold bill payment is an accepted use. | The legal basis of holding money. | Signed terms; sandbox keys. |
+| B5 | NDPC registration, privacy page, terms; Google Play data-safety form for usage access and USSD. | Required to launch the app. | Published pages; approved listing. |
+| B6 | SMS sender ID, WhatsApp Business verification, template approvals. | They take weeks. | Approvals. |
+| B7 | **Bundle stacking map**: which plans add to an active bundle on each network. | The autopilot must only buy plans that add. | A table in `docs/SENSING.md`. |
+| B8 | Start conversations with IKEDC and one meter maker about smart-meter balance and remote loading. | Phase 5 takes 12+ months to arrange. | A named contact and a written next step. |
 
-## Not in v1
-
-Meter reading or OCR. Buying because nobody replied. Data, airtime, TV. Card payments. Mobile app, web dashboard, wallet, chain picker. Any second chain or bridge. Paying a meter number read from a message. Holding customer money in a personal account. Subscription billing. Diaspora payouts. An LLM on the money path. Auto-tuning the schedule. A second DisCo before step 7 has run clean for a week.
-
-## Why no mobile app (D-027)
-
-Everything the product needs already works without one:
-
-- **The site phone must be SMS anyway.** The person keying in the token may have a basic phone, no data, or a shared handset. An app cannot replace that step.
-- **The owner acts a few times a month.** Set once, fund occasionally, sometimes LOW, SKIP or STOP. WhatsApp handles that with nothing to install, on any phone, from any country.
-- **An app costs more than it returns at this stage:** two platforms, store review, updates, push setup, login and account recovery, device security, and install drop-off, often worse for data-conscious users. It would take months that belong to the money path and the pilot.
-- **Trust comes from the token arriving,** not from a screen. A new fintech app asking for money is a harder "yes" than a WhatsApp chat that just works.
-
-What would change this, in order:
-
-1. Owners ask to see history across sites (more than 1 in 5 pilot owners asks unprompted) → a **read-only web page** opened from a one-time WhatsApp link. No password, no install.
-2. Landlords or employers with 10+ meters need to manage them in bulk → the same web page gets edit actions, still behind WhatsApp login.
-3. A native app only if a feature needs the phone itself (e.g. contacts-free sharing, offline token wallet for the site phone) and the web page has proven demand.
-
-## Decisions taken (were open questions)
+## Decisions in force
 
 | Question | Decision | Record |
 |---|---|---|
-| Fee model | ₦100 per token delivered, from the site balance; alert mode free | D-020 |
-| First segment | Diaspora owners paying for a family house in Lagos (IKEDC) | D-021, `docs/GO_TO_MARKET.md` |
-| Funding partner | Paystack Dedicated Virtual Accounts, Monnify fallback, conditional on written confirmation (B3) | D-022 |
-| Vend partner | VTpass (sandbox and pilot), BuyPower second | D-024 |
+| What Constant is | Prepaid autopilot: data, airtime, electricity first | D-028 |
+| App | Android app required (sensor); iPhone later; WhatsApp and SMS stay | D-029 (supersedes D-027) |
+| First users | Lagos Android users with data plans and a prepaid meter | D-030 (supersedes D-021) |
+| Pricing | Data and airtime at face value; ₦100 per electricity token; Plus later | D-031, D-020 |
+| What triggers a buy | Trusted reading at the line; data never on forecast; silence never | D-032 |
+| Electricity buffer | Optional spare token | D-033 |
+| Forecasting | Plain statistics, bounded, tested; no LLM | D-034 |
+| AI and other subscriptions | Phase 4, merchant-locked virtual cards, conditional | D-035 |
+| Hardware | Phase 4, rented, after a retention signal | D-036 |
+| Funding partner | Paystack virtual accounts, Monnify fallback | D-022 |
+| Vend partner | VTpass (data, airtime, electricity), BuyPower second | D-024 |
 | SMS | Termii, Africa's Talking failover | D-025 |
-| Site phone LOW by default | Yes, owner told every time, switchable | D-023 |
-| Hosting | Managed PaaS, Frankfurt, PITR; revisit at 1,000 sites | D-026 |
-| Mobile app | No | D-027 |
+| Hosting | Managed PaaS, Frankfurt, PITR | D-026 |
+
+## Not now
+
+Buying data on a forecast. Reading SMS, contacts or per-app usage. Wiring into or touching DisCo meters. Card payments into the wallet. A web dashboard. Any chain. An LLM on the money path. Hardware before the light product retains. Subscriptions before a stable card-issuing partner.

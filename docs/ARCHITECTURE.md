@@ -192,3 +192,13 @@ Page a human when: any `needs_human`, any `vending` older than 60 minutes, `vend
 ## What is deliberately absent
 
 No web dashboard, no mobile app, no card payments, no meter reading, no LLM, no chain in the money path. See `PLAN.md` "Not in v1".
+
+## Next shape: lines, readings, the app (D-028 to D-037)
+
+The design above was written for electricity sites on a calendar. The prepaid autopilot keeps every safety mechanism and generalises three things:
+
+- **`sites` becomes `lines`.** A line is one thing that can run out: `data`, `airtime`, `electricity`, later `tv` and `subscription`. Each line has a product, a payee fixed at creation (MSISDN, meter, smartcard), threshold, amount, caps, minimum gap, status, and an optional spare-token mode.
+- **`readings`** (line_id, source, value, unit, at, device_id). Sources: `ussd`, `usage_counter`, `typed`, `photo`, `device`, `utility_api`, `forecast`. Append-only. The threshold scan reads the latest trusted reading and calls the refill rule (SENSING "How readings feed the rules").
+- **`apps/android`** posts readings to the API: usage-counter deltas, parsed USSD balances, photo-derived meter readings. It never decides a buy. Device keys are bound to the owner's phone number at sign-in, and readings are accepted only for lines that device is registered to.
+
+The vend path, ledger, idempotency, one-open-order rule, reconciliation and kill switch are unchanged. Data and airtime vends have no token to store: they settle on the partner's confirmation that the SIM was credited.

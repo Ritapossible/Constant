@@ -108,5 +108,50 @@ A managed PaaS (Render, Frankfurt region) running `api`, `worker` and managed Po
 - NDPA: the privacy notice states the cross-border transfer and its basis (consent and contract). Data held: phone, meter (encrypted), transactions.
 - **Revisit** before 1,000 paying sites, or earlier if a funding or vend partner requires in-country or in-Africa hosting. The next step then is AWS af-south-1 or a Nigerian data centre.
 
-### D-027 No mobile app
+### D-027 No mobile app — *superseded by D-029*
 Not in v1, and not as the next thing after v1. See PLAN "Why no app". The first owner-facing screen, when evidence asks for one, is a read-only web page reached by a one-time WhatsApp link, not a store app.
+
+---
+
+## Scope change: from "electricity calendar" to "prepaid autopilot" (2026-10-06)
+
+The founder's real problem is running out without knowing: data mid-call, the meter at night. The calendar product only treated the symptom. These decisions follow from that. Details in `docs/PRODUCT.md`, `docs/SENSING.md`, `docs/ROADMAP.md`.
+
+### D-028 Constant is a prepaid autopilot: data, airtime and electricity first
+*Supersedes the "electricity only" line of the spec.* Data and airtime come first because they are fully automatable today: the phone measures usage and the network credits the bundle directly. Electricity follows on the same wallet, ledger and rules. TV, subscriptions and hardware are later phases.
+
+### D-029 An Android app is required — *supersedes D-027*
+D-027 said no app because WhatsApp could do everything the calendar product needed. Measuring data cannot be done from WhatsApp: only an app on the phone can read the phone's data usage and run a USSD balance check. Android first (most Nigerian phones). iPhone later, with fewer automatic features, because iOS allows neither. WhatsApp and SMS stay for receipts, commands and people without the app.
+- Permissions: usage access (total mobile bytes only) and phone (USSD). Never SMS, contacts or per-app usage. Each permission is explained in one sentence before it is asked for.
+- Native Kotlin for the sensor parts (usage stats, USSD, background work), because cross-platform frameworks wrap these poorly. The screens can be native too; one platform at a time.
+
+### D-030 First users: people like the founder — *supersedes D-021 as first segment*
+Urban Android users in Lagos with a data plan and a prepaid meter at home. They have both problems every week, and their own phone is the sensor. Diaspora owners and landlords stay as the Phase 3 "remote lines" segment.
+
+### D-031 Pricing by product — *amends D-020*
+- **Data and airtime:** sold at face value. Constant earns the partner's discount. A ₦100 fee on a ₦1,000 bundle would be 10%, which nobody accepts.
+- **Electricity:** ₦100 per token delivered stays (D-020).
+- **Later, Constant Plus (monthly):** family lines, spare-token float, Constant Eye rental, subscriptions. Not before Phase 3.
+- Confirm partner discounts per network in PLAN B2 before launch; if the discount on data is too thin, revisit.
+
+### D-032 What can trigger an automatic buy
+A buy is triggered by a reading at or below the owner's line, from a source listed in `docs/SENSING.md` "How readings feed the rules":
+- Data is only bought on a measured balance: USSD, or the usage counter with a USSD calibration under 24 hours old. Never on a forecast, because bundles expire.
+- Electricity may also buy on the pessimistic forecast, only if the owner opts in, because units don't expire and early costs little while late means darkness.
+- Silence never buys. Invariant 3 now reads: silence alone never creates a buy.
+- All caps, the minimum gap, freeze, balance and one-open-order checks apply to every trigger.
+
+### D-033 "Always one token ahead" for electricity
+An optional mode that keeps one unkeyed token on the household's phone. When it is marked used, or a reading shows it was keyed, the next spare is bought. It covers forecast error without any hardware. It ties up one token's worth of the customer's money, and the app says so.
+
+### D-034 Forecasts are plain statistics, not an LLM
+Usage rates come from purchases and readings, with a confidence range. They decide when to ask for a reading, and (opt-in, electricity only) when to buy early. They live in `packages/rules` as pure functions with tests. Invariant: a forecast never raises a cap or an amount.
+
+### D-035 Subscriptions, including AI tools, are Phase 4 and conditional
+Naira-funded virtual cards, one per subscription, locked to one merchant and capped at its price. They need a stable licensed issuer, FX disclosure, chargeback handling, and confirmation from the issuer and each merchant's terms. This is the only product where a dollar price is shown, next to the naira charged. Until then, AI-tool renewals are out of scope.
+
+### D-036 Hardware (Constant Eye) is Phase 4, after a software retention signal
+Pulse reader, clamp, or beep detector, rented monthly, never wired into DisCo equipment. Built only once the software-only light product shows that homes keep using it.
+
+### D-037 "Site" becomes "line" in the data model
+A line is one thing that can run out: a SIM's data, a SIM's airtime, a meter, a TV decoder. Each line has an owner, an optional person at the other end, a product, a threshold, an amount, caps, a status, and readings. The electricity rules written in Phase 1 (`decideSchedule`) become one strategy among several; caps, gap, freeze and the ledger are shared.

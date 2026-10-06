@@ -34,3 +34,15 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 23 | Every owner notice is sent at most once per (site, notice, slot). | `noticeKey`; stops the "notify every minute" loop. |
 | 24 | A token SMS fits in one GSM-7 segment. | Cost and delivery on basic phones (D-019). copy: **pending** |
 | 25 | The balance covers amount + fee before a buy; the fee never counts against the weekly cap; a negative fee never buys. | Fee is revenue, not a way to overspend or block a chosen day (D-020). rules: INV-25 |
+
+## Prepaid autopilot (D-028 to D-037) — all pending, PLAN step 2
+
+| # | Invariant |
+|---|---|
+| 26 | Only a reading from a trusted source at or below the line triggers a threshold buy (SENSING table). |
+| 27 | Data is never bought on a forecast; a data usage-counter reading needs a USSD calibration under 24h. |
+| 28 | Electricity buys on a forecast only when the owner opted in, and only on the pessimistic bound. |
+| 29 | A forecast never raises an amount, a cap or a threshold. |
+| 30 | At most one spare token outstanding per meter; the next is bought only after the spare is marked used or a reading shows it keyed. |
+| 31 | A reading from the app is accepted only for a line that phone is registered to; a reading never changes the payee. |
+| 32 | Every number shown to a customer is labelled measured or estimated. |

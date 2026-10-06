@@ -1,3 +1,37 @@
+# Go to market
+
+> Updated for D-028 to D-031. The diaspora pilot below is now the Phase 3 "remote lines" segment.
+
+## First users (D-030)
+
+Lagos Android users with a data plan and a prepaid meter at home: young professionals, students, small business owners. They run out of data mid-call and lose light without warning, every week.
+
+## Promise
+
+"Never run out mid-call. Never come home to a dead meter."
+
+## Price (D-031)
+
+Data and airtime at the same price as buying them directly; Constant earns the partner discount. ₦100 per electricity token delivered. A monthly Plus plan later.
+
+## How they pay
+
+A bank transfer into their own Constant account number, from any bank app.
+
+## Where we find them
+
+1. The founder's own circle, then campus and workplace WhatsApp groups: the Phase 0 testers.
+2. The moment of pain: "Your data ran out mid-call? Constant tops up before it happens." Short videos on X, TikTok and Instagram showing the warning and the automatic top-up.
+3. Referral: invite a friend, both get free data on the first top-up.
+4. Family: "Add Mum's line" brings in the next household, and the diaspora segment after it.
+
+## Measures
+
+- Data: share of active users who ran out while autopilot was on (target: under 1 in 200 sessions); weekly active users; wallet top-ups per user per month.
+- Light: surprise outages before vs after; readings sent when asked; spare tokens keyed within an hour.
+
+---
+
 # Go to market (pilot)
 
 Decisions D-020 to D-027 in one page.
