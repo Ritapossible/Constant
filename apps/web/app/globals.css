@@ -1869,3 +1869,20 @@ button {
     transform: none;
   }
 }
+
+/* ── Simple pages (privacy) ──────────────────────────────── */
+
+.prose h2 {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  margin: 36px 0 8px;
+}
+.prose p {
+  margin: 0 0 12px;
+  color: var(--ink-2);
+  font-size: 17px;
+}
+.prose a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

@@ -7,7 +7,7 @@ const STEPS = [
   { title: "Add money", text: "Bank transfer in naira, or stablecoins on Base and Arc. It sits in pots, one for each bill.", tags: ["Bank", "Stables"] },
   { title: "Pick what to keep paid", text: "Data, light, DSTV, ChatGPT. Add the number, meter or decoder once.", tags: ["Data", "Light", "TV", "AI"] },
   { title: "Set your limits", text: "How much, how often, and a cap it can never pass. Change or pause any time.", tags: ["Cap", "Pause"] },
-  { title: "Constant watches", text: "It tracks usage and renewal dates, and warns you before anything runs low.", tags: ["Forecast", "Remind"] },
+  { title: "Constant keeps watch", text: "It checks your data balance, asks for a meter photo when it matters, renews on the date, and warns you before anything runs low.", tags: ["Check", "Remind"] },
   { title: "Paid, and sent to you", text: "Bundles land on your SIM. Tokens and receipts arrive where you chose.", tags: ["WhatsApp", "Telegram", "SMS", "Email"] },
 ];
 

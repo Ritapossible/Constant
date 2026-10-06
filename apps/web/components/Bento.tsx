@@ -188,7 +188,7 @@ function PotsCard() {
     { n: "Light", v: 0.72, a: "₦20,000" },
     { n: "DSTV", v: 0.55, a: "₦15,700" },
     { n: "Data", v: 0.38, a: "₦9,000" },
-    { n: "ChatGPT", v: 0.2, a: "₦3,500" },
+    { n: "ChatGPT", v: 0.2, a: "$20 / mo" },
   ];
   return (
     <article className="card card-dark span-2" ref={ref}>
@@ -267,7 +267,7 @@ function FundCard() {
       <div className="card-head">
         <span className="card-tag">Add money</span>
         <h3 className="h3">Naira at home. Stables from anywhere.</h3>
-        <p>Send a bank transfer, or fund it with stablecoins on Base or Arc. Family abroad can keep home covered.</p>
+        <p>Send a bank transfer, or USDC and USDT on Base, or USDC on Arc. Family abroad can keep home covered.</p>
       </div>
       <div className="card-visual subs" aria-hidden="true">
         <div className="sub">
@@ -286,7 +286,7 @@ function FundCard() {
             </span>
             Stablecoins
           </span>
-          <span className="sub-meta">Base · Arc</span>
+          <span className="sub-meta">USDC · USDT</span>
         </div>
       </div>
     </article>

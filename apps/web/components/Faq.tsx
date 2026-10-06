@@ -10,12 +10,16 @@ const QA = [
     a: "An account that pays the things you keep re-buying (data, airtime, electricity, cable TV and subscriptions) automatically, from money you set aside.",
   },
   {
-    q: "How does it know I'm running low?",
-    a: "Data: the Constant app measures what your phone uses and checks your balance with your network. Light: from the units you bought and a quick meter reading when needed. Cable and subscriptions: their renewal dates.",
+    q: "Can I use it today?",
+    a: "Constant is in early access, starting in Nigeria. Join the list and we'll message you when your spot opens.",
   },
   {
     q: "Do I still type in my electricity token?",
     a: "For most meters, yes. Constant sends the token the moment it's bought, on WhatsApp, Telegram, SMS or email, and can keep a spare one ready.",
+  },
+  {
+    q: "How does it know I'm running low?",
+    a: "Data: the Constant app measures what your phone uses and checks your balance with your network. Light: from the units you bought and a quick meter reading when needed. Cable and subscriptions: their renewal dates.",
   },
   {
     q: "Can it spend more than I want?",
@@ -23,11 +27,7 @@ const QA = [
   },
   {
     q: "How do I add money?",
-    a: "A bank transfer in naira, or stablecoins on Base and Arc from anywhere.",
-  },
-  {
-    q: "Can I use it today?",
-    a: "Constant is in early access, starting in Nigeria. Join the list and we'll message you when your spot opens.",
+    a: "A bank transfer in naira, or stablecoins from anywhere: USDC or USDT on Base, or USDC on Arc.",
   },
 ];
 
