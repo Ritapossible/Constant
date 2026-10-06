@@ -159,6 +159,8 @@ interface Funding {
 interface Messaging {
   sendSms(toE164, text): Promise<{ providerId }>
   sendWhatsApp(toE164, templateOrText): Promise<{ providerId }>
+  sendTelegram(chatId, text, opts?: { copyButton?: boolean }): Promise<{ providerId }>   // D-054
+  sendEmail(to, subject, html, attachments?): Promise<{ providerId }>                  // token never in subject
 }
 
 interface Attestor { /* D-011: declared, not implemented */ }

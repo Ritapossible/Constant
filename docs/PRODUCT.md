@@ -114,6 +114,10 @@ ChatGPT, Claude, Gemini, music and streaming renew every month without you doing
 
 Mum's data, the family house meter, the shop's DSTV: same engine, a different person at the other end. If they install the app, their phone is the sensor. If not, they get timed refills, LOW by SMS or WhatsApp, and tokens by SMS. Diaspora families and landlords live here.
 
+## How tokens and messages reach you
+
+You choose: **WhatsApp, Telegram, SMS or email**, in your order of preference, and the person at the meter can have their own choice. If the first channel fails, Constant tries the next, and SMS is always the last resort for a token. Every resend is the same token, never a new purchase. Details: `docs/DELIVERY.md` (D-054).
+
 ## Who it's for first
 
 Urban Nigerians with an Android phone, a data plan, a decoder and a prepaid meter at home. Data, airtime and cable work nationwide from day one. Electricity opens DisCo by DisCo (D-038).

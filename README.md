@@ -24,6 +24,7 @@ First market: Nigeria. Data and airtime nationwide; electricity opens DisCo by D
 | [`docs/IDEAS.md`](docs/IDEAS.md) | Ideas to make the business stronger, scored by effort, risk and phase. |
 | [`docs/RAILS.md`](docs/RAILS.md) | How money moves: naira, and USDC/USDT on Base, Arc and Stellar, with sources. |
 | [`docs/REVIEW-2026-10-06.md`](docs/REVIEW-2026-10-06.md) | What we took from external advice, and why. |
+| [`docs/DELIVERY.md`](docs/DELIVERY.md) | How tokens and messages reach people: WhatsApp, Telegram, SMS or email. |
 | [`docs/SENSING.md`](docs/SENSING.md) | Every way to know what's left, how good it is, and when we can use it. |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phases 0–5 with gates, including hardware and partnerships. |
 | [`PLAN.md`](PLAN.md) | Next build steps, exit tests, business track. |

@@ -45,6 +45,7 @@ Sign-in by phone number (OTP), account funding details, pots, covered-until scre
 
 ### 7. API: app, WhatsApp, SMS, webhooks ⬜
 `apps/api`: app endpoints (readings in, lines, wallet), WhatsApp and SMS commands (STOP, START, LOW, SKIP, BALANCE, DONE), funding and vend webhooks, receipt page.
+Also (D-054, `docs/DELIVERY.md`): Telegram bot (webhook with secret token, one-time-code linking, same commands plus TOKEN), email delivery and PDF receipts, per-person channel choice, and the fallback rule `nextDeliveryStep`.
 `packages/copy`: English, then Pidgin.
 
 ### 8. Light in the app ⬜
@@ -80,6 +81,7 @@ Soroban mandate (D-011). Money rails for Base, Arc and Stellar are designed in `
 | B11 | **Embedded wallet on Android**: confirm which CDP Embedded Wallets SDKs exist for mobile; decide native Kotlin + web view, or React Native with Kotlin sensor modules. | Decides the app stack for the dollar path (RAILS). | A one-page decision. |
 | B12 | **Crypto legal opinion**: stablecoin deposits and off-ramp for Nigerian users (ISA 2025, SEC Nigeria digital-asset rules); Paycrest's licence and KYC split in writing. | Required before any dollar goes live. | Written opinion. |
 | B13 | **CIU balance-code guide**: record the balance code and screen for each keypad brand seen in the pilot homes. | Tells households what to photograph (D-047). | A verified table. |
+| B14 | **Delivery set-up**: Telegram bot name and handle ("Constant"), WhatsApp templates (`token_ready`, `renewed`, `running_low`, `wallet_short`), email domain with SPF/DKIM/DMARC and a transactional email provider. | Every channel works on day one. | Bot live, templates approved, domain verified. |
 | B10 | **DisCo gate runs**: sandbox lookups and test vends for EKEDC, EEDC and AEDC. | Wave-1 coverage. | A filled gate checklist per DisCo. |
 
 ## Decisions in force
@@ -100,6 +102,7 @@ Soroban mandate (D-011). Money rails for Base, Arc and Stellar are designed in `
 | Data reality | Unknown is never low; main balance only; SIM chosen; stacking known; estimate buys opt-in | D-045, D-046 |
 | Light reality | Read the indoor keypad; forecast per grid hour with one-tap supply; confidence levels; spare timing | D-047 to D-049 |
 | Pilot homes and marketing | Pilot homes where the founder can visit them; "withdraw any time" marketed only after the partner's letter | D-050 |
+| Delivery | User picks WhatsApp, Telegram, SMS or email; fallback ends in SMS; same stored token every time | D-054, `docs/DELIVERY.md` |
 | Money rails | Naira via Paystack; dollars on Base (OTP embedded wallet, spend permission per line, Paycrest off-ramp); Arc treasury; Stellar later; no Agent Stack | D-051 to D-053, `docs/RAILS.md` |
 | Forecasting | Plain statistics, bounded, tested; no LLM | D-034 |
 | AI and other subscriptions | Monthly auto-renewal on merchant-locked cards; Phase 3 if a card issuer is signed | D-039 (amends D-035) |

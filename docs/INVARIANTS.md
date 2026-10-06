@@ -60,3 +60,6 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 44 | A spare token is bought only when the cautious run-out is within the lead time, never while one is waiting; an old spare triggers a reminder, not a second spare. | rules: INV-44 |
 | 45 | Dollar path: the on-chain charge is confirmed before the vend; a charge never exceeds the user's signed allowance; a quote above it asks the user. | pending (RAILS) |
 | 46 | Dollar deposits are credited only for the listed USDC and USDT contracts on Base (and USDC on Arc via CCTP); anything else is quarantined for manual review. | pending (RAILS) |
+| 47 | A token goes first to the user's chosen, linked channel. | rules: INV-47 |
+| 48 | If it fails or isn't confirmed in time, the next channel is tried, ending in SMS; every attempt resends the same stored token, and delivery never buys again. | rules: INV-48 |
+| 49 | Delivery never retries the same channel in a loop; when all channels fail, the owner and support are told. | rules: INV-49 (property) |

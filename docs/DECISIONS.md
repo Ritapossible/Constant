@@ -251,3 +251,11 @@ Those are for AI agents paying for services. Constant is a person approving a ca
 
 ### D-053 Chain words appear only where the user is handling dollars — *amends CLAUDE.md rule 10*
 "USDC", "USDT", "Base" and an address appear only on the Add dollars and Withdraw dollars screens, and in dollar receipts for that user. Never in SMS, never to the person at the premises, never to naira-only users.
+
+### D-054 Deliver tokens and messages on the user's chosen channel: WhatsApp, Telegram, SMS or email
+Each person picks and orders their channels.
+- A token is sent on the first linked channel. If it fails, or isn't confirmed within 5 minutes, the next one is tried. SMS is always the last resort for a token.
+- Every attempt resends the same stored token. Delivery never buys again.
+- Telegram is linked only by a one-time code from the app, because Telegram doesn't share phone numbers.
+- Email never carries the token in its subject.
+- Rule: `nextDeliveryStep` in `packages/rules/src/delivery.ts`. Details: `docs/DELIVERY.md`.

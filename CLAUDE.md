@@ -11,6 +11,7 @@ Read this first. It is the short version of everything an engineer or coding age
 - **Cable TV:** DSTV, GOtv, StarTimes renew before expiry (D-041, Phase 1).
 - **Subscriptions:** AI tools and others renew monthly on merchant-locked cards (D-039).
 - **Money rails:** naira by bank transfer; dollars as USDC/USDT on Base in the user's own smart account, charged per line through a capped spend permission, off-ramped via Paycrest; Arc treasury; Stellar later. No Agent Stack (D-051 to D-053, `docs/RAILS.md`).
+- **Delivery:** tokens and messages on each person's chosen channel: WhatsApp, Telegram, SMS or email, with fallback ending in SMS and the same stored token every time (D-054, `docs/DELIVERY.md`).
 - **Running-low reminders:** probability of running out in 48h, and wallet runway (D-042, D-043; `packages/rules/src/forecast.ts`).
 - **Later:** family and remote lines, Constant Eye hardware, DisCo and network partnerships.
 
@@ -44,7 +45,7 @@ packages/db         Postgres 16 schema, migrations, ledger and order repositorie
 packages/partners   Vending, Funding, Messaging interfaces; Fake + one real each    (not started)
 packages/copy       Every customer-facing string, per locale                        (not started)
 contracts/mandate   Soroban mandate. Not scheduled. See DECISIONS D-011.
-docs/               PRODUCT, IDEAS, SENSING, RAILS, ROADMAP, REVIEW-2026-10-06, SPEC (v1), ARCHITECTURE, INVARIANTS, DECISIONS,
+docs/               PRODUCT, IDEAS, SENSING, RAILS, DELIVERY, ROADMAP, REVIEW-2026-10-06, SPEC (v1), ARCHITECTURE, INVARIANTS, DECISIONS,
                     UX, EXPANSION, OPERATIONS, GO_TO_MARKET
 ```
 
