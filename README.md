@@ -49,3 +49,9 @@ pnpm check         # typecheck + tests
 ## Status
 
 Step 1 of `PLAN.md` is done: `packages/rules` and its invariant tests for electricity. Next: rules for lines and thresholds, and the Android data-sensor spike.
+
+## Team
+
+| | |
+|---|---|
+| Founder | [@Ritapossible](https://github.com/Ritapossible) |
