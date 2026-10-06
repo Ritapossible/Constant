@@ -208,3 +208,49 @@ For every line, `packages/rules/src/forecast.ts` computes the probability of run
 
 ### D-044 Ideas backlog lives in `docs/IDEAS.md`
 Ideas are scored by effort, risk and phase. They enter PLAN only when their phase arrives and their evidence exists. This stops scope creep while keeping good ideas visible.
+
+## Field realities and money rails (2026-10-06, after review in `docs/REVIEW-2026-10-06.md`)
+
+### D-045 Data: unknown is never low — *amends D-032 and INV-27*
+USSD often answers with a menu or "you will receive an SMS". Android's `sendUssdRequest` gets one reply only. So:
+- A failed, menu or SMS-deferred reply never updates the balance and never triggers a buy.
+- Network parsers extract the **main** data balance only. Night, social and app-only bundles are excluded.
+- The user picks the SIM on dual-SIM phones.
+- Auto-buy only plans known to add to an active bundle (stacking map, PLAN B7). Otherwise ask.
+- Buy automatically on a network reading under 24 hours old. On the phone's count alone, buy only if the owner opted in, and label it estimated. Otherwise ask with one tap. (`decideDataRefill`)
+
+### D-046 Data calibration without reading SMS
+When a network won't return the balance in one USSD reply: the user can **share** the network's balance SMS to Constant from their SMS app (Android share sheet; no SMS permission), share a **screenshot** of the network's own app (read on the phone), or **type** it. Each counts as a calibration with its source recorded.
+
+### D-047 Light: read the indoor keypad (CIU)
+Most prepaid meters in Nigerian homes are split: the measuring unit is outside, the keypad with the balance is inside. Onboarding asks for the meter brand. The app shows that brand's balance code from a guide kept as data. Codes are added only after they are seen working in the pilot, never guessed. A photo whose number looks like a meter number (11–13 digits) is rejected.
+
+### D-048 Light forecasts count grid hours, and say how sure they are
+- Usage is measured per hour of grid supply, from units on vend receipts (after any debt deduction) and readings.
+- Expected supply starts from the meter's NERC band minimum (A 20h, B 16h, C 12h, D 8h, E 4h). It is replaced by the household's one-tap answer: "Was there light yesterday: morning, afternoon, night?"
+- Confidence: under 2 readings say "still learning"; under 4 readings or 7 days say "about Thursday, from 3 readings" with no percentage; after that, the probability may be shown. (`lightForecastMode`, `unitsPerSupplyHour`, `expectedSupplyHoursPerDay`, `daysOfLightLeft`)
+
+### D-049 Spare token timing
+Buy the spare when the cautious run-out is 3 days or less away. Only one at a time. No buy-early while a spare waits. Remind the household to key it in after 14 days, because old tokens can be rejected after key changes and meters can refuse credit above their maximum. (`decideSpareToken`)
+
+### D-050 Focus and order
+Order: sensor probe app (no money) → cable + data → light concierge, then light in the app.
+- Light stays central; its concierge runs alongside Phase 1, not after it.
+- The pilot DisCo is wherever the founder can visit homes. Other DisCos stay as rows, switched off.
+- Subscriptions are shown as "coming" until a card issuer signs.
+- "Withdraw any time" is not marketed until the funding partner's letter is signed (B4).
+
+### D-051 Money rails: Base for users, Arc for treasury, Stellar later — *amends D-011*
+Full design and sources in `docs/RAILS.md`.
+- **Accounts:** phone/email OTP via CDP Embedded Wallets, an ERC-4337 smart account on Base, gas sponsored.
+- **Dollar deposits:** USDC or USDT on Base only.
+- **Automatic charging:** a spend permission per line, at most a stated dollar amount per period. Charge on chain first, vend from a prefunded naira float, off-ramp via Paycrest on Base to replenish.
+- **Arc:** treasury and settlement. USDC-only deposits for Arc holders, bridged with CCTP.
+- **Stellar (Phase 3):** an optional Soroban cap and audit trail per line, plus Stellar USDC deposits via CCTP, fully sponsored.
+- **The naira path is unchanged.**
+
+### D-052 No Circle Agent Stack, no x402
+Those are for AI agents paying for services. Constant is a person approving a capped bill, and no model is on the money path.
+
+### D-053 Chain words appear only where the user is handling dollars — *amends CLAUDE.md rule 10*
+"USDC", "USDT", "Base" and an address appear only on the Add dollars and Withdraw dollars screens, and in dollar receipts for that user. Never in SMS, never to the person at the premises, never to naira-only users.

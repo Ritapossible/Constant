@@ -14,8 +14,12 @@ Each step ends with its exit test passing in CI. No real money moves until the m
 `packages/rules`: `decideSchedule`, `scanAction`, `decideAlert`, `parseUnits`, commands, order state machine, funding, price check, reconciliation, idempotency keys, time zones, per-buy fee.
 **Exit:** every rules-level invariant has a passing test, including property tests on money. *127 tests passing.*
 
+### 1b. Sensor probe app — FIRST, before any money ⬜
+A throwaway Android screen, no payments: for the chosen SIM it shows the phone's mobile-byte count next to the raw USSD reply, and lets the tester share the network's balance SMS or a screenshot into the app (D-046). Every raw reply is uploaded and stored as a test fixture for the network parsers.
+**Exit (Phase 0 gate):** 20 phones (Tecno, Infinix, Itel, Samsung), MTN, Airtel, Glo, 9mobile, two weeks; estimate within 10% of the network on 9 of 10 checks; a table of which codes return a balance in one reply. Alongside it: 10 homes in the light concierge with spare tokens and keypad photos.
+
 ### 2. Rules for lines, readings, thresholds, pots 🔜
-*Done so far:* `forecast.ts` (running-low probability, run-out window, reminder policy, wallet runway) and `decideWithdrawal`, with tests (D-040, D-042, D-043). *149 tests passing.*
+*Done so far:* `forecast.ts` (running-low probability, run-out window, reminders, wallet runway), `decideWithdrawal`, and `refill.ts` (`decideDataRefill`, light forecast confidence, supply-hour rates, `decideSpareToken`), with tests (D-040 to D-049). *173 tests passing.*
 
 Still to do:
 Generalise to lines (D-037) without weakening anything in step 1.
@@ -60,8 +64,8 @@ VTpass sandbox, then live, for one data line, one airtime line and one meter. Pa
 ### Later (ROADMAP Phases 3–5)
 Remote and family lines, iPhone, TV renewals, grid-aware forecast, Constant Eye hardware, AI and other subscriptions on merchant-locked cards, DisCo and network partnerships, new countries. Not started until the gates in ROADMAP are met.
 
-### Not scheduled
-Soroban mandate (D-011).
+### Later rails
+Arc treasury when volume justifies it; Stellar cap and deposits in Phase 3 (D-051).
 
 ## Business track (start now)
 
@@ -76,6 +80,9 @@ Soroban mandate (D-011).
 | B7 | **Bundle stacking map**: which plans add to an active bundle on each network. | The autopilot must only buy plans that add. | A table in `docs/SENSING.md`. |
 | B8 | Start conversations with one wave-1 DisCo (IKEDC or EEDC) and one meter maker about smart-meter balance and remote loading. | Phase 5 takes 12+ months to arrange. | A named contact and a written next step. |
 | B9 | **Card-issuing partner** for subscriptions: shortlist licensed issuers, confirm merchant-locked single-use funding, FX rules, chargebacks. | Decides whether subscriptions ship in Phase 3. | Signed term sheet or a clear no. |
+| B11 | **Embedded wallet on Android**: confirm which CDP Embedded Wallets SDKs exist for mobile; decide native Kotlin + web view, or React Native with Kotlin sensor modules. | Decides the app stack for the dollar path (RAILS). | A one-page decision. |
+| B12 | **Crypto legal opinion**: stablecoin deposits and off-ramp for Nigerian users (ISA 2025, SEC Nigeria digital-asset rules); Paycrest's licence and KYC split in writing. | Required before any dollar goes live. | Written opinion. |
+| B13 | **CIU balance-code guide**: record the balance code and screen for each keypad brand seen in the pilot homes. | Tells households what to photograph (D-047). | A verified table. |
 | B10 | **DisCo gate runs**: sandbox lookups and test vends for EKEDC, EEDC and AEDC. | Wave-1 coverage. | A filled gate checklist per DisCo. |
 
 ## Decisions in force
@@ -93,6 +100,10 @@ Soroban mandate (D-011).
 | Cable TV | DSTV, GOtv, StarTimes renew before expiry; Phase 1 | D-041 |
 | Running low | Probability reminders (≥60%, 1/day/line, quiet hours) and wallet runway | D-042, D-043 |
 | Ideas backlog | `docs/IDEAS.md`, enters PLAN by phase | D-044 |
+| Data reality | Unknown is never low; main balance only; SIM chosen; stacking known; estimate buys opt-in | D-045, D-046 |
+| Light reality | Read the indoor keypad; forecast per grid hour with one-tap supply; confidence levels; spare timing | D-047 to D-049 |
+| Order | Probe → cable + data → light concierge → light in app; pilot DisCo where the founder can visit | D-050 |
+| Money rails | Naira via Paystack; dollars on Base (OTP embedded wallet, spend permission per line, Paycrest off-ramp); Arc treasury; Stellar later; no Agent Stack | D-051 to D-053, `docs/RAILS.md` |
 | Forecasting | Plain statistics, bounded, tested; no LLM | D-034 |
 | AI and other subscriptions | Monthly auto-renewal on merchant-locked cards; Phase 3 if a card issuer is signed | D-039 (amends D-035) |
 | Hardware | Phase 4, rented, after a retention signal | D-036 |

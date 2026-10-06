@@ -10,6 +10,7 @@ Read this first. It is the short version of everything an engineer or coding age
 - **Electricity:** we know the units we sold, learn the home's usage rate from meter readings, ask for a reading only when it matters, buy on a reading at the line, and can keep one spare token ahead. A person still keys the token in until smart-meter partnerships exist.
 - **Cable TV:** DSTV, GOtv, StarTimes renew before expiry (D-041, Phase 1).
 - **Subscriptions:** AI tools and others renew monthly on merchant-locked cards (D-039).
+- **Money rails:** naira by bank transfer; dollars as USDC/USDT on Base in the user's own smart account, charged per line through a capped spend permission, off-ramped via Paycrest; Arc treasury; Stellar later. No Agent Stack (D-051 to D-053, `docs/RAILS.md`).
 - **Running-low reminders:** probability of running out in 48h, and wallet runway (D-042, D-043; `packages/rules/src/forecast.ts`).
 - **Later:** family and remote lines, Constant Eye hardware, DisCo and network partnerships.
 
@@ -26,7 +27,7 @@ Company and sender name: **Constant**. First market: Nigeria, naira. Data nation
 7. **Persist before you act.** `partnerRef` before treating a vend as accepted. The token before any SMS. The raw inbound payload before routing.
 8. **Ambiguous means stop.** Unknown state, or ledger vs partner disagreement: `needs_human`, freeze that site (or kill vending globally on reconciliation mismatch), page a person. Never retry a vend to find out.
 9. **Tokens and meter numbers are secrets.** Never in a URL, a log line, an error message, an analytics event, or the receipt page. Log meter last 4 and a token hash.
-10. **Customers see local currency only.** Never: blockchain, crypto, wallet, seed, gas, USDC, XLM, Stellar, dollars. `scripts/guard.sh` enforces this on `packages/copy`. One exception: subscription screens show the merchant's dollar price next to the naira charged and the rate (D-039); that copy lives in its own allow-listed file when `packages/copy` is built.
+10. **Customers see local currency only.** Never: blockchain, crypto, wallet, seed, gas, USDC, XLM, Stellar, dollars. `scripts/guard.sh` enforces this on `packages/copy`. One exception: subscription screens show the merchant's dollar price next to the naira charged and the rate (D-039); that copy lives in its own allow-listed file when `packages/copy` is built. Chain words (USDC, USDT, Base, an address) appear only on the Add/Withdraw dollars screens and dollar receipts (D-053).
 11. **Silence never buys, and estimates are labelled.** Only a trusted reading at the owner's line triggers a buy (D-032). Data is never bought on a forecast. Electricity buys early on a forecast only if the owner opted in. A forecast never raises a cap or an amount.
 12. **Do not add product surface** that is not in `PLAN.md`. No web dashboard, no card funding, no chain, no hardware or subscriptions before their ROADMAP gate. Never hard-code a DisCo: utilities are rows with an enable flag (D-038).
 13. **Privacy on the phone.** The app reads total mobile bytes and USSD balance replies only. Never SMS, contacts, location or per-app usage. Meter photos are read on the phone; only the number leaves it.
@@ -43,7 +44,7 @@ packages/db         Postgres 16 schema, migrations, ledger and order repositorie
 packages/partners   Vending, Funding, Messaging interfaces; Fake + one real each    (not started)
 packages/copy       Every customer-facing string, per locale                        (not started)
 contracts/mandate   Soroban mandate. Not scheduled. See DECISIONS D-011.
-docs/               PRODUCT, IDEAS, SENSING, ROADMAP, SPEC (v1), ARCHITECTURE, INVARIANTS, DECISIONS,
+docs/               PRODUCT, IDEAS, SENSING, RAILS, ROADMAP, REVIEW-2026-10-06, SPEC (v1), ARCHITECTURE, INVARIANTS, DECISIONS,
                     UX, EXPANSION, OPERATIONS, GO_TO_MARKET
 ```
 
@@ -75,4 +76,4 @@ Android app is required (D-029, supersedes "no app"). First users: urban Android
 
 ## Where we are
 
-See `PLAN.md`. Step 1 (electricity rules + invariant tests) is done. Step 2 is under way (forecasts, reminders, wallet runway, withdrawal rules done; 149 tests). Next: the rest of step 2 (lines, readings, thresholds, pots), and step 5, the Android sensor spike, in parallel.
+See `PLAN.md`. Rules done so far: electricity calendar, forecasts and reminders, withdrawal, data refill, light confidence and supply hours, spare token (173 tests). **Next: step 1b, the sensor probe app (no money)**, then the rest of step 2.

@@ -9,7 +9,7 @@ Data finishes in the middle of a call. The meter at home finishes at night. Nobo
 - **Data and airtime:** the Android app measures what your phone has used and checks the network balance. At your line it buys your bundle, which lands on the SIM in seconds.
 - **Electricity:** Constant knows what it sold, learns how fast your home uses power, asks for a meter photo only when it matters, buys when the reading hits your line, and can keep a spare token ready.
 - **Cable TV:** DSTV, GOtv and StarTimes renew before they expire.
-- **Subscriptions:** AI tools like ChatGPT and Claude renew every month in naira.
+- **Subscriptions (coming):** AI tools like ChatGPT and Claude renewing every month, once our card partner is signed.
 - **Running-low reminders:** "70% chance your data runs out before tomorrow evening", and "your DSTV renewal is ₦2,300 short", days before it fails.
 - **Later:** family lines, a small meter sensor (Constant Eye), and direct links with DisCos and networks.
 
@@ -22,6 +22,8 @@ First market: Nigeria. Data and airtime nationwide; electricity opens DisCo by D
 | [`CLAUDE.md`](CLAUDE.md) | Project memory: the rules every engineer and coding agent follows. |
 | [`docs/PRODUCT.md`](docs/PRODUCT.md) | What Constant is, product by product. |
 | [`docs/IDEAS.md`](docs/IDEAS.md) | Ideas to make the business stronger, scored by effort, risk and phase. |
+| [`docs/RAILS.md`](docs/RAILS.md) | How money moves: naira, and USDC/USDT on Base, Arc and Stellar, with sources. |
+| [`docs/REVIEW-2026-10-06.md`](docs/REVIEW-2026-10-06.md) | What we took from external advice, and why. |
 | [`docs/SENSING.md`](docs/SENSING.md) | Every way to know what's left, how good it is, and when we can use it. |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phases 0–5 with gates, including hardware and partnerships. |
 | [`PLAN.md`](PLAN.md) | Next build steps, exit tests, business track. |
@@ -45,4 +47,4 @@ pnpm check         # typecheck + tests
 
 ## Status
 
-Step 1 of `PLAN.md` is done: `packages/rules` and its invariant tests for electricity. Next: rules for lines and thresholds, and the Android data-sensor spike.
+Step 1 of `PLAN.md` is done: `packages/rules` and its invariant tests for electricity. Next: the sensor probe app (no money) and the remaining rules.

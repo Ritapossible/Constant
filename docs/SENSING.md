@@ -11,7 +11,8 @@ The network knows the balance and credits a bundle straight to the SIM, so the a
 | # | Method | What it gives | Accuracy | Feasible | Notes |
 |---|---|---|---|---|---|
 | D1 | **On-phone usage counter** (Android `NetworkStatsManager`, user grants usage access) | Mobile bytes used by this phone, including hotspot, since any moment | High minute to minute; drifts from the network's count over days | ✅ | Total bytes only. Dual-SIM attribution varies by Android version; test on popular Tecno/Infinix/Itel/Samsung models. |
-| D2 | **USSD balance check from the app** (Android `sendUssdRequest`) | The network's own balance, per bundle | Exact when it parses | ✅ | Codes and reply formats differ by network and change. Keep parsers small and tested against recorded replies. Run a few times a day and after each purchase, not every minute. |
+| D2 | **USSD balance check from the app** (Android `sendUssdRequest`) | The network's own balance, **when the code answers in one reply** | Exact when it parses | 🟡 | `sendUssdRequest` gets one reply only: codes that answer with a menu or "you will receive an SMS" can't be used this way. Which codes work is measured in the probe (PLAN 1b). Parsers run on the server from raw replies, so they can be fixed without an app release. Main balance only (D-045). |
+| D2b | **Shared balance SMS or screenshot** | The network's balance, from its own SMS or app | Exact | ✅ | The user shares the SMS or a screenshot of MyMTN/MyAirtel into Constant (share sheet, no SMS permission); read on the phone (D-046). |
 | D3 | D1 + D2 together | Live estimate, recalibrated against the network | Within a few % between checks | ✅ | **The product.** Buy at a safety line (default 300 MB), never at zero. |
 | D4 | Purchase records | Size of each bundle we bought | Exact | ✅ | Gives the starting point after each refill. |
 | D5 | Network warning SMS ("You have used 80%…") | A threshold event | Exact | 🔴 | Reading SMS is restricted by Google Play policy for apps that aren't the default SMS app. Do not depend on it. |
@@ -30,12 +31,12 @@ A normal meter keeps its credit inside itself and does not report it. Tokens mus
 | # | Method | What it gives | Accuracy | Feasible | Notes |
 |---|---|---|---|---|---|
 | E1 | **Purchase records** | kWh units in every token we sold | Exact | ✅ | Starting point. |
-| E2 | **Typed reading** (SMS, WhatsApp, app) | Units left right now | Exact when sent | ✅ | Needs a person. |
+| E2 | **Typed reading** (SMS, WhatsApp, app) | Units left right now | Exact when sent | ✅ | Needs a person. Read it from the **indoor keypad (CIU)**, using the balance code for that brand (D-047). |
 | E3 | **Photo reading in the app** (text recognition on the phone) | Units left, from a photo of the display | High; confirm when unsure | ✅ | One tap instead of typing. The photo is read on the phone; only the number is sent. |
 | E4 | **Usage-rate forecast** from E1–E3 | "Runs out around Thursday evening" | Medium; weather, AC and visitors move it | ✅ | Plain statistics with a confidence range, per home. Decides *when to ask*, not whether to buy (except E5). |
 | E5 | **Buy early on forecast** (opt-in) | A buy when the pessimistic estimate reaches the line | Errs early by design | ✅ | Allowed for electricity only, because units don't expire. Weekly cap still applies. |
 | E6 | **Always one token ahead** (spare token) | A token waiting before the meter runs out | Not a sensor: a buffer | ✅ | Most meters beep or show a warning when low. The person keys the spare at once. Keeps the light on even when every estimate is wrong. Costs one token's worth of float. |
-| E7 | **Grid-supply-aware forecast** | Usage only counted for the hours the grid was on | Better than E4 where supply is patchy | 🟡 | Supply hours from the household's phones (charging starts and stops at home), the home router going offline, or our own device. Needs care and consent. Phase 3 experiment. |
+| E7 | **Grid-supply-aware forecast** | Usage counted per hour the grid was on | Much better than E4 | ✅ | **Now core, not an experiment** (D-048): NERC band as the starting assumption, replaced by a one-tap "was there light yesterday: morning / afternoon / night". Phone charging signals and Constant Eye come later. |
 | E8 | **Constant Eye: pulse reader** | Real-time kWh used | High (it counts the meter's own pulses) | 🟡 | Most keypad meters have an LED that flashes per unit used (marked e.g. "1600 imp/kWh"). A light sensor over it, plus a small board with a SIM or Wi-Fi and a battery, reports usage. Nothing is wired into the meter. Works only where the meter is reachable indoors. |
 | E9 | **Constant Eye: clamp sensor** at the house's fuse box | Real-time kWh used | Good (a few %) | 🟡 | For split meters, where the measuring unit is on the pole and only the keypad is indoors. Fitted by an electrician on the home's side of the meter, so it never touches DisCo equipment. |
 | E10 | **Low-beep detector** | An event: "meter is low" | Exact for the event | 🟡 | A tiny device that listens for the meter's low-credit alarm. Cheapest hardware; triggers a buy or a spare-token prompt. Worth a prototype. |
@@ -59,8 +60,8 @@ Every reading is stored with its **source** and **time**: `typed`, `photo`, `usa
 |---|---|
 | `ussd`, `utility_api`, `device` | Yes, at or below the line. |
 | `typed`, `photo` | Yes, at or below the line (the person is the sensor). |
-| `usage_counter` (data) | Yes, only if the last `ussd` calibration is recent (default under 24h). |
-| `forecast` | Electricity only, and only when the owner turned on "buy early on estimate" (E5). Never for data. |
+| `usage_counter` (data) | Yes if the last network reading (USSD, shared SMS or screenshot) is under 24h old; on an older one only with the owner's opt-in, labelled estimated (D-045). |
+| `forecast` | Electricity only, and only when the owner turned on "buy early on estimate" (E5), and never while a spare token is waiting (D-049). Never for data. |
 | No reading at all (silence) | Never. Silence still buys nothing. |
 
 Every one of these still passes the same caps, gap, freeze, balance and one-open-order checks in `decideSchedule`'s successor.

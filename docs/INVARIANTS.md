@@ -40,10 +40,10 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | # | Invariant |
 |---|---|
 | 26 | Only a reading from a trusted source at or below the line triggers a threshold buy (SENSING table). |
-| 27 | Data is never bought on a forecast; a data usage-counter reading needs a USSD calibration under 24h. |
+| 27 | Data is bought automatically on a network reading under 24h old; on the phone's count alone only if the owner opted in, labelled estimated; otherwise the user is asked (D-045). | rules: INV-27 |
 | 28 | Electricity buys on a forecast only when the owner opted in, and only on the pessimistic bound. |
 | 29 | A forecast never raises an amount, a cap or a threshold. |
-| 30 | At most one spare token outstanding per meter; the next is bought only after the spare is marked used or a reading shows it keyed. |
+| 30 | At most one spare token outstanding per meter; the next is bought only after the spare is marked used or a reading shows it keyed. | rules: INV-30 (property) |
 | 31 | A reading from the app is accepted only for a line that phone is registered to; a reading never changes the payee. |
 | 32 | Every number shown to a customer is labelled measured or estimated. |
 | 33 | A running-low probability is always in [0, 1], rises with time and falls with more remaining. | rules: INV-33 (property) |
@@ -53,3 +53,10 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 37 | A pot pays only its own line. Moving money between pots needs the user's explicit permission each time. | pending |
 | 38 | Cancelling a line returns its pot to the main balance in the same transaction; no payment is made for a cancelled or paused line. | pending |
 | 39 | A cable renewal never pays above the user's cap; a price rise is asked about once. | pending |
+| 40 | A failed, menu or SMS-deferred USSD reply is never a low balance and never triggers a buy. | rules: INV-40 (property) |
+| 41 | Never guess the SIM on a dual-SIM phone; never auto-buy a data plan not known to add to the active bundle. | rules: INV-41 |
+| 42 | Light forecasts show no percentage before 4 readings over 7 days, and nothing before 2 readings. | rules: INV-42 |
+| 43 | Light usage is counted per hour of grid supply; units come from vend receipts, never amount ÷ tariff. | rules: INV-43 |
+| 44 | A spare token is bought only when the cautious run-out is within the lead time, never while one is waiting; an old spare triggers a reminder, not a second spare. | rules: INV-44 |
+| 45 | Dollar path: the on-chain charge is confirmed before the vend; a charge never exceeds the user's signed allowance; a quote above it asks the user. | pending (RAILS) |
+| 46 | Dollar deposits are credited only for the listed USDC and USDT contracts on Base (and USDC on Arc via CCTP); anything else is quarantined for manual review. | pending (RAILS) |
