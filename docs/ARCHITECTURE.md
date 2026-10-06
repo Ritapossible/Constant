@@ -65,7 +65,7 @@ markets            code PK ('NG'), currency ('NGN'), time_zone ('Africa/Lagos'),
                    default_locale, fee_per_buy_minor (D-020), enabled
 owners             id, phone_e164 UNIQUE, locale, market_code, created_at
 sites              id, owner_id, market_code, site_phone_e164, mode ('schedule'|'alert'),
-                   utility_code ('IKEDC'), meter_ciphertext, meter_hmac, meter_last4,
+                   utility_code (FK utilities: 'IKEDC', 'EKEDC', 'EEDC', 'AEDC', …), meter_ciphertext, meter_hmac, meter_last4,
                    verified, verified_name,
                    buy_amount_minor, weekdays smallint[], run_minute_local DEFAULT 420,
                    alert_threshold_units, weekly_cap_minor, min_hours_between_buys DEFAULT 20,
@@ -90,6 +90,8 @@ funding_events     provider, provider_event_id UNIQUE, site_id, amount_minor,
 notices            idempotency_key UNIQUE, site_id, kind, channel, sent_at, provider_msg_id
 alerts             id, site_id, units, created_at
 onboarding         owner_id, site_id, step, answers jsonb, updated_at
+utilities          code PK, name, market_code, states text[], vend_product_id, enabled,
+                   gate_passed_at   -- D-038: DisCos are data, enabled one by one
 system_flags       key PK ('vending_enabled'), value, changed_by, reason, changed_at
 ```
 

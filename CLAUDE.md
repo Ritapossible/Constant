@@ -8,9 +8,10 @@ A prepaid autopilot (D-028). Nigeria runs on prepaid, and data, airtime and elec
 
 - **Data and airtime:** the Android app is the sensor (data-usage counter plus USSD balance); the network credits the bundle directly. Fully automatic.
 - **Electricity:** we know the units we sold, learn the home's usage rate from meter readings, ask for a reading only when it matters, buy on a reading at the line, and can keep one spare token ahead. A person still keys the token in until smart-meter partnerships exist.
-- **Later:** family and remote lines, TV, Constant Eye hardware, AI and other subscriptions, DisCo and network partnerships.
+- **Bills with a date:** TV and subscriptions, including AI tools, renew monthly on schedule (D-039).
+- **Later:** family and remote lines, Constant Eye hardware, DisCo and network partnerships.
 
-Company and sender name: **Constant**. First market: Nigeria, naira, Lagos (D-030). Built so Ghana, Kenya and South Africa are new adapters and copy (`docs/EXPANSION.md`).
+Company and sender name: **Constant**. First market: Nigeria, naira. Data nationwide; electricity DisCo by DisCo (D-038). Built so Ghana, Kenya and South Africa are new adapters and copy (`docs/EXPANSION.md`).
 
 ## Non-negotiables
 
@@ -25,7 +26,7 @@ Company and sender name: **Constant**. First market: Nigeria, naira, Lagos (D-03
 9. **Tokens and meter numbers are secrets.** Never in a URL, a log line, an error message, an analytics event, or the receipt page. Log meter last 4 and a token hash.
 10. **Customers see local currency only.** Never: blockchain, crypto, wallet, seed, gas, USDC, XLM, Stellar, dollars. `scripts/guard.sh` enforces this on `packages/copy`.
 11. **Silence never buys, and estimates are labelled.** Only a trusted reading at the owner's line triggers a buy (D-032). Data is never bought on a forecast. Electricity buys early on a forecast only if the owner opted in. A forecast never raises a cap or an amount.
-12. **Do not add product surface** that is not in `PLAN.md`. No web dashboard, no card funding, no chain, no hardware or subscriptions before their ROADMAP gate.
+12. **Do not add product surface** that is not in `PLAN.md`. No web dashboard, no card funding, no chain, no hardware or subscriptions before their ROADMAP gate. Never hard-code a DisCo: utilities are rows with an enable flag (D-038).
 13. **Privacy on the phone.** The app reads total mobile bytes and USSD balance replies only. Never SMS, contacts, location or per-app usage. Meter photos are read on the phone; only the number leaves it.
 
 ## Layout
@@ -67,7 +68,7 @@ Node 22 (`.nvmrc`), pnpm 10.
 
 ## Decided
 
-Android app is required (D-029, supersedes "no app"). First users: Lagos Android users with a data plan and a prepaid meter (D-030). Data and airtime at face value, ₦100 per electricity token (D-031). VTpass for vending (D-024), Paystack virtual accounts for funding (D-022), Termii for SMS (D-025), managed PaaS in Frankfurt (D-026).
+Android app is required (D-029, supersedes "no app"). First users: urban Android users with a data plan and a prepaid meter (D-030). DisCos are data rows, each enabled after its own gate; wave 1 is IKEDC, EKEDC, EEDC, AEDC (D-038). AI and other subscriptions renew monthly on merchant-locked cards, Phase 3 if a card issuer is signed (D-039). Data and airtime at face value, ₦100 per electricity token (D-031). VTpass for vending (D-024), Paystack virtual accounts for funding (D-022), Termii for SMS (D-025), managed PaaS in Frankfurt (D-026).
 
 ## Where we are
 

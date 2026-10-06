@@ -7,7 +7,7 @@ The loop (owner sets days and amount → Constant buys → token goes to the sit
 | Concern | Lives in | Nigeria (live first) |
 |---|---|---|
 | Currency, minor unit, zone, locale | `markets` row | NGN, kobo, Africa/Lagos, en-NG |
-| Utilities and meter validation | `packages/partners` vending adapter | IKEDC first, then other DisCos |
+| Utilities and meter validation | `packages/partners` vending adapter | All DisCos through one vend partner, enabled one by one (D-038) |
 | How owners fund | `packages/partners` funding adapter (`FundingDisplay`) | Dedicated virtual bank account per site |
 | SMS route and sender ID | messaging adapter + registration | "Constant", registered per network |
 | Copy and languages | `packages/copy/<locale>` | English, then Pidgin |

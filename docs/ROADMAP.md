@@ -27,30 +27,29 @@ Goal: nobody using Constant runs out of data mid-call.
 
 Goal: homes on Constant stop going dark by surprise.
 
-- Meter onboarding (IKEDC, then EKEDC), photo and typed readings, usage-rate forecast, ask-when-near prompts, buy on reading, spare token, optional buy-early-on-estimate, schedule mode, alert-only mode.
+- Meter onboarding for wave-1 DisCos (IKEDC, EKEDC, EEDC, AEDC; D-038), each behind its own gate, photo and typed readings, usage-rate forecast, ask-when-near prompts, buy on reading, spare token, optional buy-early-on-estimate, schedule mode, alert-only mode.
 - Token delivery by push and SMS, DONE confirmation, receipt page.
 
 **Gate:** in homes with the spare token on, unplanned outages fall by at least 80% compared with the 4 weeks before joining.
 
-## Phase 3 — Family, remote lines, TV (months 6–9)
+## Phase 3 — Family, remote lines, TV, subscriptions (months 6–9)
 
 - Lines for other people: Mum's data (her app as sensor, or timed), the family house meter (the original diaspora product), shop meters.
 - iPhone app: timed refills, one-tap top-up, light readings by photo.
 - DSTV and GOtv auto-renewal by expiry date.
+- **Subscriptions, including AI tools** (D-039): monthly renewal of ChatGPT, Claude, Gemini and similar on merchant-locked virtual cards. Only if the card-issuing partner (PLAN B9) is signed; otherwise it moves to Phase 4.
+- Wave-2 DisCos, in order of sign-ups.
 - Pidgin. More DisCos.
 - **Grid-supply-aware forecast** experiment (SENSING E7).
 
-## Phase 4 — Constant Eye hardware, and subscriptions (months 9–18)
+## Phase 4 — Constant Eye hardware (months 9–18)
 
 **Constant Eye** (SENSING E8–E10):
 - Prototype the pulse reader, the clamp and the beep detector with 20 homes. Measure accuracy, battery life, connectivity and installation cost.
 - Offer it as a monthly rental, so the customer doesn't pay for hardware upfront.
 - Gate to scale: under ₦50,000 all-in per home, 6 months' battery or mains backup, no DisCo-equipment contact, and a clear legal opinion.
 
-**Subscriptions, including AI tools:**
-- Renew ChatGPT, Claude, Gemini, Spotify, Netflix and similar in naira through one virtual card per subscription, locked to that merchant and capped at its price.
-- Conditions: a licensed card-issuing partner that is stable (the Nigerian virtual dollar card market has been unreliable), clear FX pricing, chargeback handling, and confirmation that this is allowed by the issuer and each merchant's terms.
-- This is the one product that shows a dollar price next to the naira, because that is what the customer is buying.
+**Subscriptions** land here only if Phase 3 had no card-issuing partner (D-039).
 
 ## Phase 5 — Partnerships that remove the human (18 months +)
 

@@ -46,17 +46,33 @@ Today a normal meter can't be read remotely and a token has to be keyed in. We g
 
 You can also keep the original modes: timed refills on chosen days (the calendar), and alert-only.
 
+### Electricity coverage
+
+| DisCo | Area (main) | Wave |
+|---|---|---|
+| IKEDC (Ikeja Electric) | Lagos: mainland and north | 1 |
+| EKEDC (Eko) | Lagos: island and south | 1 |
+| EEDC (Enugu) | Enugu, Anambra, Ebonyi, Imo, Abia (except Aba) | 1 |
+| AEDC (Abuja) | FCT, Niger, Kogi, Nasarawa | 1 |
+| IBEDC, PHED, BEDC, KEDCO, KAEDCO, JED, YEDC, Aba Power | Rest of the country | 2, in order of sign-ups |
+
+Areas are a guide; the meter lookup decides. Each DisCo passes its own gate before it is switched on (D-038).
+
 ### 3. Family and remote lines
 
 Mum's data, the family-house meter, the shop meter: same engine, a different person at the other end. If that person installs the app, their phone is the sensor. If not, they get timed refills, LOW by SMS or WhatsApp, and the token by SMS. This is where the original diaspora and landlord use case lives.
 
-### 4. Bills with a due date (TV, then subscriptions)
+### 4. Bills with a due date: TV and subscriptions (including AI tools)
 
-DSTV and GOtv have known expiry dates, so renewing them is simple scheduling with nothing to sense. Later: subscriptions such as AI tools (ChatGPT, Claude, Gemini), music and streaming, paid in naira through a virtual card for each subscription, locked to one merchant and capped at that subscription's price. That card can only ever pay that one bill. This depends on a licensed card-issuing partner (ROADMAP Phase 4).
+These renew on a known date, so the automation is date-based, with nothing to sense.
+
+- **TV:** DSTV and GOtv are renewed before expiry through the vend partner.
+- **Subscriptions:** ChatGPT, Claude, Gemini, music and streaming renew every month without you doing anything. Each subscription gets its own virtual card, locked to that one merchant and capped at its monthly price. Constant funds it from your naira wallet the day before renewal; the rest of the month it holds nothing. You are warned three days ahead if the wallet is short.
+- The blocker is the card rail, not the automation. A licensed card-issuing partner is needed (D-039, ROADMAP Phase 3).
 
 ## Who it's for first
 
-People like the founder: urban Nigerians with an Android phone, a data plan and a prepaid meter at home, starting in Lagos (IKEDC, then EKEDC). They feel both pains weekly, and they can install an app on the phone that is also the sensor. Diaspora owners and landlords come next, as "remote lines" (D-030).
+People like the founder: urban Nigerians with an Android phone, a data plan and a prepaid meter at home. Data and airtime work nationwide from day one. Electricity opens DisCo by DisCo (D-038): IKEDC and EKEDC (Lagos), EEDC (Enugu and the South-East) and AEDC (Abuja) first. They feel both pains weekly, and they can install an app on the phone that is also the sensor. Diaspora owners and landlords come next, as "remote lines" (D-030).
 
 ## What Constant never does
 

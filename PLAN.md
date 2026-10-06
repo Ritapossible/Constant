@@ -44,7 +44,7 @@ Sign-in by phone number (OTP), wallet funding details, data-left screen, "time a
 `packages/copy`: English, then Pidgin.
 
 ### 8. Light in the app ⬜
-Meter onboarding (IKEDC), photo reading read on the phone, typed reading, forecast and ask-when-near prompts, buy on reading, spare token, optional buy-early, calendar and alert modes, token delivery with DONE.
+Meter onboarding (wave-1 DisCos per D-038, each behind its gate), photo reading read on the phone, typed reading, forecast and ask-when-near prompts, buy on reading, spare token, optional buy-early, calendar and alert modes, token delivery with DONE.
 **Exit:** in the 10 concierge homes, no surprise outage with the spare-token mode on.
 
 ### 9. Reconciliation and kill switch ⬜
@@ -71,7 +71,9 @@ Soroban mandate (D-011).
 | B5 | NDPC registration, privacy page, terms; Google Play data-safety form for usage access and USSD. | Required to launch the app. | Published pages; approved listing. |
 | B6 | SMS sender ID, WhatsApp Business verification, template approvals. | They take weeks. | Approvals. |
 | B7 | **Bundle stacking map**: which plans add to an active bundle on each network. | The autopilot must only buy plans that add. | A table in `docs/SENSING.md`. |
-| B8 | Start conversations with IKEDC and one meter maker about smart-meter balance and remote loading. | Phase 5 takes 12+ months to arrange. | A named contact and a written next step. |
+| B8 | Start conversations with one wave-1 DisCo (IKEDC or EEDC) and one meter maker about smart-meter balance and remote loading. | Phase 5 takes 12+ months to arrange. | A named contact and a written next step. |
+| B9 | **Card-issuing partner** for subscriptions: shortlist licensed issuers, confirm merchant-locked single-use funding, FX rules, chargebacks. | Decides whether subscriptions ship in Phase 3. | Signed term sheet or a clear no. |
+| B10 | **DisCo gate runs**: sandbox lookups and test vends for EKEDC, EEDC and AEDC. | Wave-1 coverage. | A filled gate checklist per DisCo. |
 
 ## Decisions in force
 
@@ -79,12 +81,13 @@ Soroban mandate (D-011).
 |---|---|---|
 | What Constant is | Prepaid autopilot: data, airtime, electricity first | D-028 |
 | App | Android app required (sensor); iPhone later; WhatsApp and SMS stay | D-029 (supersedes D-027) |
-| First users | Lagos Android users with data plans and a prepaid meter | D-030 (supersedes D-021) |
+| First users | Urban Android users with data plans and a prepaid meter; data nationwide, light DisCo by DisCo | D-030, D-038 |
+| DisCos | Data rows, gated one by one; wave 1: IKEDC, EKEDC, EEDC, AEDC | D-038 |
 | Pricing | Data and airtime at face value; ₦100 per electricity token; Plus later | D-031, D-020 |
 | What triggers a buy | Trusted reading at the line; data never on forecast; silence never | D-032 |
 | Electricity buffer | Optional spare token | D-033 |
 | Forecasting | Plain statistics, bounded, tested; no LLM | D-034 |
-| AI and other subscriptions | Phase 4, merchant-locked virtual cards, conditional | D-035 |
+| AI and other subscriptions | Monthly auto-renewal on merchant-locked cards; Phase 3 if a card issuer is signed | D-039 (amends D-035) |
 | Hardware | Phase 4, rented, after a retention signal | D-036 |
 | Funding partner | Paystack virtual accounts, Monnify fallback | D-022 |
 | Vend partner | VTpass (data, airtime, electricity), BuyPower second | D-024 |

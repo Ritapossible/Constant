@@ -6,9 +6,10 @@ Data finishes in the middle of a call. The meter at home finishes at night. Nobo
 
 - **Data and airtime:** the Android app measures what your phone has used and checks the network balance. At your line it buys your bundle, which lands on the SIM in seconds.
 - **Electricity:** Constant knows what it sold, learns how fast your home uses power, asks for a meter photo only when it matters, buys when the reading hits your line, and can keep a spare token ready.
-- **Later:** family lines, TV, a small meter sensor (Constant Eye), AI and other subscriptions in naira, and direct links with DisCos and networks.
+- **Subscriptions:** TV, and AI tools like ChatGPT and Claude, renew every month in naira without you lifting a finger.
+- **Later:** family lines, a small meter sensor (Constant Eye), and direct links with DisCos and networks.
 
-First market: Nigeria (Lagos). Designed to extend to Ghana, Kenya and South Africa.
+First market: Nigeria. Data and airtime nationwide; electricity opens DisCo by DisCo, starting with IKEDC, EKEDC, EEDC and AEDC. Designed to extend to Ghana, Kenya and South Africa.
 
 ## Read these
 

@@ -4,7 +4,7 @@
 
 ## First users (D-030)
 
-Lagos Android users with a data plan and a prepaid meter at home: young professionals, students, small business owners. They run out of data mid-call and lose light without warning, every week.
+Urban Android users with a data plan and a prepaid meter at home (young professionals, students, small business owners), starting in Lagos, Enugu and Abuja, where the wave-1 DisCos are (D-038). Data and airtime work anywhere in Nigeria. They run out of data mid-call and lose light without warning, every week.
 
 ## Promise
 

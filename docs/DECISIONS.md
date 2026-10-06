@@ -147,7 +147,7 @@ An optional mode that keeps one unkeyed token on the household's phone. When it 
 ### D-034 Forecasts are plain statistics, not an LLM
 Usage rates come from purchases and readings, with a confidence range. They decide when to ask for a reading, and (opt-in, electricity only) when to buy early. They live in `packages/rules` as pure functions with tests. Invariant: a forecast never raises a cap or an amount.
 
-### D-035 Subscriptions, including AI tools, are Phase 4 and conditional
+### D-035 Subscriptions, including AI tools, are Phase 4 and conditional — *amended by D-039*
 Naira-funded virtual cards, one per subscription, locked to one merchant and capped at its price. They need a stable licensed issuer, FX disclosure, chargeback handling, and confirmation from the issuer and each merchant's terms. This is the only product where a dollar price is shown, next to the naira charged. Until then, AI-tool renewals are out of scope.
 
 ### D-036 Hardware (Constant Eye) is Phase 4, after a software retention signal
@@ -155,3 +155,27 @@ Pulse reader, clamp, or beep detector, rented monthly, never wired into DisCo eq
 
 ### D-037 "Site" becomes "line" in the data model
 A line is one thing that can run out: a SIM's data, a SIM's airtime, a meter, a TV decoder. Each line has an owner, an optional person at the other end, a product, a threshold, an amount, caps, a status, and readings. The electricity rules written in Phase 1 (`decideSchedule`) become one strategy among several; caps, gap, freeze and the ledger are shared.
+
+### D-038 Electricity is nationwide; DisCos are data, enabled one by one — *corrects the IKEDC-only assumption*
+IKEDC serves only part of Lagos. EKEDC serves the rest of Lagos, EEDC serves Enugu and the South-East, and every other region has its own DisCo. Data and airtime work nationwide from day one, so electricity has to as well, or most users can only use half the product.
+- DisCos are rows in a `utilities` table (code, name, states served, vend product id, enabled), never constants in code. Names and boundaries change: since the Electricity Act 2023, some states are setting up their own regulators and distribution arrangements.
+- The vend partner (VTpass) sells for all DisCos through one API, so adding a DisCo is configuration plus testing, not a new adapter.
+- **Gate per DisCo** before it is enabled for customers:
+  - meter lookup returns a name;
+  - a sandbox or live test vend settles;
+  - units are returned with the token;
+  - multi-token (key change) handling is seen or documented;
+  - requery works.
+  Then 50 real vends with clean reconciliation before it is advertised.
+- First wave: IKEDC and EKEDC (Lagos), EEDC (Enugu and the South-East), AEDC (Abuja). Then IBEDC, PHED, BEDC, KEDCO, KAEDCO, JED, YEDC and Aba Power, in order of where users sign up.
+- Users on a DisCo that isn't enabled yet still get data, airtime and alert-only for light, and join a waitlist for that DisCo.
+
+### D-039 Subscriptions, including AI tools, move up to Phase 3 — *amends D-035*
+The trigger is easy: a subscription renews on a known date every month, so this is date-based, like TV, with no sensing at all. Constant tops up the subscription's card a day before renewal; the merchant charges it; Constant confirms and sends a receipt. If the wallet is short, the owner is told three days ahead, not on the day.
+
+The hard part is the payment rail, not the automation. Paying ChatGPT, Claude or Gemini needs a card that works with foreign merchants, funded from naira. Design:
+- one virtual card per subscription, locked to that merchant and capped at that month's price plus a small FX margin;
+- the card is funded only for the renewal, and holds zero otherwise;
+- the naira amount and the dollar price are both shown, with the rate used.
+
+Moved to Phase 3, alongside TV, **only if** a licensed card-issuing partner is signed by then (PLAN B9). Without one it stays in Phase 4. Also check each merchant's terms, chargeback handling and the issuer's FX rules.
