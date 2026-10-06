@@ -18,5 +18,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm --filter @constant/web build
       - name: No secrets or banned user-facing words in source
         run: ./scripts/guard.sh
