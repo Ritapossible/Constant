@@ -404,7 +404,7 @@ button {
   box-shadow: var(--shadow-lg);
   padding: 12px 24px 20px;
 }
-.menu-sheet a {
+.menu-sheet > a:not(.btn) {
   display: block;
   padding: 16px 0;
   font-size: 30px;
@@ -415,6 +415,7 @@ button {
 .menu-sheet .btn {
   margin-top: 20px;
   width: 100%;
+  font-size: 16px;
 }
 .menu-scrim {
   position: fixed;

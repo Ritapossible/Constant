@@ -266,8 +266,8 @@ function FundCard() {
     <article className="card span-3">
       <div className="card-head">
         <span className="card-tag">Add money</span>
-        <h3 className="h3">Naira at home. USDC from abroad.</h3>
-        <p>Send a bank transfer, or fund it from anywhere in the world. Family abroad can keep home covered.</p>
+        <h3 className="h3">Naira at home. Stables from anywhere.</h3>
+        <p>Send a bank transfer, or fund it with stablecoins on Base or Arc. Family abroad can keep home covered.</p>
       </div>
       <div className="card-visual subs" aria-hidden="true">
         <div className="sub">
@@ -284,9 +284,9 @@ function FundCard() {
             <span className="sub-badge">
               <IconGlobe size={14} />
             </span>
-            USDC or USDT
+            Stablecoins
           </span>
-          <span className="sub-meta">from abroad</span>
+          <span className="sub-meta">Base · Arc</span>
         </div>
       </div>
     </article>

@@ -20,7 +20,7 @@ export function Hero() {
       <div className="container hero-grid">
         <div className="hero-copy">
           <span className="eyebrow fade-in">
-            <span className="eyebrow-dot" /> Autopay for Nigeria
+            <span className="eyebrow-dot" /> Autopay for utilities
           </span>
           <h1 className="h1">
             <Words text="Set it once." />
@@ -49,7 +49,7 @@ export function Hero() {
               <IconCheck size={15} /> Pause any time
             </span>
             <span>
-              <IconCheck size={15} /> Naira or USDC
+              <IconCheck size={15} /> Naira or stables
             </span>
           </div>
         </div>

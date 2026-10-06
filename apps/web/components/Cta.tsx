@@ -49,7 +49,7 @@ export function Cta() {
             <div className="cta-orbit-spin" />
           </div>
           <span className="status">
-            <span className="eyebrow-dot" /> Early access · Nigeria
+            <span className="eyebrow-dot" /> Early access open
           </span>
           <h2 id="early-title" className="cta-title">
             Never run out of <Scramble words={WORDS} /> again.

@@ -23,11 +23,11 @@ const QA = [
   },
   {
     q: "How do I add money?",
-    a: "A bank transfer in naira, or USDC and USDT from abroad.",
+    a: "A bank transfer in naira, or stablecoins on Base and Arc from anywhere.",
   },
   {
     q: "Can I use it today?",
-    a: "Constant is in early access in Nigeria. Join the list and we'll message you when your spot opens.",
+    a: "Constant is in early access, starting in Nigeria. Join the list and we'll message you when your spot opens.",
   },
 ];
 

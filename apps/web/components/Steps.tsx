@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
 const STEPS = [
-  { title: "Add money", text: "Bank transfer in naira, or USDC from abroad. It sits in pots, one for each bill.", tags: ["Bank", "USDC"] },
+  { title: "Add money", text: "Bank transfer in naira, or stablecoins on Base and Arc. It sits in pots, one for each bill.", tags: ["Bank", "Stables"] },
   { title: "Pick what to keep paid", text: "Data, light, DSTV, ChatGPT. Add the number, meter or decoder once.", tags: ["Data", "Light", "TV", "AI"] },
   { title: "Set your limits", text: "How much, how often, and a cap it can never pass. Change or pause any time.", tags: ["Cap", "Pause"] },
   { title: "Constant watches", text: "It tracks usage and renewal dates, and warns you before anything runs low.", tags: ["Forecast", "Remind"] },

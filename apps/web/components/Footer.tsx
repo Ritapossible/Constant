@@ -30,7 +30,7 @@ export function Footer() {
           </div>
           <div className="footer-bottom">
             <span>© {new Date().getFullYear()} Constant. All rights reserved.</span>
-            <span>Made for Nigeria</span>
+            <span>Built in Africa</span>
           </div>
         </div>
         <div className="footer-word" aria-hidden="true">
