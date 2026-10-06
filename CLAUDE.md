@@ -4,11 +4,13 @@ Read this first. It is the short version of everything an engineer or coding age
 
 ## What Constant is
 
-A prepaid autopilot (D-028). Nigeria runs on prepaid, and data, airtime and electricity all run out without warning. Constant watches what it can measure, refills inside limits the owner sets, and says what it spent. Product: `docs/PRODUCT.md`. How we know what's left: `docs/SENSING.md`. Phases: `docs/ROADMAP.md`.
+**Set it once, never think about it again** (D-028, D-040). Users put money aside in pots inside Constant; Constant pays their recurring essentials automatically and warns them before anything runs low. They can cancel, pause, reschedule or withdraw at any time. Nigeria runs on prepaid, and data, airtime and electricity all run out without warning. Constant watches what it can measure, refills inside limits the owner sets, and says what it spent. Product: `docs/PRODUCT.md`. How we know what's left: `docs/SENSING.md`. Phases: `docs/ROADMAP.md`.
 
 - **Data and airtime:** the Android app is the sensor (data-usage counter plus USSD balance); the network credits the bundle directly. Fully automatic.
 - **Electricity:** we know the units we sold, learn the home's usage rate from meter readings, ask for a reading only when it matters, buy on a reading at the line, and can keep one spare token ahead. A person still keys the token in until smart-meter partnerships exist.
-- **Bills with a date:** TV and subscriptions, including AI tools, renew monthly on schedule (D-039).
+- **Cable TV:** DSTV, GOtv, StarTimes renew before expiry (D-041, Phase 1).
+- **Subscriptions:** AI tools and others renew monthly on merchant-locked cards (D-039).
+- **Running-low reminders:** probability of running out in 48h, and wallet runway (D-042, D-043; `packages/rules/src/forecast.ts`).
 - **Later:** family and remote lines, Constant Eye hardware, DisCo and network partnerships.
 
 Company and sender name: **Constant**. First market: Nigeria, naira. Data nationwide; electricity DisCo by DisCo (D-038). Built so Ghana, Kenya and South Africa are new adapters and copy (`docs/EXPANSION.md`).
@@ -24,10 +26,11 @@ Company and sender name: **Constant**. First market: Nigeria, naira. Data nation
 7. **Persist before you act.** `partnerRef` before treating a vend as accepted. The token before any SMS. The raw inbound payload before routing.
 8. **Ambiguous means stop.** Unknown state, or ledger vs partner disagreement: `needs_human`, freeze that site (or kill vending globally on reconciliation mismatch), page a person. Never retry a vend to find out.
 9. **Tokens and meter numbers are secrets.** Never in a URL, a log line, an error message, an analytics event, or the receipt page. Log meter last 4 and a token hash.
-10. **Customers see local currency only.** Never: blockchain, crypto, wallet, seed, gas, USDC, XLM, Stellar, dollars. `scripts/guard.sh` enforces this on `packages/copy`.
+10. **Customers see local currency only.** Never: blockchain, crypto, wallet, seed, gas, USDC, XLM, Stellar, dollars. `scripts/guard.sh` enforces this on `packages/copy`. One exception: subscription screens show the merchant's dollar price next to the naira charged and the rate (D-039); that copy lives in its own allow-listed file when `packages/copy` is built.
 11. **Silence never buys, and estimates are labelled.** Only a trusted reading at the owner's line triggers a buy (D-032). Data is never bought on a forecast. Electricity buys early on a forecast only if the owner opted in. A forecast never raises a cap or an amount.
 12. **Do not add product surface** that is not in `PLAN.md`. No web dashboard, no card funding, no chain, no hardware or subscriptions before their ROADMAP gate. Never hard-code a DisCo: utilities are rows with an enable flag (D-038).
 13. **Privacy on the phone.** The app reads total mobile bytes and USSD balance replies only. Never SMS, contacts, location or per-app usage. Meter photos are read on the phone; only the number leaves it.
+14. **Money in pots is the user's.** A pot pays only its own line; moving between pots needs permission each time; withdrawals are allowed any time except money committed to an open order (D-040).
 
 ## Layout
 
@@ -40,7 +43,7 @@ packages/db         Postgres 16 schema, migrations, ledger and order repositorie
 packages/partners   Vending, Funding, Messaging interfaces; Fake + one real each    (not started)
 packages/copy       Every customer-facing string, per locale                        (not started)
 contracts/mandate   Soroban mandate. Not scheduled. See DECISIONS D-011.
-docs/               PRODUCT, SENSING, ROADMAP, SPEC (v1), ARCHITECTURE, INVARIANTS, DECISIONS,
+docs/               PRODUCT, IDEAS, SENSING, ROADMAP, SPEC (v1), ARCHITECTURE, INVARIANTS, DECISIONS,
                     UX, EXPANSION, OPERATIONS, GO_TO_MARKET
 ```
 
@@ -72,4 +75,4 @@ Android app is required (D-029, supersedes "no app"). First users: urban Android
 
 ## Where we are
 
-See `PLAN.md`. Step 1 (electricity rules + invariant tests) is done. Next: step 2, rules for lines, readings and thresholds, and step 5, the Android sensor spike, in parallel.
+See `PLAN.md`. Step 1 (electricity rules + invariant tests) is done. Step 2 is under way (forecasts, reminders, wallet runway, withdrawal rules done; 149 tests). Next: the rest of step 2 (lines, readings, thresholds, pots), and step 5, the Android sensor spike, in parallel.

@@ -13,11 +13,14 @@ Goal: evidence that people want refills done for them, and that our sensors are 
 
 **Gate:** data estimate within 10% of the network's balance on 9 of 10 checks, across all four networks. At least 7 of 10 light homes keep the spare-token habit for 4 weeks.
 
-## Phase 1 — Data & airtime autopilot (months 2–4)
+## Phase 1 — Pots, cable TV, data & airtime autopilot (months 2–4)
 
-Goal: nobody using Constant runs out of data mid-call.
+Goal: set it once and never think about it. Nobody using Constant runs out of data mid-call or loses DSTV on renewal day.
 
-- Android app: onboarding, wallet funded by bank transfer into the user's own account number, data-left display with "time at your pace", low-data warning before calls, auto top-up at the line, airtime top-up, caps, freeze.
+- Android app: onboarding, one account per user funded by bank transfer, **pots per line**, covered-until home screen, **withdraw / cancel / pause / reschedule at any time** (D-040).
+- **Cable TV** (DSTV, GOtv, StarTimes) renewal before expiry (D-041).
+- Data-left display with "time at your pace", warning before long calls, auto top-up at the line, airtime top-up, caps, freeze.
+- **Running-low probability reminders** and **wallet runway** with a payday plan (D-042, D-043).
 - Backend: the money path from PLAN steps 2, 3 and 8 (ledger, vend worker, reconciliation), with VTpass data and airtime.
 - WhatsApp for receipts and STOP, BALANCE, LOW.
 
@@ -36,7 +39,6 @@ Goal: homes on Constant stop going dark by surprise.
 
 - Lines for other people: Mum's data (her app as sensor, or timed), the family house meter (the original diaspora product), shop meters.
 - iPhone app: timed refills, one-tap top-up, light readings by photo.
-- DSTV and GOtv auto-renewal by expiry date.
 - **Subscriptions, including AI tools** (D-039): monthly renewal of ChatGPT, Claude, Gemini and similar on merchant-locked virtual cards. Only if the card-issuing partner (PLAN B9) is signed; otherwise it moves to Phase 4.
 - Wave-2 DisCos, in order of sign-ups.
 - Pidgin. More DisCos.

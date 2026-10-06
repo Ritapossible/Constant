@@ -35,3 +35,13 @@ export function fundLedgerKey(provider: string, providerEventId: string): string
 export function noticeKey(siteId: string, notice: string, scheduledFor: Date): string {
   return `notice:${notice}:${siteId}:${scheduledFor.toISOString()}`;
 }
+
+/** One payout per withdrawal request, whatever the client retries. */
+export function withdrawalLedgerKey(userId: string, requestId: string): string {
+  return `ledger:withdrawal:${userId}:${requestId}`;
+}
+
+/** At most one running-low reminder per line per reminder window. */
+export function reminderKey(lineId: string, windowStart: Date): string {
+  return `notice:low_reminder:${lineId}:${windowStart.toISOString()}`;
+}

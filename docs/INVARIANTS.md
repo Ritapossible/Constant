@@ -35,7 +35,7 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 24 | A token SMS fits in one GSM-7 segment. | Cost and delivery on basic phones (D-019). copy: **pending** |
 | 25 | The balance covers amount + fee before a buy; the fee never counts against the weekly cap; a negative fee never buys. | Fee is revenue, not a way to overspend or block a chosen day (D-020). rules: INV-25 |
 
-## Prepaid autopilot (D-028 to D-037) — all pending, PLAN step 2
+## Prepaid autopilot (D-028 to D-043) — PLAN step 2
 
 | # | Invariant |
 |---|---|
@@ -46,3 +46,10 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 30 | At most one spare token outstanding per meter; the next is bought only after the spare is marked used or a reading shows it keyed. |
 | 31 | A reading from the app is accepted only for a line that phone is registered to; a reading never changes the payee. |
 | 32 | Every number shown to a customer is labelled measured or estimated. |
+| 33 | A running-low probability is always in [0, 1], rises with time and falls with more remaining. | rules: INV-33 (property) |
+| 34 | Running-low reminders: none while learning (<3 days), none below the threshold, at most one per line per 24h, none in quiet hours. A reminder never moves money. | rules: INV-34 |
+| 35 | Wallet runway names the first upcoming charge that the money set aside cannot cover, and the exact shortfall. | rules: INV-35 |
+| 36 | A user can withdraw any amount except money committed to an open order, only to a verified account in their name; payouts stop with the kill switch. | rules: INV-36 (property) |
+| 37 | A pot pays only its own line. Moving money between pots needs the user's explicit permission each time. | pending |
+| 38 | Cancelling a line returns its pot to the main balance in the same transaction; no payment is made for a cancelled or paused line. | pending |
+| 39 | A cable renewal never pays above the user's cap; a price rise is asked about once. | pending |

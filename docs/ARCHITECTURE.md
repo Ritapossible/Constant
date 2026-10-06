@@ -203,4 +203,8 @@ The design above was written for electricity sites on a calendar. The prepaid au
 - **`readings`** (line_id, source, value, unit, at, device_id). Sources: `ussd`, `usage_counter`, `typed`, `photo`, `device`, `utility_api`, `forecast`. Append-only. The threshold scan reads the latest trusted reading and calls the refill rule (SENSING "How readings feed the rules").
 - **`apps/android`** posts readings to the API: usage-counter deltas, parsed USSD balances, photo-derived meter readings. It never decides a buy. Device keys are bound to the owner's phone number at sign-in, and readings are accepted only for lines that device is registered to.
 
+- **Pots** (D-040): `pots` (user_id, line_id, name) with balances derived from the ledger. Ledger kinds add `pot_in`, `pot_out` (always a matched pair in one transaction, keyed by a transfer id) and `withdrawal`. A vend for a line debits that line's pot only. Withdrawals go through `decideWithdrawal` and a payout partner, keyed by `withdrawalLedgerKey`.
+- **Forecasts and reminders** (D-042, D-043): a reminder job runs hourly, computes `usageStats` from readings, calls `decideLowReminder` and `walletRunway`, and records each reminder under `reminderKey` so it is sent at most once.
+- **Cable** (D-041): a `tv` line stores the decoder number (encrypted), plan code and expiry; the schedule scan renews the day before expiry.
+
 The vend path, ledger, idempotency, one-open-order rule, reconciliation and kill switch are unchanged. Data and airtime vends have no token to store: they settle on the partner's confirmation that the SIM was credited.

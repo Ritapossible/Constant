@@ -14,7 +14,10 @@ Each step ends with its exit test passing in CI. No real money moves until the m
 `packages/rules`: `decideSchedule`, `scanAction`, `decideAlert`, `parseUnits`, commands, order state machine, funding, price check, reconciliation, idempotency keys, time zones, per-buy fee.
 **Exit:** every rules-level invariant has a passing test, including property tests on money. *127 tests passing.*
 
-### 2. Rules for lines, readings and thresholds 🔜
+### 2. Rules for lines, readings, thresholds, pots 🔜
+*Done so far:* `forecast.ts` (running-low probability, run-out window, reminder policy, wallet runway) and `decideWithdrawal`, with tests (D-040, D-042, D-043). *149 tests passing.*
+
+Still to do:
 Generalise to lines (D-037) without weakening anything in step 1.
 - `Reading { source, value, at }` and `decideRefill`: buy when a trusted reading is at or below the line, per the source table in SENSING.md (D-032). Data needs a USSD calibration under 24h; forecasts never buy data.
 - `estimateRemaining`: data = last calibration − bytes used since, plus bundles bought since. Electricity = last reading + units bought − rate × time, with a pessimistic bound.
@@ -35,8 +38,8 @@ Generalise to lines (D-037) without weakening anything in step 1.
 `apps/android` (Kotlin): usage-access permission, mobile bytes since a moment, USSD balance on MTN, Airtel, Glo and 9mobile with recorded-reply parser tests, background schedule that survives battery savers on Tecno, Infinix, Itel and Samsung.
 **Exit:** ROADMAP Phase 0 gate: estimate within 10% of the network's balance on 9 of 10 checks.
 
-### 6. Android app v1: data and airtime autopilot ⬜
-Sign-in by phone number (OTP), wallet funding details, data-left screen, "time at your pace", line and cap settings, freeze, receipts, push. Calls the API; never decides a buy on the device.
+### 6. Android app v1: pots, cable, data and airtime autopilot ⬜
+Sign-in by phone number (OTP), account funding details, pots, covered-until screen, withdraw/cancel/pause/reschedule, cable TV renewal, running-low reminders, payday plan, data-left screen, "time at your pace", line and cap settings, freeze, receipts, push. Calls the API; never decides a buy on the device.
 **Exit:** dogfood for 2 weeks by the founder and 20 testers without running out; no unexplained ledger line.
 
 ### 7. API: app, WhatsApp, SMS, webhooks ⬜
@@ -67,7 +70,7 @@ Soroban mandate (D-011).
 | B1 | **Data sensor test** with 20 Android users across four networks (ROADMAP Phase 0). | Proves the core automation is accurate. | Accuracy table per network and phone model. |
 | B2 | **Unit economics**: VTpass discount per network for data and airtime, and per DisCo for electricity; funding inflow fees; SMS, push and WhatsApp costs. | Confirms D-031 pricing. | Spreadsheet; keep or change pricing. |
 | B3 | **Light concierge** with 10 homes: forecast-timed photo requests and the spare-token habit. | Proves "near-automatic" light. | Outages before vs after; keying time. |
-| B4 | Open VTpass and Paystack accounts; get written confirmation that a prefunded wallet for scheduled and threshold bill payment is an accepted use. | The legal basis of holding money. | Signed terms; sandbox keys. |
+| B4 | Open VTpass and Paystack accounts. Get written confirmation (and a lawyer's opinion) that deposits held in pots, paid out to bills and **withdrawable at any time** are covered by the partner's licence; agree identity-check tiers. | The legal basis of holding money people can withdraw (D-040). | Signed terms; sandbox keys; written opinion. |
 | B5 | NDPC registration, privacy page, terms; Google Play data-safety form for usage access and USSD. | Required to launch the app. | Published pages; approved listing. |
 | B6 | SMS sender ID, WhatsApp Business verification, template approvals. | They take weeks. | Approvals. |
 | B7 | **Bundle stacking map**: which plans add to an active bundle on each network. | The autopilot must only buy plans that add. | A table in `docs/SENSING.md`. |
@@ -86,6 +89,10 @@ Soroban mandate (D-011).
 | Pricing | Data and airtime at face value; ₦100 per electricity token; Plus later | D-031, D-020 |
 | What triggers a buy | Trusted reading at the line; data never on forecast; silence never | D-032 |
 | Electricity buffer | Optional spare token | D-033 |
+| Money | One account per user, pots per line; cancel, pause, reschedule, withdraw any time | D-040 |
+| Cable TV | DSTV, GOtv, StarTimes renew before expiry; Phase 1 | D-041 |
+| Running low | Probability reminders (≥60%, 1/day/line, quiet hours) and wallet runway | D-042, D-043 |
+| Ideas backlog | `docs/IDEAS.md`, enters PLAN by phase | D-044 |
 | Forecasting | Plain statistics, bounded, tested; no LLM | D-034 |
 | AI and other subscriptions | Monthly auto-renewal on merchant-locked cards; Phase 3 if a card issuer is signed | D-039 (amends D-035) |
 | Hardware | Phase 4, rented, after a retention signal | D-036 |

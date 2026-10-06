@@ -127,3 +127,32 @@ export function reconcile(
 
   return { mismatches, vendingEnabled: mismatches.length === 0 };
 }
+
+// ── Withdrawal (D-040) ─────────────────────────────────────────────────────
+
+export interface WithdrawalInput {
+  /** Ledger balance of the wallet plus all pots being released. */
+  balanceMinor: Minor;
+  /** Money held by orders that are still open (ready, vending, …). Never withdrawable. */
+  committedMinor: Minor;
+  amountMinor: Minor;
+  /** Payout account verified and its name matches the user's verified identity. */
+  payoutVerified: boolean;
+  /** Global kill switch (reconciliation). */
+  payoutsEnabled: boolean;
+}
+
+export type WithdrawalDecision =
+  | { kind: "pay_out"; amountMinor: Minor }
+  | { kind: "refuse"; reason: "paused" | "non_positive" | "unverified_payout" | "insufficient"; withdrawableMinor: Minor };
+
+/** Users can take their money out at any time, except money already promised to an open order. */
+export function decideWithdrawal(i: WithdrawalInput): WithdrawalDecision {
+  const raw = i.balanceMinor - i.committedMinor;
+  const withdrawableMinor = raw > 0n ? raw : 0n;
+  if (!i.payoutsEnabled) return { kind: "refuse", reason: "paused", withdrawableMinor };
+  if (i.amountMinor <= 0n) return { kind: "refuse", reason: "non_positive", withdrawableMinor };
+  if (!i.payoutVerified) return { kind: "refuse", reason: "unverified_payout", withdrawableMinor };
+  if (i.amountMinor > withdrawableMinor) return { kind: "refuse", reason: "insufficient", withdrawableMinor };
+  return { kind: "pay_out", amountMinor: i.amountMinor };
+}

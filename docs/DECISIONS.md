@@ -84,7 +84,7 @@ The diaspora owner is the purest version of "a meter you are not standing next t
 - UX consequence: owners abroad see times as "7:00am Lagos time" (UX.md).
 - **Revisit** if B1 shows that diaspora owners don't fund a second time, or if Lagos landlords convert much faster in the pilot.
 
-### D-022 Funding partner: Paystack Dedicated Virtual Accounts; Monnify is the fallback
+### D-022 Funding partner: Paystack Dedicated Virtual Accounts; Monnify is the fallback — *amended by D-040 (one account per user, pots inside)*
 One dedicated account number per site, issued by a partner bank under a CBN-licensed processor. Paystack has signed webhooks, a test mode, well-documented APIs, and a name owners recognise.
 - **Condition before any real money:** written confirmation from Paystack that prefunded balances held for scheduled bill payment are an accepted use of dedicated virtual accounts on our account type (PLAN B3). If they say no, switch to Monnify reserved accounts (Moniepoint). Only the adapter changes.
 - **Pilot exposure limit:** ops policy of at most ₦200,000 balance per site and ₦5,000,000 total float until the licence position is confirmed by a lawyer. An excess transfer is credited, and the owner is told the limit.
@@ -179,3 +179,32 @@ The hard part is the payment rail, not the automation. Paying ChatGPT, Claude or
 - the naira amount and the dollar price are both shown, with the rate used.
 
 Moved to Phase 3, alongside TV, **only if** a licensed card-issuing partner is signed by then (PLAN B9). Without one it stays in Phase 4. Also check each merchant's terms, chargeback handling and the issuer's FX rules.
+
+## The product is "set it once, never think about it again" (2026-10-06)
+
+### D-040 Money set aside in pots; cancel, reschedule, pause or withdraw at any time — *amends D-022*
+One Constant account per user, funded by bank transfer into the user's own account number, instead of one virtual account per site. Inside it, a **pot** per line (DSTV, Light, Data, ChatGPT…).
+- A pot pays only its own line. Moving money between pots needs the user's explicit permission, every time.
+- Cancel returns the pot to the main balance. Pause and reschedule move or stop the next payment.
+- Withdraw to a bank account in the user's own verified name at any time. Money committed to an open order is the only part that can't be withdrawn (`decideWithdrawal`, INV-36). Payouts stop with the same kill switch as vending.
+- Consequence: Constant now holds money people can withdraw. That is stored value, which is regulated. The funding partner's licence must cover deposits, pots and withdrawals; identity checks (BVN/NIN tiers) apply as balances grow; the money is never in an account owned by the company or its staff (PLAN B4).
+
+### D-041 Cable TV is a Phase 1 product
+DSTV, GOtv and StarTimes renew on a known date, are sold through the same vend partner, and are credited directly to the decoder. Nothing to sense, no token to key in: the simplest fully automatic product, and a strong first proof of the pots and the money path.
+- Decoder lookup shows the name, plan and expiry; nothing is paid before the user confirms.
+- Renew the same plan the day before expiry. Plan changes apply from the next renewal.
+- A provider price rise above the user's cap is asked about once, never paid silently.
+- Showmax and other streaming are subscriptions (D-039), not cable.
+
+### D-042 Running-low probability reminders
+For every line, `packages/rules/src/forecast.ts` computes the probability of running out within the next 48 hours from the line's daily usage (mean and spread), plus a cautious date (20%) and a likely date (50%).
+- Remind at 60% or more, at most once per line per 24 hours, never between 22:00 and 07:00 local time. All of these are settings with those defaults.
+- If autopilot and the pot cover it, the reminder is a heads-up; otherwise it asks the user to act.
+- Fewer than 3 days of history: "still learning", never a made-up number.
+- Statistics only (D-034). A reminder never moves money.
+
+### D-043 Wallet runway: warn before a renewal fails for lack of money
+`walletRunway` walks all upcoming renewals (scheduled) and refills (estimated) in date order against the money set aside. It names the first one that would fail and by how much. Sent with the payday reminder and at least 3 days before a shortfall.
+
+### D-044 Ideas backlog lives in `docs/IDEAS.md`
+Ideas are scored by effort, risk and phase. They enter PLAN only when their phase arrives and their evidence exists. This stops scope creep while keeping good ideas visible.

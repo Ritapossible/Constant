@@ -18,7 +18,7 @@ Design for the site phone first. If it works on a basic Nokia with SMS, it works
 3. **Name the meter the way people do:** "meter ending 6781". Never the full number.
 4. **Days as words, times as people say them:** "Monday", "7:00am". Never ISO dates. Never "next_run_at". Owners whose phone number is outside the market add the zone: "7:00am Lagos time" (D-021).
 5. **Fee up front:** the owner sees the fee before funding and on every paid message: "I will buy ₦15,000 each time, plus ₦100 Constant fee." Never a surprise deduction (D-020).
-6. **Money:** local symbol on WhatsApp and web (`₦15,000`), letter on SMS (`N15,000`, D-019). Thousands separators. No kobo unless non-zero. Never a second currency.
+6. **Money:** local symbol on WhatsApp and web (`₦15,000`), letter on SMS (`N15,000`, D-019). Thousands separators. No kobo unless non-zero. Never a second currency, except on subscription screens, which show the merchant's dollar price next to the naira charged and the rate used (D-039).
 7. **Tokens:** in groups of four, on their own, so they can be read aloud over a call: `1234 5678 9012 3456 7890`. When there are key-change tokens, number them: "Key in 1 of 3".
 8. **Short.** Every SMS template is one GSM-7 segment (160 characters). WhatsApp messages under 300 characters.
 9. **Plain words.** No "transaction", "mandate", "vend", "settled". Say "paid", "bought", "token".
