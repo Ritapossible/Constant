@@ -262,3 +262,14 @@ Each person picks and orders their channels.
 
 ### D-055 A developer platform is on the roadmap (Phase 6)
 Constant's rails (bill payments, autopay, forecasts, delivery, stablecoin autopay on Base and Arc) will be opened to other developers through a versioned API, webhooks and SDKs once our own app is stable. Every call goes through the same `packages/rules`, ledger and caps; no API bypasses them. Gate and order in `docs/ROADMAP.md` Phase 6. This expands IDEAS F5.
+
+### D-056 Privy for sign-in and embedded wallets — *amends D-051 (account layer)*
+The app uses Privy: Google, email, SMS, passkey and wallet sign-in, and a self-custodial embedded Ethereum wallet created for anyone who doesn't sign in with a wallet (`createOnLogin: users-without-wallets`).
+- Supported chains: Base and Arc mainnet (chain 5042, `rpc.mainnet.arc.io`).
+- Accepted stables match INV-46: USDC and USDT on Base, USDC on Arc.
+- Replaces CDP Embedded Wallets as the account layer. Spend permissions for scheduled charges (RAILS) are still planned on a smart account. Before the dollar path goes live, confirm Privy's smart-wallet support for ERC-4337 spend permissions on Base (PLAN B11).
+- `/app` is a working preview:
+  - Real sign-in and real on-chain balances.
+  - Bills, readings, forecasts and reminders computed by `packages/rules`.
+  - The plan is stored on the user's device until the backend (PLAN steps 3–4) exists.
+  - Bills are not paid until the licensed partner is live.

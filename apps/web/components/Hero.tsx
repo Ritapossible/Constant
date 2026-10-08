@@ -34,8 +34,8 @@ export function Hero() {
             anything runs low.
           </p>
           <div className="hero-actions fade-in" style={{ ["--d" as string]: "540ms" }}>
-            <a href="#early" className="btn btn-primary">
-              Get early access <IconArrow />
+            <a href="/app" className="btn btn-primary">
+              Launch app <IconArrow />
             </a>
             <a href="#how" className="btn btn-ghost">
               How it works

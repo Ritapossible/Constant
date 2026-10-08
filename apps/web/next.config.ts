@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const config: NextConfig = {
   reactStrictMode: true,
+  // The rules engine is shared TypeScript source; Next compiles it with the app.
+  transpilePackages: ["@constant/rules"],
   poweredByHeader: false,
   async headers() {
     return [

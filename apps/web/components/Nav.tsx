@@ -57,8 +57,8 @@ export function Nav() {
             ))}
           </div>
           <div className="nav-actions">
-            <a href="#early" className="btn btn-primary btn-sm nav-cta">
-              Get early access
+            <a href="/app" className="btn btn-primary btn-sm nav-cta">
+              Launch app
             </a>
             <button
               className="menu-btn"
@@ -96,8 +96,8 @@ export function Nav() {
                   {l.label}
                 </motion.a>
               ))}
-              <a href="#early" className="btn btn-primary" onClick={() => setOpen(false)}>
-                Get early access <IconArrow />
+              <a href="/app" className="btn btn-primary" onClick={() => setOpen(false)}>
+                Launch app <IconArrow />
               </a>
             </motion.div>
           )}

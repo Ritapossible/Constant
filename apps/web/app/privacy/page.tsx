@@ -4,7 +4,7 @@ import { Logo } from "@/components/Logo";
 
 export const metadata: Metadata = {
   title: "Privacy | Constant",
-  description: "What Constant collects during early access, why, and how to have it deleted.",
+  description: "What Constant collects, why, and how to have it deleted.",
   alternates: { canonical: "/privacy" },
 };
 
@@ -21,16 +21,21 @@ export default function Privacy() {
       <main id="main" className="container section" style={{ maxWidth: 760 }}>
         <article className="prose">
           <h1 className="h2">Privacy</h1>
-          <p className="muted">Early access · last updated October 2026</p>
+          <p className="muted">Last updated October 2026</p>
 
           <h2>What we collect</h2>
           <p>
-            When you join early access, the phone number or email address you type in, the time, and the country your
-            request came from. Nothing else. We do not use tracking cookies or sell data.
+            When you sign in, our sign-in provider (Privy) gives us the details of the method you chose: your email
+            address, phone number, Google name and email, or wallet address. Constant also creates a wallet address for
+            you, for stablecoins; only you control it. We do not use tracking cookies or sell data.
+          </p>
+          <p>
+            During the preview, the bills you add (numbers, meter and decoder numbers, amounts and readings) are saved
+            only on your device, not on our servers.
           </p>
 
           <h2>Why</h2>
-          <p>Only to tell you when your early access spot opens, and to ask a few questions about the bills you pay.</p>
+          <p>To sign you in, show your bills and reminders, and, once payments open, to pay them and send you receipts.</p>
 
           <h2>Your money</h2>
           <p>
