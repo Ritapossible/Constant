@@ -1,12 +1,14 @@
 "use client";
 
-import { useWallets, type User } from "@privy-io/react-auth";
+import type { User } from "@privy-io/react-auth";
 import QRCode from "qrcode";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPublicClient, erc20Abi, http, type Address } from "viem";
 import { EXPLORER, STABLES, arc, base } from "@/lib/app/chains";
 import { formatMoney, formatUnits6 } from "@/lib/app/format";
 import type { Plan } from "@/lib/app/store";
+import { useNotify } from "./Toast";
+import { useWalletAddress } from "./useWalletAddress";
 
 const clients = {
   base: createPublicClient({ chain: base, transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL) }),
@@ -15,17 +17,13 @@ const clients = {
 
 type Balances = Record<string, bigint | null>;
 
-/** The user's own address: the Privy embedded wallet, or the wallet they signed in with. */
-function useAddress(user: User): Address | null {
-  const { wallets } = useWallets();
-  const embedded = wallets.find((w) => w.walletClientType === "privy");
-  return ((embedded?.address ?? user.wallet?.address) as Address | undefined) ?? null;
-}
-
 export function Money({ user, plan }: { user: User; plan: Plan }) {
-  const address = useAddress(user);
+  const notify = useNotify();
+  const wallet = useWalletAddress(user);
+  const address = wallet.status === "ready" ? wallet.address : null;
   const [balances, setBalances] = useState<Balances>({});
   const [loading, setLoading] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
 
@@ -43,6 +41,7 @@ export function Money({ user, plan }: { user: User; plan: Plan }) {
       next[t.key] = r && r.status === "fulfilled" ? (r.value as bigint) : null;
     });
     setBalances(next);
+    setLoadFailed(Object.values(next).every((v) => v === null));
     setLoading(false);
   }, [address]);
 
@@ -67,7 +66,10 @@ export function Money({ user, plan }: { user: User; plan: Plan }) {
 
       <section className="ap-hero-card" aria-label="Stablecoin balance">
         <span className="ap-hero-label">Stables in your account</span>
-        <span className="ap-hero-num">${formatUnits6(total)}</span>
+        <span className="ap-hero-num" aria-live="polite">
+          {loading && Object.keys(balances).length === 0 ? "…" : `$${formatUnits6(total)}`}
+        </span>
+        {loadFailed && <span className="ap-hero-sub">Couldn&apos;t load balances. Check your connection and refresh.</span>}
         <div className="ap-hero-row">
           <span>{monthlyNgn > 0n ? `Your bills need ${formatMoney(monthlyNgn, "NGN")} a month` : "Add bills to see what you need each month"}</span>
           <button className="ap-pill-btn" onClick={refresh} disabled={loading || !address}>
@@ -91,20 +93,21 @@ export function Money({ user, plan }: { user: User; plan: Plan }) {
         </div>
         {address ? (
           <>
-            <p className="ap-muted">This address is yours. Only you can move what is in it.</p>
+            <p className="ap-muted">This address is yours. Only you can move what is in it. Send from an exchange or another wallet.</p>
             <div className="ap-address">
               {qr && <div className="ap-qr" aria-hidden="true" dangerouslySetInnerHTML={{ __html: qr }} />}
               <div className="ap-address-body">
-                <code className="mono">{address}</code>
+                <code className="mono" aria-label="Your address">{address}</code>
                 <button
                   className="btn btn-primary btn-sm"
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(address);
                       setCopied(true);
+                      notify("Address copied");
                       setTimeout(() => setCopied(false), 1800);
                     } catch {
-                      /* clipboard blocked */
+                      notify("Couldn't copy. Press and hold the address to copy it.");
                     }
                   }}
                 >
@@ -134,8 +137,18 @@ export function Money({ user, plan }: { user: User; plan: Plan }) {
               ))}
             </ul>
           </>
+        ) : wallet.status === "error" ? (
+          <div className="ap-inline-state" role="alert">
+            <p className="ap-muted">We couldn&apos;t set up your address. Your account is fine; this only affects stablecoins.</p>
+            <button className="btn btn-primary btn-sm" onClick={wallet.retry}>
+              Try again
+            </button>
+          </div>
         ) : (
-          <p className="ap-muted">Setting up your address…</p>
+          <div className="ap-inline-state" role="status">
+            <span className="ap-spinner" aria-hidden="true" />
+            <p className="ap-muted">Setting up your address. This takes a few seconds.</p>
+          </div>
         )}
       </section>
     </div>

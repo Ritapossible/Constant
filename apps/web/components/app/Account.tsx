@@ -4,6 +4,8 @@ import { usePrivy, type User } from "@privy-io/react-auth";
 import { useState } from "react";
 import type { Channel } from "@/lib/app/store";
 import type { Store } from "./Shell";
+import { useNotify } from "./Toast";
+import { useWalletAddress } from "./useWalletAddress";
 
 const CHANNELS: { id: Channel; label: string }[] = [
   { id: "whatsapp", label: "WhatsApp" },
@@ -12,9 +14,14 @@ const CHANNELS: { id: Channel; label: string }[] = [
   { id: "email", label: "Email" },
 ];
 
+const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+
 export function Account({ user, store }: { user: User; store: Store }) {
-  const { logout, linkEmail, linkPhone, linkGoogle, linkPasskey, linkWallet } = usePrivy();
-  const [confirm, setConfirm] = useState(false);
+  const { logout, linkEmail, linkPhone, linkGoogle, linkPasskey, linkWallet, exportWallet } = usePrivy();
+  const notify = useNotify();
+  const wallet = useWalletAddress(user);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmExport, setConfirmExport] = useState(false);
   const hasPasskey = user.linkedAccounts.some((a) => a.type === "passkey");
   const wallets = user.linkedAccounts.filter((a) => a.type === "wallet");
 
@@ -23,11 +30,7 @@ export function Account({ user, store }: { user: User; store: Store }) {
     { label: "Email", value: user.email?.address, link: linkEmail },
     { label: "Phone", value: user.phone?.number, link: linkPhone },
     { label: "Passkey", value: hasPasskey ? "Added" : undefined, link: linkPasskey },
-    {
-      label: "Wallet",
-      value: wallets.length ? `${wallets.length} linked` : undefined,
-      link: linkWallet,
-    },
+    { label: "Wallet", value: wallets.length ? `${wallets.length} linked` : undefined, link: linkWallet },
   ];
 
   const channels = store.plan.channels;
@@ -43,7 +46,7 @@ export function Account({ user, store }: { user: User; store: Store }) {
 
       <section className="ap-card" aria-labelledby="signin-methods">
         <h2 id="signin-methods">Ways to sign in</h2>
-        <p className="ap-muted">Add more than one, so you never get locked out.</p>
+        <p className="ap-muted">Add more than one so you never get locked out.</p>
         <ul className="ap-list ap-list-tight">
           {methods.map((m) => (
             <li key={m.label} className="ap-row">
@@ -52,7 +55,7 @@ export function Account({ user, store }: { user: User; store: Store }) {
                 <small>{m.value ?? "Not added"}</small>
               </span>
               {!m.value || m.label === "Wallet" ? (
-                <button className="btn btn-ghost btn-sm" onClick={() => m.link()}>
+                <button className="btn btn-ghost btn-sm" onClick={() => m.link()} aria-label={`${m.value ? "Add another" : "Add"} ${m.label.toLowerCase()}`}>
                   {m.value ? "Add another" : "Add"}
                 </button>
               ) : (
@@ -63,20 +66,111 @@ export function Account({ user, store }: { user: User; store: Store }) {
         </ul>
       </section>
 
+      <section className="ap-card" aria-labelledby="wallet-title">
+        <h2 id="wallet-title">Your wallet</h2>
+        {wallet.status === "ready" ? (
+          <>
+            <p className="ap-muted">
+              {wallet.embedded
+                ? "Created for you when you signed in. It holds your stablecoins, and only you can move them."
+                : "The wallet you signed in with. Stablecoins you send to it stay in your control."}
+            </p>
+            <div className="ap-row ap-row-flat">
+              <span className="ap-row-main">
+                <b className="mono">{short(wallet.address)}</b>
+                <small>Base and Arc</small>
+              </span>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(wallet.address);
+                    notify("Address copied");
+                  } catch {
+                    notify("Couldn't copy the address");
+                  }
+                }}
+              >
+                Copy
+              </button>
+            </div>
+            {wallet.embedded && (
+              <div className="ap-export">
+                {confirmExport ? (
+                  <div className="ap-warn" role="alert">
+                    <p style={{ margin: "0 0 10px" }}>
+                      <b>Your private key controls all the money in this wallet.</b> Anyone who sees it can take your funds. Constant will
+                      never ask for it. Only export it to move this wallet into another app you trust.
+                    </p>
+                    <div className="ap-actions">
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={async () => {
+                          setConfirmExport(false);
+                          try {
+                            await exportWallet({ address: wallet.address });
+                          } catch {
+                            notify("Export was cancelled");
+                          }
+                        }}
+                      >
+                        I understand, show my key
+                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setConfirmExport(false)}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button className="btn btn-ghost btn-sm" onClick={() => setConfirmExport(true)}>
+                    Export private key
+                  </button>
+                )}
+                <p className="ap-fine">The key is shown in a secure window from our wallet provider. Constant never sees it.</p>
+              </div>
+            )}
+          </>
+        ) : wallet.status === "error" ? (
+          <div className="ap-inline-state" role="alert">
+            <p className="ap-muted">We couldn&apos;t set up your wallet.</p>
+            <button className="btn btn-primary btn-sm" onClick={wallet.retry}>
+              Try again
+            </button>
+          </div>
+        ) : (
+          <div className="ap-inline-state" role="status">
+            <span className="ap-spinner" aria-hidden="true" />
+            <p className="ap-muted">Setting up your wallet…</p>
+          </div>
+        )}
+      </section>
+
       <section className="ap-card" aria-labelledby="delivery">
         <h2 id="delivery">Where tokens and receipts go</h2>
-        <p className="ap-muted">In this order. SMS is always the backup for electricity tokens.</p>
-        <div className="ap-chips">
+        <p className="ap-muted">Tap to choose, in order. SMS is always the backup for electricity tokens.</p>
+        <div className="ap-chips" role="group" aria-labelledby="delivery">
           {CHANNELS.map((c) => {
             const i = channels.indexOf(c.id);
             return (
-              <button key={c.id} className="ap-chip-btn" data-on={i >= 0} onClick={() => toggle(c.id)} aria-pressed={i >= 0}>
-                {i >= 0 && <span className="ap-order">{i + 1}</span>}
+              <button
+                key={c.id}
+                className="ap-chip-btn"
+                data-on={i >= 0}
+                onClick={() => toggle(c.id)}
+                aria-pressed={i >= 0}
+                aria-label={i >= 0 ? `${c.label}, choice ${i + 1}` : c.label}
+              >
+                {i >= 0 && (
+                  <span className="ap-order" aria-hidden="true">
+                    {i + 1}
+                  </span>
+                )}
                 {c.label}
               </button>
             );
           })}
         </div>
+        {channels.length === 0 && <p className="ap-hint">Nothing selected: tokens will come by SMS.</p>}
       </section>
 
       <section className="ap-card" aria-labelledby="data-title">
@@ -90,25 +184,32 @@ export function Account({ user, store }: { user: User; store: Store }) {
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = url;
-              a.download = "constant-plan.json";
+              a.download = "constant-bills.json";
               a.click();
               URL.revokeObjectURL(url);
+              notify("Downloaded");
             }}
           >
-            Download
+            Download my bills
           </button>
-          {confirm ? (
-            <button
-              className="btn btn-danger btn-sm"
-              onClick={() => {
-                store.clear();
-                setConfirm(false);
-              }}
-            >
-              Confirm delete
-            </button>
+          {confirmDelete ? (
+            <>
+              <button
+                className="btn btn-danger btn-sm"
+                onClick={() => {
+                  store.clear();
+                  setConfirmDelete(false);
+                  notify("Bills deleted from this device");
+                }}
+              >
+                Yes, delete
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDelete(false)}>
+                Keep them
+              </button>
+            </>
           ) : (
-            <button className="btn btn-ghost btn-sm" onClick={() => setConfirm(true)}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDelete(true)}>
               Delete from this device
             </button>
           )}

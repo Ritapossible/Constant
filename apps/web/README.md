@@ -7,7 +7,11 @@ The landing page (`/`) and the Constant app (`/app`), one Next.js project.
   - **Home:** monthly total, heads-up reminders, covered-until list.
   - **Bills:** add data, airtime, electricity, cable TV or a subscription; log readings; pause; remove.
   - **Money:** your own address with QR, and live USDC/USDT balances on Base and USDC on Arc.
-  - **Account:** sign-in methods, delivery channels, export or delete data.
+  - **Account:** sign-in methods, your wallet (copy address; export the private key in Privy's secure window, after a clear warning), delivery channels, download or delete data.
+
+  Product details: bills can be added, edited, paused and removed (with Undo); a first-run checklist guides new users; the open tab is kept in the URL; if the embedded wallet is missing it is created again, with a retry if that fails.
+
+  Accessibility: dialogs trap and restore focus and close on Escape; form errors are linked to their fields and focus moves to the first one; confirmations are announced; touch targets are at least 44px; reduced motion is respected. Checked with axe-core (no violations).
 
   Forecasts, confidence wording and reminders come from `packages/rules`, the same engine the backend will use. During the preview, bills are saved on the user's device. Paying bills switches on with the licensed partner.
 - **`/privacy`**: privacy notice.

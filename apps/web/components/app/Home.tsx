@@ -76,6 +76,8 @@ export function Home({ user, store, goTo }: { user: User; store: Store; goTo: Go
         </div>
       </section>
 
+      <Checklist user={user} store={store} goTo={goTo} />
+
       {heads.length > 0 && (
         <section aria-labelledby="heads-title">
           <h2 id="heads-title" className="ap-section-title">
@@ -140,4 +142,51 @@ function sortKey(o: Outlook): number {
   if (o.kind === "renewal") return o.date.getTime();
   if (o.kind === "forecast") return o.likely.getTime();
   return Number.MAX_SAFE_INTEGER - (o.kind === "needs_reading" ? 1 : 0);
+}
+
+/** First-run steps. Disappears once everything is done. */
+function Checklist({ user, store, goTo }: { user: User; store: Store; goTo: GoTo }) {
+  const lines = store.plan.lines;
+  const steps = [
+    { done: lines.length > 0, label: "Add your first bill", sub: "Data, light, cable or a subscription", to: "bills" as const },
+    {
+      done: lines.some((l) => isUsageKind(l.kind) && l.readings.length > 0) || (lines.length > 0 && !lines.some((l) => isUsageKind(l.kind))),
+      label: "Log a reading",
+      sub: "What's left on your data or meter starts the forecast",
+      to: "bills" as const,
+    },
+    { done: user.linkedAccounts.length > 1, label: "Add a second way to sign in", sub: "So you never get locked out", to: "account" as const },
+  ];
+  const left = steps.filter((s) => !s.done).length;
+  if (left === 0) return null;
+  return (
+    <section className="ap-card" aria-labelledby="start-title">
+      <div className="ap-card-head">
+        <h2 id="start-title">Get set up</h2>
+        <span className="ap-chip">
+          {steps.length - left} of {steps.length} done
+        </span>
+      </div>
+      <ol className="ap-checklist">
+        {steps.map((s) => (
+          <li key={s.label} data-done={s.done}>
+            <button onClick={() => goTo(s.to)} disabled={s.done} aria-label={s.done ? `${s.label}, done` : s.label}>
+              <span className="ap-check" aria-hidden="true">
+                {s.done && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m5 12.5 4.5 4.5L19 7.5" />
+                  </svg>
+                )}
+              </span>
+              <span className="ap-row-main">
+                <b>{s.label}</b>
+                <small>{s.sub}</small>
+              </span>
+              {!s.done && <span aria-hidden="true">→</span>}
+            </button>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
 }

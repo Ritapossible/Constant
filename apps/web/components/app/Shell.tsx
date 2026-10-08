@@ -1,14 +1,15 @@
 "use client";
 
 import type { User } from "@privy-io/react-auth";
-import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/Logo";
 import { usePlan } from "@/lib/app/store";
 import { Account } from "./Account";
 import { Bills } from "./Bills";
 import { Home } from "./Home";
 import { Money } from "./Money";
+import { ToastProvider } from "./Toast";
 
 type Tab = "home" | "bills" | "money" | "account";
 
@@ -19,15 +20,50 @@ const TABS: { id: Tab; label: string; d: string }[] = [
   { id: "account", label: "Account", d: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 9a7 7 0 0 1 14 0" },
 ];
 
+const isTab = (v: string): v is Tab => TABS.some((t) => t.id === v);
+
 export function displayName(user: User): string {
-  return user.google?.name?.split(" ")[0] ?? user.email?.address?.split("@")[0] ?? (user.phone?.number ? "there" : "there");
+  return user.google?.name?.split(" ")[0] ?? user.email?.address?.split("@")[0] ?? "there";
+}
+
+/** The open tab lives in the URL (#bills), so refresh, back and shared links work. */
+function useTab(): [Tab, (t: Tab) => void] {
+  const [tab, setTabState] = useState<Tab>("home");
+  useEffect(() => {
+    const read = () => {
+      const h = window.location.hash.slice(1);
+      setTabState(isTab(h) ? h : "home");
+    };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
+  const setTab = useCallback((t: Tab) => {
+    if (window.location.hash.slice(1) !== t) window.history.pushState(null, "", `#${t}`);
+    setTabState(t);
+  }, []);
+  return [tab, setTab];
 }
 
 export function Shell({ user }: { user: User }) {
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useTab();
   const store = usePlan(user.id);
+  const main = useRef<HTMLElement>(null);
+  const first = useRef(true);
+
+  // On tab change: back to the top, and focus the new page so screen readers announce it.
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    window.scrollTo({ top: 0 });
+    main.current?.focus({ preventScroll: true });
+  }, [tab]);
 
   return (
+    <MotionConfig reducedMotion="user">
+    <ToastProvider>
     <div className="ap">
       <aside className="ap-side" aria-label="App navigation">
         <a href="/" className="ap-brand" aria-label="Constant home">
@@ -48,7 +84,7 @@ export function Shell({ user }: { user: User }) {
         </div>
       </aside>
 
-      <main className="ap-main" id="main">
+      <main className="ap-main" id="main" ref={main} tabIndex={-1} aria-label={TABS.find((t) => t.id === tab)?.label}>
         <div className="ap-mobile-top">
           <a href="/" className="ap-brand" aria-label="Constant home">
             <LogoMark />
@@ -86,6 +122,8 @@ export function Shell({ user }: { user: User }) {
         ))}
       </nav>
     </div>
+    </ToastProvider>
+    </MotionConfig>
   );
 }
 
