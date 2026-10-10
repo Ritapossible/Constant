@@ -143,7 +143,8 @@
   display: none;
 }
 .ap-main {
-  padding: 16px var(--gutter) calc(96px + env(safe-area-inset-bottom));
+  /* Clears the floating tab bar (about 78px tall plus its 12px gap) with room to spare. */
+  padding: 16px var(--gutter) calc(128px + env(safe-area-inset-bottom));
   max-width: 760px;
   width: 100%;
   margin: 0 auto;
@@ -261,7 +262,7 @@
     display: none;
   }
   .ap-main {
-    padding: 48px 40px;
+    padding: 48px 40px 64px;
   }
 }
 
@@ -869,6 +870,32 @@
 }
 .ap-checklist button:disabled {
   cursor: default;
+}
+.ap-checklist li[data-locked="true"] .ap-row-main {
+  opacity: 0.55;
+}
+.ap-checklist li[data-locked="true"] .ap-check {
+  border-style: dashed;
+}
+.ap-name-form {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.ap-name-form .ap-field {
+  flex: 1;
+}
+.ap-details summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 550;
+  padding: 6px 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.ap-details[open] summary {
+  margin-bottom: 8px;
 }
 .ap-check {
   flex: none;

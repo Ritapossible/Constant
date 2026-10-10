@@ -22,8 +22,13 @@ const TABS: { id: Tab; label: string; d: string }[] = [
 
 const isTab = (v: string): v is Tab => TABS.some((t) => t.id === v);
 
-export function displayName(user: User): string {
-  return user.google?.name?.split(" ")[0] ?? user.email?.address?.split("@")[0] ?? "there";
+export function displayName(user: User, name?: string): string {
+  return name?.trim() || user.google?.name?.split(" ")[0] || user.email?.address?.split("@")[0] || "there";
+}
+
+/** Ways to sign in, not counting the wallet Constant created for the user. */
+export function signInMethods(user: User): number {
+  return user.linkedAccounts.filter((a) => !(a.type === "wallet" && a.walletClientType === "privy") && a.type !== "smart_wallet").length;
 }
 
 /** The open tab lives in the URL (#bills), so refresh, back and shared links work. */

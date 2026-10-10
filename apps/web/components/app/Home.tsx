@@ -7,7 +7,7 @@ import { formatDay, formatMoney } from "@/lib/app/format";
 import { notices, outlook, type Outlook } from "@/lib/app/insights";
 import type { Line } from "@/lib/app/store";
 import { KindIcon } from "./KindIcon";
-import { displayName, type GoTo, type Store } from "./Shell";
+import { displayName, signInMethods, type GoTo, type Store } from "./Shell";
 
 function greeting(now: Date) {
   const h = Number(new Intl.DateTimeFormat("en-NG", { hour: "numeric", hour12: false, timeZone: "Africa/Lagos" }).format(now));
@@ -59,7 +59,7 @@ export function Home({ user, store, goTo }: { user: User; store: Store; goTo: Go
     <div className="ap-page">
       <header className="ap-page-head">
         <p className="ap-kicker">{greeting(now)}</p>
-        <h1>{displayName(user)}</h1>
+        <h1>{displayName(user, store.plan.name)}</h1>
       </header>
 
       <section className="ap-hero-card" aria-label="Monthly plan">
@@ -144,19 +144,27 @@ function sortKey(o: Outlook): number {
   return Number.MAX_SAFE_INTEGER - (o.kind === "needs_reading" ? 1 : 0);
 }
 
-/** First-run steps. Disappears once everything is done. */
+/**
+ * First-run steps, in the order that gets a bill paid. A step that needs an earlier one stays locked,
+ * and recovery counts only real sign-in methods, not the wallet created at sign-in.
+ */
 function Checklist({ user, store, goTo }: { user: User; store: Store; goTo: GoTo }) {
   const lines = store.plan.lines;
-  const steps = [
-    { done: lines.length > 0, label: "Add your first bill", sub: "Data, light, cable or a subscription", to: "bills" as const },
-    {
-      done: lines.some((l) => isUsageKind(l.kind) && l.readings.length > 0) || (lines.length > 0 && !lines.some((l) => isUsageKind(l.kind))),
-      label: "Log a reading",
-      sub: "What's left on your data or meter starts the forecast",
-      to: "bills" as const,
-    },
-    { done: user.linkedAccounts.length > 1, label: "Add a second way to sign in", sub: "So you never get locked out", to: "account" as const },
+  const hasBill = lines.length > 0;
+  const usage = lines.filter((l) => isUsageKind(l.kind));
+  const steps: { done: boolean; locked?: boolean; label: string; sub: string; to: "bills" | "account" }[] = [
+    { done: hasBill, label: "Add your first bill", sub: "Data, light, cable or a subscription", to: "bills" },
   ];
+  if (!hasBill || usage.length > 0) {
+    steps.push({
+      done: usage.some((l) => l.readings.length > 0),
+      locked: !hasBill,
+      label: "Log a reading",
+      sub: hasBill ? "What's left on your data or meter starts the forecast" : "Unlocks after you add a bill",
+      to: "bills",
+    });
+  }
+  steps.push({ done: signInMethods(user) > 1, label: "Add a second way to sign in", sub: "So you never get locked out", to: "account" });
   const left = steps.filter((s) => !s.done).length;
   if (left === 0) return null;
   return (
@@ -169,8 +177,12 @@ function Checklist({ user, store, goTo }: { user: User; store: Store; goTo: GoTo
       </div>
       <ol className="ap-checklist">
         {steps.map((s) => (
-          <li key={s.label} data-done={s.done}>
-            <button onClick={() => goTo(s.to)} disabled={s.done} aria-label={s.done ? `${s.label}, done` : s.label}>
+          <li key={s.label} data-done={s.done} data-locked={s.locked ?? false}>
+            <button
+              onClick={() => goTo(s.to)}
+              disabled={s.done || s.locked}
+              aria-label={s.done ? `${s.label}, done` : s.locked ? `${s.label}, after you add a bill` : s.label}
+            >
               <span className="ap-check" aria-hidden="true">
                 {s.done && (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
@@ -182,7 +194,7 @@ function Checklist({ user, store, goTo }: { user: User; store: Store; goTo: GoTo
                 <b>{s.label}</b>
                 <small>{s.sub}</small>
               </span>
-              {!s.done && <span aria-hidden="true">→</span>}
+              {!s.done && !s.locked && <span aria-hidden="true">→</span>}
             </button>
           </li>
         ))}

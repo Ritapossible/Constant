@@ -32,6 +32,8 @@ export type Plan = {
   version: 1;
   lines: Line[];
   channels: Channel[];
+  /** What the app calls you. Falls back to your Google first name or email. */
+  name?: string;
 };
 
 const EMPTY: Plan = { version: 1, lines: [], channels: ["whatsapp", "sms"] };

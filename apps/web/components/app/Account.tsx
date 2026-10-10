@@ -1,9 +1,9 @@
 "use client";
 
 import { usePrivy, type User } from "@privy-io/react-auth";
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { Channel } from "@/lib/app/store";
-import type { Store } from "./Shell";
+import { displayName, type Store } from "./Shell";
 import { useNotify } from "./Toast";
 import { useWalletAddress } from "./useWalletAddress";
 
@@ -44,6 +44,8 @@ export function Account({ user, store }: { user: User; store: Store }) {
         <h1>You</h1>
       </header>
 
+      <Profile user={user} store={store} />
+
       <section className="ap-card" aria-labelledby="signin-methods">
         <h2 id="signin-methods">Ways to sign in</h2>
         <p className="ap-muted">Add more than one so you never get locked out.</p>
@@ -64,6 +66,34 @@ export function Account({ user, store }: { user: User; store: Store }) {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="ap-card" aria-labelledby="delivery">
+        <h2 id="delivery">Where tokens and receipts go</h2>
+        <p className="ap-muted">Tap to choose, in order. SMS is always the backup for electricity tokens.</p>
+        <div className="ap-chips" role="group" aria-labelledby="delivery">
+          {CHANNELS.map((c) => {
+            const i = channels.indexOf(c.id);
+            return (
+              <button
+                key={c.id}
+                className="ap-chip-btn"
+                data-on={i >= 0}
+                onClick={() => toggle(c.id)}
+                aria-pressed={i >= 0}
+                aria-label={i >= 0 ? `${c.label}, choice ${i + 1}` : c.label}
+              >
+                {i >= 0 && (
+                  <span className="ap-order" aria-hidden="true">
+                    {i + 1}
+                  </span>
+                )}
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+        {channels.length === 0 && <p className="ap-hint">Nothing selected: tokens will come by SMS.</p>}
       </section>
 
       <section className="ap-card" aria-labelledby="wallet-title">
@@ -95,7 +125,8 @@ export function Account({ user, store }: { user: User; store: Store }) {
               </button>
             </div>
             {wallet.embedded && (
-              <div className="ap-export">
+              <details className="ap-details ap-export">
+                <summary>Advanced: move this wallet to another app</summary>
                 {confirmExport ? (
                   <div className="ap-warn" role="alert">
                     <p style={{ margin: "0 0 10px" }}>
@@ -127,7 +158,7 @@ export function Account({ user, store }: { user: User; store: Store }) {
                   </button>
                 )}
                 <p className="ap-fine">The key is shown in a secure window from our wallet provider. Constant never sees it.</p>
-              </div>
+              </details>
             )}
           </>
         ) : wallet.status === "error" ? (
@@ -143,34 +174,6 @@ export function Account({ user, store }: { user: User; store: Store }) {
             <p className="ap-muted">Setting up your wallet…</p>
           </div>
         )}
-      </section>
-
-      <section className="ap-card" aria-labelledby="delivery">
-        <h2 id="delivery">Where tokens and receipts go</h2>
-        <p className="ap-muted">Tap to choose, in order. SMS is always the backup for electricity tokens.</p>
-        <div className="ap-chips" role="group" aria-labelledby="delivery">
-          {CHANNELS.map((c) => {
-            const i = channels.indexOf(c.id);
-            return (
-              <button
-                key={c.id}
-                className="ap-chip-btn"
-                data-on={i >= 0}
-                onClick={() => toggle(c.id)}
-                aria-pressed={i >= 0}
-                aria-label={i >= 0 ? `${c.label}, choice ${i + 1}` : c.label}
-              >
-                {i >= 0 && (
-                  <span className="ap-order" aria-hidden="true">
-                    {i + 1}
-                  </span>
-                )}
-                {c.label}
-              </button>
-            );
-          })}
-        </div>
-        {channels.length === 0 && <p className="ap-hint">Nothing selected: tokens will come by SMS.</p>}
       </section>
 
       <section className="ap-card" aria-labelledby="data-title">
@@ -199,7 +202,7 @@ export function Account({ user, store }: { user: User; store: Store }) {
                 onClick={() => {
                   store.clear();
                   setConfirmDelete(false);
-                  notify("Bills deleted from this device");
+                  notify("Your data was deleted from this device");
                 }}
               >
                 Yes, delete
@@ -220,5 +223,59 @@ export function Account({ user, store }: { user: User; store: Store }) {
         Sign out
       </button>
     </div>
+  );
+}
+
+function Profile({ user, store }: { user: User; store: Store }) {
+  const notify = useNotify();
+  const id = useId();
+  const saved = store.plan.name ?? "";
+  const [value, setValue] = useState(saved);
+  const [error, setError] = useState<string | null>(null);
+  const trimmed = value.trim();
+
+  return (
+    <section className="ap-card" aria-labelledby="profile-title">
+      <h2 id="profile-title">Your name</h2>
+      <p className="ap-muted">What Constant calls you in the app and in messages.</p>
+      <form
+        className="ap-name-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (trimmed.length > 40) {
+            setError("Keep it under 40 characters.");
+            return;
+          }
+          setError(null);
+          store.save((p) => ({ ...p, name: trimmed || undefined }));
+          setValue(trimmed);
+          notify(trimmed ? `We'll call you ${trimmed}` : "Name cleared");
+        }}
+      >
+        <div className="ap-field">
+          <label htmlFor={id} className="sr-only">
+            Display name
+          </label>
+          <input
+            id={id}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={displayName(user)}
+            autoComplete="nickname"
+            maxLength={60}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? `${id}-err` : undefined}
+          />
+        </div>
+        <button className="btn btn-primary" type="submit" disabled={trimmed === saved}>
+          Save
+        </button>
+      </form>
+      {error && (
+        <span id={`${id}-err`} className="ap-err" role="alert">
+          {error}
+        </span>
+      )}
+    </section>
   );
 }

@@ -13,12 +13,12 @@ export function Cta() {
             <div className="cta-orbit-spin" />
           </div>
           <span className="status">
-            <span className="eyebrow-dot" /> Open now
+            <span className="eyebrow-dot" /> Preview open
           </span>
           <h2 id="early-title" className="cta-title">
             Never run out of <Scramble words={WORDS} /> again.
           </h2>
-          <p className="cta-sub">Sign in with Google, email, your phone number or a passkey. No seed phrase, no forms.</p>
+          <p className="cta-sub">Sign in with Google, email, your phone number or a passkey. No seed phrase, no forms. In the preview you set up your bills; payments switch on with our licensed partner.</p>
           <div>
             <a href="/app" className="btn btn-inverse">
               Launch app <IconArrow />
