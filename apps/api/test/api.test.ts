@@ -2,7 +2,8 @@
  * API: auth, the cable bill lifecycle, funding webhooks (INV-7), the VTpass hint webhook (rule 6), privacy (rule 9).
  */
 import { createHmac } from "node:crypto";
-import { Secrets, freshDatabase, ledgerSum, testKeyB64, type Db } from "@constant/db";
+import { FakeAnchorer, merkle, receiptLeaf, verifyProof } from "@constant/chains";
+import { Secrets, claimUnanchored, freshDatabase, insertBatch, insertDeposit, ledgerSum, markBatch, testKeyB64, withTx, type Db } from "@constant/db";
 import { FakeCableVending, FakeFunding, FakeIdentity } from "@constant/partners";
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -12,6 +13,7 @@ let db: Db;
 let drop: () => Promise<void>;
 let app: FastifyInstance;
 const vending = new FakeCableVending();
+const identity = new FakeIdentity();
 const funding = new FakeFunding("whsec");
 const NOW = new Date("2026-11-10T09:00:00Z");
 const WEBHOOK_TOKEN = "vt-0123456789abcdef";
@@ -22,7 +24,7 @@ beforeAll(async () => {
   vending.decoders.set("1234567890", { customerName: "NO DATE", plan: "GOtv Max", renewalAmountMinor: 850_000n, dueAt: null });
   app = await buildApp({
     db,
-    identity: new FakeIdentity(),
+    identity,
     vending,
     funding,
     secrets: new Secrets({ encryption: [{ id: "k1", key: Buffer.from(testKeyB64(), "base64") }], hmac: Buffer.from(testKeyB64(), "base64") }),
@@ -175,5 +177,66 @@ describe("VTpass webhook (unsigned hint)", () => {
     expect(r.json()).toEqual({ response: "success" });
     // Nothing settles from a webhook: no order rows changed, no ledger entries written.
     expect((await db.query("SELECT count(*)::int AS n FROM ledger_entries WHERE kind = 'vend'")).rows[0].n).toBe(0);
+  });
+});
+
+describe("stablecoins (Base, Arc)", () => {
+  it("learns the user's wallet from the identity provider, never from the request", async () => {
+    identity.users.set("did:privy:sam", {
+      did: "did:privy:sam",
+      email: "sam@example.com",
+      phoneE164: null,
+      wallets: [{ address: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd", kind: "embedded" }, { address: "not-an-address", kind: "external" }],
+    });
+    const r = await call("GET", "/v1/stables", "did:privy:sam");
+    expect(r.json().addresses).toEqual([{ address: "0xABcdEFABcdEFabcdEfAbCdefabcdeFABcDEFabCD", kind: "embedded" }]);
+  });
+
+  it("lists deposits with network, token and amount; quarantined ones without an amount", async () => {
+    const me = (await call("GET", "/v1/me", "did:privy:sam")).json();
+    await insertDeposit(db, { chain: "base", txHash: "0xaa", logIndex: 0, userId: me.user.id, address: "0xABcdEFABcdEFabcdEfAbCdefabcdeFABcDEFabCD", from: "0x1", token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", tokenKey: "base-usdc", amountRaw: 20_000_000n, blockNumber: 1n });
+    await insertDeposit(db, { chain: "arc", txHash: "0xbb", logIndex: 0, userId: me.user.id, address: "0xABcdEFABcdEFabcdEfAbCdefabcdeFABcDEFabCD", from: "0x1", token: "0x9999999999999999999999999999999999999999", tokenKey: null, amountRaw: 10n ** 70n, blockNumber: 1n });
+    const deps = (await call("GET", "/v1/stables", "did:privy:sam")).json().deposits;
+    expect(deps).toHaveLength(2);
+    expect(deps.find((x: { network: string }) => x.network === "Base")).toMatchObject({ symbol: "USDC", amount: "20.00", status: "accepted", txUrl: "https://basescan.org/tx/0xaa" });
+    expect(deps.find((x: { network: string }) => x.network === "Arc")).toMatchObject({ symbol: null, amount: null, status: "quarantined" });
+  });
+});
+
+describe("public receipts", () => {
+  it("shows the payment and its public record, and nothing personal", async () => {
+    // A settled renewal for alice.
+    await call("POST", "/v1/lines", "did:privy:alice", { provider: "dstv", smartcard: "7012345678", nickname: "Receipt test" });
+    const me = (await call("GET", "/v1/me", "did:privy:alice")).json();
+    const line = me.lines.find((l: { nickname: string }) => l.nickname === "Receipt test");
+    const receiptId = "R".repeat(22);
+    await db.query(
+      `INSERT INTO orders (user_id, line_id, trigger, state, amount_minor, fee_minor, currency, idempotency_key, partner, receipt_id, settled_at)
+       VALUES ($1,$2,'renewal','settled',1995000,0,'NGN','receipt-test','fake',$3,'2026-11-14T06:01:00Z')`,
+      [me.user.id, line.id, receiptId],
+    );
+
+    let r = await app.inject({ method: "GET", url: `/receipts/${receiptId}` });
+    expect(r.json()).toMatchObject({ status: "paid", amountMinor: "1995000", provider: "dstv", last4: "5678", record: null });
+
+    // What the worker's anchor job does, inline: batch, prove, record.
+    const anchorer = new FakeAnchorer();
+    const rows = await withTx(db, (tx) => claimUnanchored(tx));
+    const leaves = rows.map((x) => receiptLeaf({ receiptId: x.receipt_id, amountMinor: x.amount_minor, currency: x.currency, provider: x.provider, last4: x.last4, settledAt: x.settled_at }));
+    const tree = merkle(leaves);
+    const batchId = await withTx(db, (tx) => insertBatch(tx, "testnet", tree.root, rows.map((x, i) => ({ orderId: x.order_id, leaf: leaves[i]!, proof: tree.proofs[i]! }))));
+    const anchored = await anchorer.anchor(tree.root);
+    await markBatch(db, batchId, { anchored: true, txHash: anchored.txHash, ledger: anchored.ledger });
+
+    r = await app.inject({ method: "GET", url: `/receipts/${receiptId}` });
+    const body = r.json();
+    const leaf = receiptLeaf({ receiptId, amountMinor: 1_995_000n, currency: "NGN", provider: "dstv", last4: "5678", settledAt: new Date(body.paidAt) });
+    expect(body.record.leaf).toBe(leaf);
+    expect(verifyProof(leaf, body.record.proof, body.record.root)).toBe(true);
+    expect(body.record.url).toContain("stellar.expert");
+    const text = JSON.stringify(body);
+    for (const secret of ["7012345678", "ADA OBI", "alice@example.com", me.user.id]) expect(text).not.toContain(secret);
+
+    expect((await app.inject({ method: "GET", url: "/receipts/nope" })).statusCode).toBe(404);
   });
 });

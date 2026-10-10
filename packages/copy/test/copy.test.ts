@@ -14,3 +14,12 @@ describe("copy", () => {
     expect(m.text).not.toMatch(/usdc|crypto|wallet|blockchain|\b\d{10,}\b/i);
   });
 });
+
+describe("stablecoin copy (D-053)", () => {
+  it("names the token and network, fits one SMS", () => {
+    const m = render("stables_arrived", { amount: "20.00", symbol: "USDC", network: "Base" });
+    expect(m.text).toContain("20.00 USDC arrived on Base");
+    expect(m.text.length).toBeLessThanOrEqual(160);
+    expect(render("token_quarantined", { network: "Arc" }).text.length).toBeLessThanOrEqual(160);
+  });
+});

@@ -268,7 +268,17 @@ export function CableDetail({ line, orders, onClose }: { line: ServerLine; order
                 <span>
                   {formatDay(new Date(o.createdAt))} · {ORDER_LABEL[o.state]}
                 </span>
-                <span className="mono">{naira(o.amountMinor)}</span>
+                <span className="mono">
+                  {naira(o.amountMinor)}
+                  {(o.state === "settled" || o.state === "notifying") && (
+                    <>
+                      {" · "}
+                      <a href={`/r/${o.receiptId}`} target="_blank" rel="noreferrer">
+                        Receipt
+                      </a>
+                    </>
+                  )}
+                </span>
               </li>
             ))}
           </ul>

@@ -3,7 +3,9 @@
  * Rules: local currency only, no chain words (CLAUDE.md rule 10), never a full smartcard, meter or token.
  */
 
-export type NoticeKind = "renewed" | "renewal_failed" | "insufficient" | "above_cap" | "funded" | "needs_attention";
+import { renderStables, type StableNoticeKind, type StableParams } from "./stables.js";
+
+export type NoticeKind = "renewed" | "renewal_failed" | "insufficient" | "above_cap" | "funded" | "needs_attention" | StableNoticeKind;
 
 export interface Message {
   subject: string;
@@ -35,7 +37,8 @@ export interface NoticeParams {
 }
 
 /** One message per notice kind. Short enough for one SMS where it may go by SMS. */
-export function render(kind: NoticeKind, p: NoticeParams): Message {
+export function render(kind: NoticeKind, p: NoticeParams & Record<string, string | undefined>): Message {
+  if (kind === "stables_arrived" || kind === "token_quarantined") return renderStables(kind, p as StableParams);
   const who = p.line ?? `${p.provider ?? "TV"} ••${p.last4 ?? ""}`;
   const amt = p.amountMinor ? naira(BigInt(p.amountMinor)) : "";
   switch (kind) {

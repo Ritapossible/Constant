@@ -151,7 +151,23 @@ describe("Privy", () => {
 
   it("reads verified contact details", () => {
     expect(
-      contactFromPrivyUser("did:privy:a", { linked_accounts: [{ type: "google_oauth", email: "ada@gmail.com" }, { type: "phone", phoneNumber: "+234 800 000 0000" }] }),
-    ).toEqual({ did: "did:privy:a", email: "ada@gmail.com", phoneE164: "+2348000000000" });
+      contactFromPrivyUser("did:privy:a", {
+        linked_accounts: [
+          { type: "google_oauth", email: "ada@gmail.com" },
+          { type: "phone", phoneNumber: "+234 800 000 0000" },
+          { type: "wallet", chain_type: "ethereum", address: "0x1111111111111111111111111111111111111111", wallet_client_type: "privy", connector_type: "embedded" },
+          { type: "wallet", chain_type: "ethereum", address: "0x2222222222222222222222222222222222222222", wallet_client_type: "metamask", connector_type: "injected" },
+          { type: "wallet", chain_type: "solana", address: "So1ana" },
+        ],
+      }),
+    ).toEqual({
+      did: "did:privy:a",
+      email: "ada@gmail.com",
+      phoneE164: "+2348000000000",
+      wallets: [
+        { address: "0x1111111111111111111111111111111111111111", kind: "embedded" },
+        { address: "0x2222222222222222222222222222222222222222", kind: "external" },
+      ],
+    });
   });
 });

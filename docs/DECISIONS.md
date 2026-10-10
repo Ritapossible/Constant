@@ -288,3 +288,19 @@ One bill, stored on a server, that spends money and delivers a result, before an
 
 ### D-059 Hosting: Render, Frankfurt — *implements D-026*
 API (web service), worker (background worker) and Postgres 16 on Render in Frankfurt, from `render.yaml`. The web app stays on Vercel and calls the API with the user's Privy access token. Steps: `docs/GO-LIVE.md`.
+
+### D-060 Base and Arc: users' own addresses, watched server-side — *implements D-051, D-056 (first step)*
+- The server learns each user's EVM addresses from Privy's API (embedded and linked wallets), never from the browser. An address belongs to one user only.
+- The worker reads USDC and USDT transfers into those addresses on Base (12 confirmations) and USDC on Arc (final in under a second), records each once (`chain_deposits`), and tells the user. The money stays in the user's own account: nothing is credited to the naira ledger, nothing is moved.
+- By default only the accepted token contracts are queried, which works on public RPCs. With a paid RPC, `DEPOSITS_ALL_TOKENS=true` also records anything else as quarantined and warns the user once a day (INV-46).
+- Next: per-line spend permissions on Base so a due bill can be charged from the user's dollars (RAILS "How an automatic payment works"), then the Paycrest off-ramp and an Arc treasury with CCTP (Base domain 6, Arc 26).
+
+### D-061 Chain facts live in one file
+`packages/chains/src/config.ts` holds every address, chain id, CCTP domain and confirmation depth, with where each was checked. Checked 2026-10-10: Arc chain 5042, USDC at 0x3600…0000 (6 decimals), CCTP domain 26; CCTP domains Base 6, Stellar 27; CCTP V2 TokenMessenger 0x28b5…cf5d and MessageTransmitter 0x81D4…4B64.
+
+### D-062 Stellar: a public, tamper-evident record of every payment — *brings forward part of D-011 and D-051's Stellar role*
+- Hourly, the worker puts every newly settled renewal into a Merkle tree and writes the root as the memo of a Stellar transaction from Constant's own account (a no-op operation; fee 0.00001 XLM paid by Constant).
+- Each receipt page shows the payment and a "Public record" check that runs in the reader's browser: it recomputes the receipt's fingerprint, walks the proof to the root, and links to the transaction.
+- A receipt commits to its random 128-bit id, amount, currency, provider, last 4 digits and time. No name, phone or full number. Customers never see the word Stellar (rule 10); the page says "public record".
+- Batches are saved before they are sent, so an outage only delays the record. Tested live on Stellar testnet on 2026-10-10.
+- The Soroban mandate (an on-chain cap per line) and Stellar USDC deposits via CCTP stay in Phase 3.

@@ -6,6 +6,14 @@ How money gets into Constant and out to DSTV, VTpass and the rest. Facts were ch
 
 Bills in Nigeria are paid in naira. USDC and USDT never pay IKEDC or DSTV directly. Every dollar path ends in an off-ramp to naira, then the vend partner. The chains are where a user's dollars wait and how Constant is allowed to take them, within limits the user signed.
 
+## Built so far (2026-10-10)
+
+| Network | Live in code | Next |
+|---|---|---|
+| **Base** | Each user's own address, from Privy, server-side. USDC/USDT deposits recorded after 12 confirmations, user told (D-060). | Spend permission per line; charge then vend; Paycrest off-ramp. |
+| **Arc** | Same address; USDC deposits recorded (final in under a second). Chain facts verified (D-061). | Treasury on Arc; CCTP from Base (domain 6 → 26). |
+| **Stellar** | Hourly Merkle root of settled receipts as a memo; public receipt page checks it in the browser. Tested on testnet (D-062). | Fund a public-network account; Soroban mandate and CCTP deposits in Phase 3. |
+
 ## Two ways to fund, one experience
 
 | | **Naira** (most users in Nigeria) | **Dollars** (diaspora, crypto users) |

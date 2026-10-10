@@ -4,10 +4,15 @@
  * It never spends money: it stores what the user set up, looks decoders up (side-effect free), and records
  * signed funding webhooks. The worker decides and pays (ARCHITECTURE "Shape of the system").
  */
+import { EVM_CHAINS, STELLAR, evmAddress, formatUnits6, stableFor, type EvmChain } from "@constant/chains";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import {
   DuplicateLine,
+  addressesOf,
+  depositsOf,
+  publicReceipt,
+  saveAddresses,
   committedToOpenOrders,
   getFundingAccount,
   getLine,
@@ -137,6 +142,15 @@ const orderView = (o: OrderRow) => ({
 
 export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
   const now = d.now ?? (() => new Date());
+  const lastRefresh = new Map<string, number>();
+  const shouldRefresh = (did: string) => {
+    const t = now().getTime();
+    const prev = lastRefresh.get(did);
+    if (prev !== undefined && t - prev < 60_000) return false;
+    lastRefresh.set(did, t);
+    if (lastRefresh.size > 10_000) lastRefresh.clear();
+    return true;
+  };
   const app = Fastify({
     logger: d.logger === false ? false : { redact: ["req.headers.authorization", 'req.headers["x-paystack-signature"]'] },
     bodyLimit: 64 * 1024,
@@ -174,10 +188,22 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       const did = h?.startsWith("Bearer ") ? await d.identity.verify(h.slice(7)) : null;
       if (!did) throw new HttpError(401, "unauthenticated", "Sign in again");
       let user = await getUserByDid(d.db, did);
-      if (!user || (!user.email && !user.phone_e164)) {
-        const contact = await d.identity.user(did).catch(() => ({ email: null, phoneE164: null }));
-        user = await upsertUser(d.db, { privyDid: did, email: contact.email, phoneE164: contact.phoneE164 });
+      // Contact details and wallet addresses come from the identity provider, never from the browser.
+      // Re-read them while either is missing (the wallet is created just after first sign-in), at most once a minute.
+      const missing = !user || (!user.email && !user.phone_e164) || (await addressesOf(d.db, user.id)).length === 0;
+      if (missing && shouldRefresh(did)) {
+        const contact = await d.identity.user(did).catch(() => null);
+        user = await upsertUser(d.db, { privyDid: did, email: contact?.email ?? null, phoneE164: contact?.phoneE164 ?? null });
+        const wallets = (contact?.wallets ?? []).flatMap((w) => {
+          const address = evmAddress(w.address);
+          return address ? [{ address, kind: w.kind }] : [];
+        });
+        if (wallets.length) {
+          const { conflicts } = await saveAddresses(d.db, user.id, wallets);
+          if (conflicts.length) req.log.warn({ userId: user.id, conflicts: conflicts.length }, "address already belongs to another user");
+        }
       }
+      if (!user) user = await upsertUser(d.db, { privyDid: did });
       req.user = user;
     });
 
@@ -330,7 +356,54 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     });
 
     v1.get("/orders", async (req) => (await listOrders(d.db, req.user.id, 50)).map(orderView));
+
+    // Stablecoins: the user's own addresses and what arrived in them (D-060). Shown only on the dollar screens.
+    v1.get("/stables", async (req) => {
+      const [addresses, deposits] = await Promise.all([addressesOf(d.db, req.user.id), depositsOf(d.db, req.user.id)]);
+      return {
+        addresses: addresses.map((a) => ({ address: a.address, kind: a.kind })),
+        deposits: deposits.map((x) => {
+          const chain = x.chain as EvmChain;
+          const stable = x.token_key ? stableFor(chain, x.token) : null;
+          return {
+            id: `${x.chain}:${x.tx_hash}:${x.log_index}`,
+            network: EVM_CHAINS[chain]?.name ?? x.chain,
+            symbol: stable?.symbol ?? null,
+            amount: stable ? formatUnits6(BigInt(x.amount_raw)) : null,
+            status: x.status,
+            txUrl: `${EVM_CHAINS[chain]?.explorer ?? ""}/tx/${x.tx_hash}`,
+            at: x.created_at.toISOString(),
+          };
+        }),
+      };
+    });
   }, { prefix: "/v1" });
+
+  // ── Public receipts ────────────────────────────────────────────────────────
+  // Anyone with the link can see that a payment happened and check it against the public record (D-062).
+  // No name, phone or full number; the id is 128 random bits (ARCHITECTURE "Security").
+  app.get("/receipts/:id", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req) => {
+    const { id } = req.params as { id: string };
+    if (!/^[0-9A-Za-z]{16,40}$/.test(id)) throw new HttpError(404, "not_found", "No such receipt");
+    const r = await publicReceipt(d.db, id);
+    if (!r) throw new HttpError(404, "not_found", "No such receipt");
+    const paid = r.state === "settled" || r.state === "notifying" || r.state === "token_stored";
+    const network = (r.network ?? "testnet") as keyof typeof STELLAR;
+    return {
+      receiptId: r.receipt_id,
+      status: paid ? "paid" : r.state === "failed" ? "not_paid" : "in_progress",
+      amountMinor: r.amount_minor.toString(),
+      currency: r.currency,
+      provider: r.provider,
+      last4: r.last4,
+      createdAt: r.created_at.toISOString(),
+      paidAt: r.settled_at?.toISOString() ?? null,
+      record:
+        r.tx_hash && r.root && r.leaf && r.proof
+          ? { leaf: r.leaf, proof: r.proof, root: r.root, network: r.network, txHash: r.tx_hash, url: `${STELLAR[network]?.explorer ?? ""}/tx/${r.tx_hash}`, recordedAt: r.anchored_at?.toISOString() ?? null }
+          : null,
+    };
+  });
 
   // ── Webhooks ───────────────────────────────────────────────────────────────
 

@@ -1,3 +1,4 @@
+import { FakeAnchorer, StellarAnchorer, ViemReader, type Anchorer, type EvmReader } from "@constant/chains";
 import { Secrets, createPool, keysFromEnv, type Db } from "@constant/db";
 import { FakeCableVending, FakeMessaging, HttpMessaging, Vtpass, type CableVending, type Messaging } from "@constant/partners";
 
@@ -26,4 +27,20 @@ export function fromEnv(env: NodeJS.ProcessEnv = process.env): { db: Db; vending
           ...(env.TERMII_API_KEY ? { termii: { apiKey: env.TERMII_API_KEY, senderId: env.TERMII_SENDER_ID ?? "Constant", ...(env.TERMII_BASE_URL ? { baseUrl: env.TERMII_BASE_URL } : {}) } } : {}),
         });
   return { db, vending, messaging, secrets: new Secrets(keysFromEnv(env)), fallbackPhone: need(env, "VEND_FALLBACK_PHONE") };
+}
+
+/**
+ * Chain jobs are opt-in per environment: CHAINS=base,arc turns on deposit indexing for those chains,
+ * STELLAR_SECRET turns on receipt anchoring (STELLAR_NETWORK=testnet until the account is funded on public).
+ */
+export function chainsFromEnv(env: NodeJS.ProcessEnv = process.env): { readers: EvmReader[]; anchorer: Anchorer | null; scanAllTokens: boolean } {
+  const wanted = (env.CHAINS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const readers = wanted.map((c) => {
+    if (c === "base") return new ViemReader("base", env.BASE_RPC_URL);
+    if (c === "arc") return new ViemReader("arc", env.ARC_RPC_URL);
+    throw new Error(`CHAINS: unknown chain ${c}`);
+  });
+  const network = env.STELLAR_NETWORK === "public" ? "public" : "testnet";
+  const anchorer = env.STELLAR_SECRET === "fake" ? new FakeAnchorer() : env.STELLAR_SECRET ? new StellarAnchorer(network, env.STELLAR_SECRET) : null;
+  return { readers, anchorer, scanAllTokens: env.DEPOSITS_ALL_TOKENS === "true" };
 }

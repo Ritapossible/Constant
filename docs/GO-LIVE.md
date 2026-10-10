@@ -62,3 +62,12 @@ Set it back to `false` to stop all payments at once. The worker turns it off its
 ## 8. Live
 
 Swap `VTPASS_BASE_URL` to `https://vtpass.com/api` with live keys, Paystack live secret and `PAYSTACK_PREFERRED_BANK=wema-bank` (or `titan-paystack`), fund the VTpass wallet, and repeat step 5 with your own decoder and ₦ before inviting anyone. When that works, the "Preview" badge disappears on its own (the app shows it while payments are paused).
+
+## Chains (after the cable go-live)
+
+1. **Base and Arc deposits:** already on in `render.yaml` (`CHAINS=base,arc`). For production use a paid Base endpoint (Alchemy or QuickNode) in `BASE_RPC_URL`; public ones rate-limit. With a paid endpoint you can set `DEPOSITS_ALL_TOKENS=true` to also warn users about unsupported tokens.
+2. **Privy:** the API reads wallets with the app secret, so nothing else is needed. Check that a test user's address appears under Money → Recent deposits after sending 1 USDC on Base.
+3. **Stellar receipts:**
+   - Testnet first: create a key pair (stellar.org Laboratory), fund it with Friendbot, put the secret in `STELLAR_SECRET`, keep `STELLAR_NETWORK=testnet`.
+   - Public network: a new key pair funded with ~5 XLM (minimum balance plus years of fees at 24 transactions a day), `STELLAR_NETWORK=public`. Keep the secret in a password manager as well as Render.
+   - Check: after a renewal settles, within an hour its receipt page says "Checked in your browser".

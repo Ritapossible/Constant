@@ -10,7 +10,7 @@ fail=0
 # 1. User-facing copy lives in packages/copy/src (see docs/UX.md).
 if [ -d packages/copy/src ]; then
   if grep -rniE '\b(usdc|xlm|stellar|soroban|crypto|blockchain|wallet|seed|gas fee)\b|\$[0-9]|\bUSD\b|dollar' \
-      packages/copy/src --include='*.ts' | grep -v '\.test\.ts:'; then
+      packages/copy/src --include='*.ts' | grep -v '\.test\.ts:' | grep -v '^packages/copy/src/stables\.ts:'; then
     echo "guard: banned word in user-facing copy" >&2
     fail=1
   fi

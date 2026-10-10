@@ -11,10 +11,12 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@constant/chains": "workspace:*",
     "@constant/copy": "workspace:*",
     "@constant/db": "workspace:*",
     "@constant/partners": "workspace:*",
-    "@constant/rules": "workspace:*"
+    "@constant/rules": "workspace:*",
+    "viem": "^2.57.4"
   },
   "devDependencies": {
     "vitest": "^3.2.4"

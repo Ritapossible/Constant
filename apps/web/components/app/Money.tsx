@@ -8,6 +8,7 @@ import { EXPLORER, STABLES, arc, base } from "@/lib/app/chains";
 import { formatMoney, formatUnits6 } from "@/lib/app/format";
 import type { Plan } from "@/lib/app/store";
 import { NairaAccount } from "./NairaAccount";
+import { StableDeposits } from "./StableDeposits";
 import { useServer } from "./Server";
 import { useNotify } from "./Toast";
 import { useWalletAddress } from "./useWalletAddress";
@@ -143,6 +144,7 @@ export function Money({ user, plan }: { user: User; plan: Plan }) {
                 </li>
               ))}
             </ul>
+            <StableDeposits />
           </>
         ) : wallet.status === "error" ? (
           <div className="ap-inline-state" role="alert">

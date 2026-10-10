@@ -43,6 +43,7 @@ apps/android        Kotlin app: data/airtime sensor, wallet, light readings     
 packages/rules      Pure decisions and their tests                                  (DONE: step 1)
 packages/db         Postgres 16 schema, migrations, ledger and order repositories   (cable: done)
 packages/partners   VTpass, Paystack, Privy, Resend/Termii behind interfaces; fakes (cable: done)
+packages/chains     Base/Arc/Stellar facts, deposit reader, Merkle, Stellar receipts  (first step: done)
 packages/copy       Every customer-facing string, per locale                        (started)
 contracts/mandate   Soroban mandate. Not scheduled. See DECISIONS D-011.
 docs/               PRODUCT, IDEAS, SENSING, RAILS, DELIVERY, ROADMAP, REVIEW-2026-10-06, SPEC (v1), ARCHITECTURE, INVARIANTS, DECISIONS,

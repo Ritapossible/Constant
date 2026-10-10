@@ -30,6 +30,10 @@ From the 2026-10-10 review: before any new screen, take **one** bill all the way
 *Done (D-057 to D-059):* cable TV renewals. `decideRenewal`; Postgres schema with append-only ledger and one open order per line; VTpass, Paystack, Privy, Resend/Termii adapters with fakes; worker (scan, vend, requery, needs_human, recovery, notices); API (`/v1`, webhooks); the app's Cable TV flow and naira account. 294 tests including concurrency and crash cases on a real Postgres.
 *Left:* accounts, keys and the sandbox run in `docs/GO-LIVE.md`. Then data top-ups on the same rails.
 
+### Chains: Base, Arc, Stellar ✅ first step · 🔜 dollar autopay
+*Done (D-060 to D-062):* `packages/chains` (verified chain facts, deposit reader, Merkle proofs, Stellar anchoring); users' addresses from Privy; deposit indexer for USDC/USDT on Base and USDC on Arc with notices; public receipts anchored hourly on Stellar and checked in the browser. Live-checked on Base, Arc and Stellar testnet.
+*Next:* spend permissions per line on Base (Privy smart wallet), charge-then-vend with the naira float, Paycrest off-ramp, Arc treasury via CCTP. Needs the crypto legal opinion (B12) before real users.
+
 ### 3. Schema, ledger, fake partners, double-submit ⬜
 `packages/db`: owners, lines, readings, orders, order_tokens, ledger (append-only), funding, notices. One open order per line. `FOR UPDATE` decide transaction.
 `packages/partners`: `Vending` (electricity, data, airtime), `Funding`, `Messaging`, `Push`; fakes for each.

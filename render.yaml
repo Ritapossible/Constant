@@ -72,6 +72,17 @@ services:
           property: connectionString
       - key: VENDING_PROVIDER
         value: vtpass
+      # Chains (D-060 to D-062). Deposit indexing on Base and Arc; receipt roots on Stellar.
+      - key: CHAINS
+        value: base,arc
+      - key: BASE_RPC_URL
+        value: https://base-rpc.publicnode.com
+      - key: ARC_RPC_URL
+        value: https://rpc.mainnet.arc.io
+      - key: STELLAR_NETWORK
+        value: testnet
+      - key: STELLAR_SECRET
+        sync: false
       - key: VEND_FALLBACK_PHONE
         sync: false
       - key: RESEND_API_KEY
