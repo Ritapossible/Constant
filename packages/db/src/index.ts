@@ -6,3 +6,4 @@ export * from "./testing.js";
 export * from "./chains.js";
 export * from "./dollars.js";
 export * from "./guards.js";
+export * from "./ops.js";

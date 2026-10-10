@@ -27,6 +27,7 @@ const app = await buildApp({
   webOrigins: need("WEB_ORIGINS").split(",").map((s) => s.trim()),
   vtpassWebhookToken: need("VTPASS_WEBHOOK_TOKEN"),
   fundingEmailDomain: env.FUNDING_EMAIL_DOMAIN ?? "users.constant.ng",
+  ...(env.OPS_TOKEN ? { opsToken: env.OPS_TOKEN } : {}),
   // Dollar autopay (D-063): on when the spender's address is set. The API never holds the spender's key.
   ...(env.SPENDER_ADDRESS
     ? {

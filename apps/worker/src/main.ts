@@ -3,6 +3,8 @@ import { anchorReceipts, indexDeposits } from "./chains.js";
 import { chainsFromEnv, dollarsFromEnv, fromEnv } from "./config.js";
 import { processPermissions } from "./dollars.js";
 import { screenPending, sweepSpender } from "./guards.js";
+import { notifyOps } from "./ops.js";
+import { reconcileBooks } from "./reconcile.js";
 import { processOrders, recover, scanRenewals, sendNotices, type Deps } from "./jobs.js";
 import { jsonLog } from "./log.js";
 
@@ -34,6 +36,8 @@ async function main() {
     every("renewal scan", 5 * 60_000, () => scanRenewals(deps)),
     every("orders", 10_000, () => processOrders(deps)),
     every("notices", 10_000, () => sendNotices(deps)),
+    every("ops alerts", 60_000, () => notifyOps(deps, process.env.OPS_EMAIL)),
+    every("reconciliation", 60_000, () => reconcileBooks(deps)),
     ...(chainDeps.readers.length ? [every("deposits", 15_000, () => indexDeposits(chainDeps))] : []),
     ...(chainDeps.anchorer ? [every("anchors", 60 * 60_000, () => anchorReceipts(chainDeps))] : []),
     ...(dollars ? [every("permissions", 15_000, () => processPermissions(deps, dollars))] : []),

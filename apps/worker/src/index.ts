@@ -3,3 +3,5 @@ export * from "./log.js";
 export * from "./chains.js";
 export * from "./dollars.js";
 export * from "./guards.js";
+export * from "./ops.js";
+export * from "./reconcile.js";

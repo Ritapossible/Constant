@@ -74,6 +74,7 @@ import {
 } from "@constant/rules";
 import { randomBytes } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import { registerOps } from "./ops.js";
 
 export interface ApiDeps {
   db: Db;
@@ -90,6 +91,8 @@ export interface ApiDeps {
   fundingEmailDomain: string;
   now?: () => Date;
   logger?: boolean;
+  /** Operator API (D-065). Absent: /ops doesn't exist. */
+  opsToken?: string;
   /** Dollar autopay on Base (D-063). Absent: the /usdc routes answer 503 and nothing changes. */
   dollars?: { chain: Pick<PermissionChain, "spender" | "verifySignature">; rates: RateSource };
 }
@@ -563,6 +566,8 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
           : null,
     };
   });
+
+  if (d.opsToken) await registerOps(app, { db: d.db, opsToken: d.opsToken, now }, json);
 
   // ── Webhooks ───────────────────────────────────────────────────────────────
 
