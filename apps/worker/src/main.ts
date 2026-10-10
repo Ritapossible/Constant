@@ -2,6 +2,7 @@ import { migrate } from "@constant/db";
 import { anchorReceipts, indexDeposits } from "./chains.js";
 import { chainsFromEnv, dollarsFromEnv, fromEnv } from "./config.js";
 import { processPermissions } from "./dollars.js";
+import { screenPending, sweepSpender } from "./guards.js";
 import { processOrders, recover, scanRenewals, sendNotices, type Deps } from "./jobs.js";
 import { jsonLog } from "./log.js";
 
@@ -36,6 +37,8 @@ async function main() {
     ...(chainDeps.readers.length ? [every("deposits", 15_000, () => indexDeposits(chainDeps))] : []),
     ...(chainDeps.anchorer ? [every("anchors", 60 * 60_000, () => anchorReceipts(chainDeps))] : []),
     ...(dollars ? [every("permissions", 15_000, () => processPermissions(deps, dollars))] : []),
+    ...(dollars?.screener ? [every("screening", 30_000, () => screenPending(deps, dollars))] : []),
+    ...(dollars?.treasury ? [every("sweep", 5 * 60_000, () => sweepSpender(deps, dollars))] : []),
   ]);
   await deps.db.end();
   log.info("worker stopped");

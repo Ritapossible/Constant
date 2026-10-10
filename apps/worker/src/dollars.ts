@@ -10,6 +10,12 @@
  */
 import { permissionFromJson, type PermissionChain, type SpendPermission } from "@constant/chains";
 import {
+  accountScreening,
+  charged24hMicro,
+  flag,
+  freezeUser,
+  raiseOpsAlertOnce,
+  setFlag,
   getMarket,
   getPermission,
   insertCharge,
@@ -38,8 +44,9 @@ import {
   type LineRow,
   type PermissionRow,
 } from "@constant/db";
-import type { RateSource } from "@constant/partners";
+import type { AddressScreener, RateSource } from "@constant/partners";
 import {
+  decideChargeGuard,
   decideDollarRenewal,
   noticeKey,
   parseRate,
@@ -48,7 +55,7 @@ import {
   type DollarPermissionState,
   type RenewalQuote,
 } from "@constant/rules";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 import type { Deps } from "./jobs.js";
 
 export interface DollarDeps {
@@ -56,6 +63,18 @@ export interface DollarDeps {
   rates: RateSource;
   /** Blocks on top of a Base transaction before it counts. */
   confirmations: bigint;
+  /** Sanctions screening of the account and every address that funded it (D-064). */
+  screener?: AddressScreener;
+  /** True in production: an unscreened account is never charged. */
+  screeningRequired: boolean;
+  /** Most the spender may take in 24 hours, all users together; past it, dollar charging switches itself off. */
+  dailyLimitMicro: bigint;
+  /** Naira that must stay at the vend partner beyond this order, for orders already in flight. */
+  floatMarginMinor: bigint;
+  /** Where charged USDC is swept from the hot spender key. Unset: no sweep (charges still work). */
+  treasury?: Address;
+  /** Sweep once the spender holds at least this much USDC (micro). */
+  sweepMinMicro: bigint;
 }
 
 const MIN = 60_000;
@@ -217,6 +236,43 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
     if (perm.status !== "approved" || !approved || value > remaining || value > balance) {
       return failCharge(d, orderId, !approved || perm.status !== "approved" ? "permission not usable" : value > remaining ? "allowance used" : "not enough USDC", true);
     }
+
+    // The review's guards: a daily limit on the spender, screened money only, and naira on hand to pay the bill.
+    const naira = await d.db.query<{ naira_minor: bigint }>("SELECT naira_minor FROM charges WHERE order_id = $1", [orderId]);
+    const floatMinor = await d.vending.floatBalance().catch(() => null);
+    const guard = decideChargeGuard({
+      dollarChargesEnabled: await flag(d.db, "dollar_charges_enabled", true),
+      spent24hMicro: await charged24hMicro(d.db, now),
+      valueMicro: value,
+      dailyLimitMicro: dd.dailyLimitMicro,
+      floatMinor,
+      needMinor: naira.rows[0]!.naira_minor,
+      floatMarginMinor: dd.floatMarginMinor,
+      screening: dd.screener ? await accountScreening(d.db, sp.account) : "unscreened",
+      screeningRequired: dd.screeningRequired,
+    });
+    const hour = now.toISOString().slice(0, 13);
+    if (guard.kind === "stop_all") {
+      if (guard.reason === "daily_limit") await setFlag(d.db, "dollar_charges_enabled", false, "worker", "daily dollar limit reached");
+      await raiseOpsAlertOnce(d.db, "page", "dollar_charges_stopped", `dollar_stop:${guard.reason}:${hour}`, { reason: guard.reason });
+      await touchOrder(d.db, orderId, { next_check_at: new Date(now.getTime() + 5 * MIN) });
+      return;
+    }
+    if (guard.kind === "hold") {
+      if (guard.reason !== "screening_pending") await raiseOpsAlertOnce(d.db, "page", "naira_float", `float:${guard.reason}:${hour}`, { need: naira.rows[0]!.naira_minor.toString(), float: floatMinor?.toString() ?? null });
+      await touchOrder(d.db, orderId, { next_check_at: new Date(now.getTime() + 5 * MIN) });
+      return;
+    }
+    if (guard.kind === "refuse") {
+      if (guard.reason === "screening_flagged") {
+        const owner = await d.db.query<{ user_id: string }>("SELECT user_id FROM orders WHERE id = $1", [orderId]);
+        await freezeUser(d.db, owner.rows[0]!.user_id, "screening");
+      }
+      await raiseOpsAlertOnce(d.db, "page", "charge_refused", `refused:${orderId}`, { orderId, reason: guard.reason });
+      // Don't explain a sanctions match to the account holder; the generic failure message is sent.
+      return failCharge(d, orderId, guard.reason, true);
+    }
+
     const prepared = await dd.chain.prepareSpend(sp, value);
     // Save the hash before sending (rule 7): a crash after this line is recoverable by re-sending the same bytes.
     const saved = await withTx(d.db, async (tx) => {

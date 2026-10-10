@@ -27,6 +27,11 @@ type Proposal = {
  */
 const SPEND_PERMISSION_MANAGER = "0xf85210B21cC50302F477BA56686d2019dC9b67Ad";
 const USDC_ON_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+/**
+ * Constant's spender, pinned at build time (from review): even a compromised API can't get a user to sign a
+ * permission for someone else's address. Unset: the option is hidden.
+ */
+const PINNED_SPENDER = process.env.NEXT_PUBLIC_SPENDER_ADDRESS ?? "";
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 const WALLET_ABI = parseAbi(["function addOwnerAddress(address owner)", "function isOwnerAddress(address account) view returns (bool)"]);
@@ -58,7 +63,7 @@ export function UsdcAutopay({ lineId, lineName }: { lineId: string; lineName: st
     return () => clearInterval(t);
   }, [enabled, load, status?.permission]);
 
-  if (!enabled || !status || !status.available) return null;
+  if (!enabled || !status || !status.available || !/^0x[0-9a-fA-F]{40}$/.test(PINNED_SPENDER)) return null;
 
   const account = client?.account?.address as Address | undefined;
   const p = status.permission;
@@ -85,7 +90,9 @@ export function UsdcAutopay({ lineId, lineName }: { lineId: string; lineName: st
       !same(proposal.typedData.domain.verifyingContract, SPEND_PERMISSION_MANAGER) ||
       proposal.typedData.domain.chainId !== base.id ||
       !same(pm0.account, account) ||
-      !same(pm0.token, USDC_ON_BASE)
+      !same(pm0.token, USDC_ON_BASE) ||
+      !PINNED_SPENDER ||
+      !same(pm0.spender, PINNED_SPENDER)
     ) {
       setError("This request doesn't look right, so nothing was approved. Please contact Constant support.");
       return;

@@ -93,6 +93,17 @@ services:
         sync: false
       - key: BASE_CONFIRMATIONS
         value: "5"
+      # Guards (D-064). Required in production: treasury and screening.
+      - key: TREASURY_ADDRESS
+        sync: false
+      - key: CIRCLE_API_KEY
+        sync: false
+      - key: DOLLAR_DAILY_LIMIT_USD
+        value: "500"
+      - key: FLOAT_MARGIN_NGN
+        value: "50000"
+      - key: SWEEP_MIN_USD
+        value: "50"
       - key: VEND_FALLBACK_PHONE
         sync: false
       - key: RESEND_API_KEY

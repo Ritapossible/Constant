@@ -50,6 +50,10 @@ docs/               PRODUCT, IDEAS, SENSING, RAILS, DELIVERY, ROADMAP, REVIEW-20
                     UX, EXPANSION, OPERATIONS, GO_TO_MARKET
 ```
 
+## Settings
+
+Every environment variable and dashboard setting, by service: `docs/ENV.md`. Remind the founder of the unticked ones before each go-live step.
+
 ## Commands
 
 ```

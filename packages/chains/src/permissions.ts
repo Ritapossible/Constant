@@ -150,6 +150,8 @@ export interface PermissionChain {
   prepareApprove(p: SpendPermission, signature: Hex): Promise<PreparedTx>;
   prepareSpend(p: SpendPermission, value: bigint): Promise<PreparedTx>;
   prepareRevoke(p: SpendPermission): Promise<PreparedTx>;
+  /** An ERC-20 transfer from the spender itself: the sweep of charged USDC to the treasury. */
+  prepareTransfer(token: Address, to: Address, amount: bigint): Promise<PreparedTx>;
   broadcast(raw: Hex): Promise<void>;
   /** Confirmed only after `minConfirmations` blocks on top. */
   status(hash: Hex, minConfirmations: bigint): Promise<TxState>;
@@ -189,8 +191,8 @@ export class BasePermissionChain implements PermissionChain {
     return this.client.readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [account] });
   }
 
-  private async prepare(data: Hex): Promise<PreparedTx> {
-    const req = await this.wallet.prepareTransactionRequest({ to: SPEND_PERMISSION_MANAGER, data, account: this.account, chain: base });
+  private async prepare(data: Hex, to: Address = SPEND_PERMISSION_MANAGER): Promise<PreparedTx> {
+    const req = await this.wallet.prepareTransactionRequest({ to, data, account: this.account, chain: base });
     const raw = await this.wallet.signTransaction(req);
     return { hash: keccak256(raw), raw, nonce: req.nonce };
   }
@@ -205,6 +207,10 @@ export class BasePermissionChain implements PermissionChain {
 
   prepareRevoke(p: SpendPermission) {
     return this.prepare(encodeFunctionData({ abi: SPEND_PERMISSION_MANAGER_ABI, functionName: "revokeAsSpender", args: [p] }));
+  }
+
+  prepareTransfer(token: Address, to: Address, amount: bigint) {
+    return this.prepare(encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [to, amount] }), token);
   }
 
   async broadcast(raw: Hex): Promise<void> {
@@ -235,7 +241,7 @@ export class FakePermissionChain implements PermissionChain {
   spent = new Map<string, bigint>();
   balances = new Map<string, bigint>();
   validSignatures = new Set<string>();
-  txs = new Map<Hex, { kind: "approve" | "spend" | "revoke"; key: string; value: bigint; state: TxState; broadcast: boolean }>();
+  txs = new Map<Hex, { kind: "approve" | "spend" | "revoke" | "transfer"; key: string; value: bigint; state: TxState; broadcast: boolean; to?: string }>();
   /** Next status for each new transaction once broadcast; default confirmed. */
   outcome: TxState = "confirmed";
   /** Simulate the process dying while sending: the next broadcast throws before reaching the network. */
@@ -258,10 +264,15 @@ export class FakePermissionChain implements PermissionChain {
   async balanceOf(_token: Address, account: Address) {
     return this.balances.get(account.toLowerCase()) ?? 0n;
   }
-  private tx(kind: "approve" | "spend" | "revoke", p: SpendPermission, value = 0n): PreparedTx {
+  async prepareTransfer(_token: Address, to: Address, amount: bigint) {
+    const prepared = this.tx("transfer", null, amount);
+    this.txs.get(prepared.hash)!.to = to.toLowerCase();
+    return prepared;
+  }
+  private tx(kind: "approve" | "spend" | "revoke" | "transfer", p: SpendPermission | null, value = 0n): PreparedTx {
     this.n += 1;
     const hash = `0x${this.prefix}${this.n.toString(16).padStart(56, "0")}` as Hex;
-    this.txs.set(hash, { kind, key: this.key(p), value, state: "unknown", broadcast: false });
+    this.txs.set(hash, { kind, key: p ? this.key(p) : "", value, state: "unknown", broadcast: false });
     return { hash, raw: hash, nonce: this.n };
   }
   async prepareApprove(p: SpendPermission) {
@@ -291,13 +302,21 @@ export class FakePermissionChain implements PermissionChain {
     t.state = state;
     if (state === "confirmed") this.apply(t);
   }
-  private apply(t: { kind: string; key: string; value: bigint }) {
+  private apply(t: { kind: string; key: string; value: bigint; to?: string }) {
+    if (t.kind === "transfer") {
+      const from = this.spender.toLowerCase();
+      this.balances.set(from, (this.balances.get(from) ?? 0n) - t.value);
+      this.balances.set(t.to!, (this.balances.get(t.to!) ?? 0n) + t.value);
+      return;
+    }
     if (t.kind === "approve") this.approved.add(t.key);
     if (t.kind === "revoke") this.approved.delete(t.key);
     if (t.kind === "spend") {
       this.spent.set(t.key, (this.spent.get(t.key) ?? 0n) + t.value);
       const account = t.key.split(":")[0]!.toLowerCase();
       this.balances.set(account, (this.balances.get(account) ?? 0n) - t.value);
+      const sp = this.spender.toLowerCase();
+      this.balances.set(sp, (this.balances.get(sp) ?? 0n) + t.value);
     }
   }
   async status(hash: Hex) {

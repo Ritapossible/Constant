@@ -71,6 +71,14 @@ export class FakeCableVending implements CableVending {
     return `${p.year}${String(p.month).padStart(2, "0")}${String(p.day).padStart(2, "0")}${orderId.replace(/-/g, "").slice(0, 20)}`;
   }
 
+  /** Naira float at the partner, in kobo. */
+  float = 1_000_000_000n;
+  floatUnavailable = false;
+  async floatBalance(): Promise<bigint> {
+    if (this.floatUnavailable) throw new Error("balance unavailable");
+    return this.float;
+  }
+
   webhookRequestId(rawBody: string): string | null {
     try {
       const b = JSON.parse(rawBody) as { data?: { requestId?: string } };

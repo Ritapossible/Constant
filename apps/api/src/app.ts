@@ -425,6 +425,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     /** What the user is asked to sign: Constant may take up to this much USDC every 30 days for this bill. */
     v1.post("/lines/:id/usdc/proposal", async (req) => {
       const line = await ownLine(req);
+      if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact Constant support.");
       const dd = dollars();
       const account = evmAddress(json(req).account);
       const mine = (await addressesOf(d.db, req.user.id)).filter((a) => a.kind === "smart").map((a) => a.address.toLowerCase());
@@ -455,6 +456,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     /** The signed permission. Every field is checked against what Constant would propose, and the signature on Base. */
     v1.post("/lines/:id/usdc", async (req, reply) => {
       const line = await ownLine(req);
+      if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact Constant support.");
       const dd = dollars();
       const b = json(req);
       let p;

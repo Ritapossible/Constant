@@ -96,3 +96,13 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 65 | A permission is accepted only for the user's own smart wallet, Constant's spender, USDC on Base, a 30-day period and an allowance within 125% of a fresh proposal, with a valid signature. | api |
 | 66 | The app adds only the pinned Spend Permission Manager as an owner, whatever the server returns. | web (code) |
 | 67 | Only the worker holds the spender key; the API holds its address. | config |
+
+## Dollar guards (D-064)
+
+| # | Invariant | Test |
+|---|---|---|
+| 68 | All dollar charges together never exceed the daily limit; passing it stops dollar charging until a person resets it. | rules (property) · worker |
+| 69 | Money from an address that fails screening is never used; the user is frozen; an outage never counts as clear. | rules · worker |
+| 70 | No USDC is taken unless the naira float covers the order plus the margin. | rules · worker |
+| 71 | The app signs permissions only for the pinned spender, manager and USDC. | web (code) |
+| 72 | Charged USDC doesn't stay on the hot key: one sweep at a time to the treasury, saved before sent. | worker |

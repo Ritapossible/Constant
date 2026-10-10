@@ -313,3 +313,12 @@ API (web service), worker (background worker) and Postgres 16 on Render in Frank
 - **Unclear:** a charge not mined is re-sent byte-for-byte after 10 minutes, never re-signed; after 60 minutes a person decides and the line is frozen. Nothing is vended meanwhile.
 - **Stop:** effective immediately in Constant; the on-chain revoke is sent by Constant's spender (`revokeAsSpender`), so the user pays no gas. Cancelling a bill revokes too.
 - **Next:** sweep the spender's USDC to the Arc treasury (CCTP) and off-ramp through Paycrest to refill the naira float; reconciliation of charges ↔ vends ↔ off-ramps. USDT later (spend permissions take any ERC-20).
+
+### D-064 Guards on the dollar path — *from the external review, 2026-10-10*
+Adopted. The review's point: the remaining risk isn't another network, it's a server key that can pull every permission, and a naira float that must exist before any USDC is taken.
+- **Pinned spender:** the app only signs permissions whose spender equals `NEXT_PUBLIC_SPENDER_ADDRESS`, fixed at build time. A compromised API can't redirect users' permissions. (The manager and USDC addresses were already pinned.)
+- **Limited blast radius:** charged USDC is swept from the hot spender to `TREASURY_ADDRESS` (required in production). All dollar charges together are capped per 24 hours (`DOLLAR_DAILY_LIMIT_USD`, default $500); passing it switches dollar charging off (`system_flags.dollar_charges_enabled`) and pages a person. Each user's own cap is still enforced on chain.
+- **Float first:** no USDC is taken unless the VTpass balance covers the order plus a margin. Otherwise the charge waits and a person is paged (once an hour).
+- **Screening:** the user's smart account and every address that sent it accepted tokens are screened with Circle's Compliance Engine before that money is used. A match freezes the user and pages a person; the user sees only a generic failure. An outage leaves money unused, never cleared. Required in production. Circle lists no Base or Arc network, so EVM addresses are screened as `ETH` (configurable).
+- **Gas sponsorship:** the user's one transaction (adding the manager as an owner) is sponsored with a narrow paymaster policy (GO-LIVE). Constant's spender pays for approve and revoke itself.
+- **Not adopted, as the review also said:** MoneyGram ramps, a Stellar wallet at sign-up, Agent Stack/x402, a third deposit network. Circle Gateway/CCTP stays for Constant's own treasury, later.

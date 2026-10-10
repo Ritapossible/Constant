@@ -4,11 +4,11 @@
  * permission or the balance), INV-64 (a charge nobody can confirm goes to a person; nothing is vended).
  */
 import { FakePermissionChain, STABLES } from "@constant/chains";
-import { Secrets, freshDatabase, insertLine, insertPermission, ledgerSum, saveAddresses, setLineFunding, setVendingEnabled, testKeyB64, updatePermission, upsertUser, type Db } from "@constant/db";
-import { FakeCableVending, FakeMessaging, FakeRates } from "@constant/partners";
+import { Secrets, flag, freshDatabase, insertDeposit, setFlag, insertLine, insertPermission, ledgerSum, saveAddresses, setLineFunding, setVendingEnabled, testKeyB64, updatePermission, upsertUser, type Db } from "@constant/db";
+import { FakeCableVending, FakeMessaging, FakeRates, FakeScreener } from "@constant/partners";
 import { usdcForNaira } from "@constant/rules";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { jsonLog, processOrders, processPermissions, scanRenewals, silentLog, type Deps } from "../src/index.js";
+import { jsonLog, processOrders, processPermissions, scanRenewals, screenPending, silentLog, sweepSpender, type Deps } from "../src/index.js";
 
 let db: Db;
 let drop: () => Promise<void>;
@@ -36,7 +36,8 @@ beforeEach(async () => {
   vending = new FakeCableVending();
   deps = {
     db, vending, messaging: new FakeMessaging(), secrets, log: process.env.DEBUG_LOG ? jsonLog("t") : silentLog, now: () => clock, fallbackPhone: "08000000000",
-    dollars: { chain, rates: new FakeRates("1352.34"), confirmations: 3n },
+    // Guards relaxed here (no screener, large limit); they have their own tests below.
+    dollars: { chain, rates: new FakeRates("1352.34"), confirmations: 3n, screeningRequired: false, dailyLimitMicro: 10n ** 12n, floatMarginMinor: 0n, sweepMinMicro: 50_000_000n },
   };
   await db.query("UPDATE lines SET status = 'cancelled' WHERE status <> 'cancelled'");
   await db.query("UPDATE orders SET state = 'failed' WHERE state IN ('ready','vending','token_stored','notifying','needs_human')");
@@ -200,5 +201,78 @@ describe("permission lifecycle on chain", () => {
     await processPermissions(deps, deps.dollars!);
     expect((await db.query("SELECT status FROM spend_permissions WHERE id = $1", [perm.id])).rows[0].status).toBe("revoked");
     expect(chain.approved.size).toBe(0);
+  });
+});
+
+describe("review guards (D-064)", () => {
+  const alerts = async (kind: string) => (await db.query("SELECT * FROM ops_alerts WHERE kind = $1", [kind])).rows;
+
+  it("INV-69: money from a sanctioned address is never used; the user is frozen and a person paged", async () => {
+    const screener = new FakeScreener();
+    deps.dollars = { ...deps.dollars!, screener, screeningRequired: true };
+    const { user, line, account } = await setup();
+    await insertDeposit(db, { chain: "base", txHash: `0xdep${n}`, logIndex: 0, userId: user.id, address: account, from: "0xbad0000000000000000000000000000000009999", token: USDC, tokenKey: "base-usdc", amountRaw: 50_000_000n, blockNumber: 1n });
+    await screenPending(deps, deps.dollars!);
+    expect((await db.query("SELECT status FROM users WHERE id = $1", [user.id])).rows[0].status).toBe("frozen");
+    expect(await alerts("address_flagged")).not.toHaveLength(0);
+    await scanRenewals(deps); // a frozen user's bills don't renew
+    await processOrders(deps);
+    expect(chain.spent.size).toBe(0);
+    expect(await orders(line.id)).toHaveLength(0);
+  });
+
+  it("a screening outage leaves money unused (pending), never cleared", async () => {
+    const screener = new FakeScreener();
+    screener.fail = true;
+    deps.dollars = { ...deps.dollars!, screener, screeningRequired: true };
+    const { line } = await setup();
+    await screenPending(deps, deps.dollars!);
+    await scanRenewals(deps);
+    await processOrders(deps);
+    expect(chain.spent.size).toBe(0);
+    expect((await orders(line.id))[0].state).toBe("ready"); // held, not failed: it charges once screening is back
+    screener.fail = false;
+    await screenPending(deps, deps.dollars!);
+    await tick(6);
+    expect(chain.spent.size).toBe(1);
+  });
+
+  it("INV-70: no naira float, no dollar charge; a person is paged once an hour", async () => {
+    vending.float = 1_000_000n; // ₦10,000, less than the ₦19,950 bill
+    await setup();
+    await scanRenewals(deps);
+    await processOrders(deps);
+    await tick(6);
+    expect(chain.spent.size).toBe(0);
+    expect((await alerts("naira_float")).length).toBeGreaterThanOrEqual(1);
+    vending.float = 1_000_000_000n;
+    await tick(6);
+    expect(chain.spent.size).toBe(1);
+  });
+
+  it("INV-68: the daily limit switches all dollar charging off until a person turns it back on", async () => {
+    deps.dollars = { ...deps.dollars!, dailyLimitMicro: 10_000_000n }; // $10 a day, less than one bill
+    await setup();
+    await scanRenewals(deps);
+    await processOrders(deps);
+    expect(chain.spent.size).toBe(0);
+    expect(await flag(db, "dollar_charges_enabled", true)).toBe(false);
+    expect(await alerts("dollar_charges_stopped")).not.toHaveLength(0);
+    await setFlag(db, "dollar_charges_enabled", true, "test", "reset");
+  });
+
+  it("sweeps charged USDC from the spender to the treasury, one sweep at a time", async () => {
+    const treasury = "0x7777777777777777777777777777777777777777";
+    deps.dollars = { ...deps.dollars!, treasury, sweepMinMicro: 1_000_000n };
+    await setup();
+    await scanRenewals(deps);
+    await processOrders(deps);
+    const charged = [...chain.spent.values()][0]!;
+    expect(await chain.balanceOf(USDC, chain.spender)).toBe(charged);
+    expect(await sweepSpender(deps, deps.dollars!)).toBe("sent");
+    expect(await sweepSpender(deps, deps.dollars!)).toBe("confirmed");
+    expect(await chain.balanceOf(USDC, chain.spender)).toBe(0n);
+    expect(await chain.balanceOf(USDC, treasury)).toBe(charged);
+    expect(await sweepSpender(deps, deps.dollars!)).toBe("none");
   });
 });

@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_RATE_AGE_MS,
   USDC_UNIT,
+  decideChargeGuard,
   decideDollarRenewal,
   parseRate,
   permissionAllowance,
@@ -110,6 +111,41 @@ describe("decideDollarRenewal", () => {
           }
         },
       ),
+    );
+  });
+});
+
+describe("INV-68 to INV-70: guards before a USDC charge", () => {
+  const ok = {
+    dollarChargesEnabled: true,
+    spent24hMicro: 0n,
+    valueMicro: 15_000_000n,
+    dailyLimitMicro: 500_000_000n,
+    floatMinor: 10_000_000n,
+    needMinor: 1_995_000n,
+    floatMarginMinor: 500_000n,
+    screening: "clear" as const,
+    screeningRequired: true,
+  };
+  it("passes when everything holds", () => expect(decideChargeGuard(ok)).toEqual({ kind: "ok" }));
+  it.each([
+    ["switched off", { dollarChargesEnabled: false }, { kind: "stop_all", reason: "dollar_off" }],
+    ["daily limit", { spent24hMicro: 490_000_000n }, { kind: "stop_all", reason: "daily_limit" }],
+    ["flagged sender", { screening: "flagged" as const }, { kind: "refuse", reason: "screening_flagged" }],
+    ["screening not back yet", { screening: "pending" as const }, { kind: "hold", reason: "screening_pending" }],
+    ["unscreened", { screening: "unscreened" as const }, { kind: "refuse", reason: "unscreened" }],
+    ["float unknown", { floatMinor: null }, { kind: "hold", reason: "float_unknown" }],
+    ["float one kobo short", { floatMinor: 2_494_999n }, { kind: "hold", reason: "float_low" }],
+  ])("%s", (_name, over, out) => expect(decideChargeGuard({ ...ok, ...over })).toEqual(out));
+  it("unscreened is allowed only where screening isn't required (local development)", () => {
+    expect(decideChargeGuard({ ...ok, screening: "unscreened", screeningRequired: false })).toEqual({ kind: "ok" });
+  });
+  it("INV-68: total charged in 24 hours never exceeds the daily limit", () => {
+    fc.assert(
+      fc.property(fc.bigInt({ min: 0n, max: 10n ** 12n }), fc.bigInt({ min: 1n, max: 10n ** 10n }), fc.bigInt({ min: 0n, max: 10n ** 12n }), (spent, value, limit) => {
+        const g = decideChargeGuard({ ...ok, spent24hMicro: spent, valueMicro: value, dailyLimitMicro: limit });
+        if (g.kind === "ok") expect(spent + value <= limit).toBe(true);
+      }),
     );
   });
 });

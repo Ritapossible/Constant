@@ -1,6 +1,6 @@
-import { BasePermissionChain, FakeAnchorer, StellarAnchorer, ViemReader, type Anchorer, type EvmReader } from "@constant/chains";
+import { BasePermissionChain, FakeAnchorer, StellarAnchorer, ViemReader, evmAddress, type Anchorer, type EvmReader } from "@constant/chains";
 import { Secrets, createPool, keysFromEnv, type Db } from "@constant/db";
-import { FakeCableVending, FakeMessaging, HttpMessaging, PaycrestRates, Vtpass, type CableVending, type Messaging } from "@constant/partners";
+import { CircleScreener, FakeCableVending, FakeMessaging, HttpMessaging, PaycrestRates, Vtpass, type CableVending, type Messaging } from "@constant/partners";
 import type { Hex } from "viem";
 import type { DollarDeps } from "./dollars.js";
 
@@ -55,9 +55,20 @@ export function dollarsFromEnv(env: NodeJS.ProcessEnv = process.env): DollarDeps
   const key = env.SPENDER_PRIVATE_KEY;
   if (!key) return undefined;
   if (!/^0x[0-9a-fA-F]{64}$/.test(key)) throw new Error("SPENDER_PRIVATE_KEY must be 0x + 64 hex characters");
+  const treasury = env.TREASURY_ADDRESS ? evmAddress(env.TREASURY_ADDRESS) : null;
+  if (env.TREASURY_ADDRESS && !treasury) throw new Error("TREASURY_ADDRESS is not an address");
+  const production = env.NODE_ENV === "production";
+  if (production && !treasury) throw new Error("TREASURY_ADDRESS is required in production: charged USDC must not sit on the hot key");
+  const dollars = (v: string | undefined, fallback: string) => BigInt(Math.round(Number(v ?? fallback) * 100)) * 10_000n; // "$500" → micro
   return {
     chain: new BasePermissionChain(key as Hex, env.BASE_RPC_URL),
     rates: new PaycrestRates(env.PAYCREST_BASE_URL ?? "https://api.paycrest.io"),
     confirmations: BigInt(env.BASE_CONFIRMATIONS ?? "5"),
+    ...(env.CIRCLE_API_KEY ? { screener: new CircleScreener(env.CIRCLE_API_KEY, env.CIRCLE_SCREENING_CHAIN ?? "ETH") } : {}),
+    screeningRequired: production || env.SCREENING_REQUIRED === "true",
+    dailyLimitMicro: dollars(env.DOLLAR_DAILY_LIMIT_USD, "500"),
+    floatMarginMinor: BigInt(Math.round(Number(env.FLOAT_MARGIN_NGN ?? "50000") * 100)),
+    ...(treasury ? { treasury } : {}),
+    sweepMinMicro: dollars(env.SWEEP_MIN_USD, "50"),
   };
 }

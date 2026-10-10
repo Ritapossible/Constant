@@ -151,6 +151,18 @@ export class Vtpass implements CableVending {
     return `${p.year}${two(p.month)}${two(p.day)}${two(p.hour)}${two(p.minute)}${orderId.replace(/-/g, "").slice(0, 20)}`;
   }
 
+  /** GET /api/balance → {"code":1,"contents":{"balance":1081.8199999998}} (naira, a float). Rounded down. */
+  async floatBalance(): Promise<bigint> {
+    const { status, body } = await this.get("balance");
+    const b = body as { code?: unknown; contents?: { balance?: unknown } };
+    const v = b?.contents?.balance;
+    if (status !== 200 || Number(b?.code) !== 1 || typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+      throw new Error(`vtpass balance unavailable (${status})`);
+    }
+    // Advisory only (it gates charging, never sizes a payment): floor to the kobo so it's never overstated.
+    return BigInt(Math.floor(v * 100 + 1e-6));
+  }
+
   webhookRequestId(rawBody: string): string | null {
     try {
       const b = JSON.parse(rawBody) as { type?: string; data?: { requestId?: unknown } };

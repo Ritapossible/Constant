@@ -78,3 +78,25 @@ Swap `VTPASS_BASE_URL` to `https://vtpass.com/api` with live keys, Paystack live
 2. **Spender key:** create a new key pair just for this (e.g. `cast wallet new`). Put the private key in `SPENDER_PRIVATE_KEY` on **constant-worker** only, and the address in `SPENDER_ADDRESS` on **constant-api**. Send it about $5 of ETH on Base for gas. It receives charged USDC; sweep it regularly until the treasury step is built.
 3. **Test with small amounts:** your own decoder, a $5 USDC balance, a low naira limit. Approve "Pay from USDC" on the bill, wait for "On", make it due (`UPDATE lines SET next_run_at = now() WHERE id = '…'`), and watch: charge → naira credited → renewal → receipt.
 4. **Stop:** "Stop paying from USDC" takes effect at once; the on-chain revoke follows within a minute.
+
+## Gas sponsorship policy (Privy smart wallets, Base)
+
+Users pay no gas. Sponsor only what the dollar path needs, so the paymaster can't be drained:
+- **The one user transaction:** a call from the user's smart wallet to **itself** with function `addOwnerAddress(address)` (adding the Spend Permission Manager). If your paymaster's policy is by contract, allow-list the function selector; if it supports argument rules, allow only `0xf85210B21cC50302F477BA56686d2019dC9b67Ad` as the argument.
+- **Optional:** the user revoking a permission themselves: `revoke(...)` on `0xf85210B21cC50302F477BA56686d2019dC9b67Ad`. Not required: Constant revokes for them and pays.
+- Per-user limit: a few sponsored transactions a day. Global monthly cap: a small dollar amount you're comfortable losing.
+- Everything else (approveWithSignature, spend, revokeAsSpender, the sweep) is sent and paid by Constant's spender, not the paymaster.
+
+## The proof run (before any real user)
+
+One DSTV renewal in the sandbox, end to end, on your phone:
+1. ☐ Sign in; Money shows your Base smart-wallet address. Send it $5 of USDC on Base.
+2. ☐ Deposit appears under Recent deposits and is screened clear (`chain_deposits.screening = 'clear'`).
+3. ☐ Bills → your DSTV (VTpass sandbox `1212121212`) → Pay from USDC → Approve. No ETH needed (sponsored).
+4. ☐ Within a minute the bill shows "On" (`spend_permissions.status = 'approved'`).
+5. ☐ Make it due; the worker charges USDC (confirmed on Basescan), credits the naira, vends in the sandbox.
+6. ☐ Receipt page shows Paid; within an hour, "Checked in your browser" against Stellar testnet.
+7. ☐ The spender's USDC is swept to the treasury.
+8. ☐ Stop paying from USDC; the revoke appears on Basescan; nothing more is charged.
+
+After this works: the Paycrest off-ramp (USDC in treasury → naira at the bank → VTpass float). Not a third deposit chain.

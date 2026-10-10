@@ -46,6 +46,15 @@ export interface CableVending {
   newRequestId(orderId: string, now: Date): string;
   /** Webhooks from this partner are unsigned hints; the request id to requery, or null. */
   webhookRequestId(rawBody: string): string | null;
+  /** Constant's prefunded naira at the partner (the float every vend is paid from), rounded down to the kobo. */
+  floatBalance(): Promise<bigint>;
+}
+
+export type ScreeningResult = { result: "clear" } | { result: "flagged"; detail: string };
+
+/** Sanctions and risk screening of blockchain addresses before their money is used (from review, 2026-10-10). */
+export interface AddressScreener {
+  screen(address: string): Promise<ScreeningResult>;
 }
 
 export interface DedicatedAccount {

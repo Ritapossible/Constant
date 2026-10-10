@@ -92,3 +92,47 @@ export function decideDollarRenewal(i: DollarRenewalInput): DollarRenewalDecisio
   if (usdcMicro > i.walletMicro) return { kind: "do_not_renew", reason: "wallet_short", usdcMicro };
   return { kind: "charge", amountMinor: naira.amountMinor, feeMinor: naira.feeMinor, usdcMicro, koboPerUsdc: i.rate.koboPerUsdc };
 }
+
+// ── Guards before taking anyone's dollars (from review, 2026-10-10) ─────────────
+
+export type Screening = "clear" | "pending" | "flagged" | "unscreened";
+
+export interface ChargeGuardInput {
+  /** system_flags.dollar_charges_enabled: off after the daily limit trips or by a person. */
+  dollarChargesEnabled: boolean;
+  /** USDC (micro) charged across all users in the last 24 hours, including submitted charges. */
+  spent24hMicro: bigint;
+  valueMicro: bigint;
+  /** Most Constant's spender may take in 24 hours, all users together: caps the damage of a stolen key. */
+  dailyLimitMicro: bigint;
+  /** Naira at the vend partner right now, and what this order needs plus a margin for orders in flight. */
+  floatMinor: bigint | null;
+  needMinor: bigint;
+  floatMarginMinor: bigint;
+  /** Sanctions screening of every address that sent this account USDC, and of the account itself. */
+  screening: Screening;
+  screeningRequired: boolean;
+}
+
+export type ChargeGuard =
+  | { kind: "ok" }
+  | { kind: "hold"; reason: "float_low" | "float_unknown" | "screening_pending" }
+  | { kind: "stop_all"; reason: "dollar_off" | "daily_limit" }
+  | { kind: "refuse"; reason: "screening_flagged" | "unscreened" };
+
+/**
+ * Checked immediately before a USDC charge is signed. Order: global safety, then the person, then the float.
+ * - A tripped daily limit stops every dollar charge until a person looks (stop_all).
+ * - A flagged address refuses the charge and freezes the user; unscreened is refused when screening is required.
+ * - USDC is never taken if the naira to pay the bill isn't there: no float, no charge (hold and page).
+ */
+export function decideChargeGuard(i: ChargeGuardInput): ChargeGuard {
+  if (!i.dollarChargesEnabled) return { kind: "stop_all", reason: "dollar_off" };
+  if (i.valueMicro <= 0n || i.spent24hMicro + i.valueMicro > i.dailyLimitMicro) return { kind: "stop_all", reason: "daily_limit" };
+  if (i.screening === "flagged") return { kind: "refuse", reason: "screening_flagged" };
+  if (i.screening === "pending") return { kind: "hold", reason: "screening_pending" };
+  if (i.screening === "unscreened" && i.screeningRequired) return { kind: "refuse", reason: "unscreened" };
+  if (i.floatMinor === null) return { kind: "hold", reason: "float_unknown" };
+  if (i.floatMinor < i.needMinor + i.floatMarginMinor) return { kind: "hold", reason: "float_low" };
+  return { kind: "ok" };
+}

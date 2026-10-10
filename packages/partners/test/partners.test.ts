@@ -188,3 +188,24 @@ describe("Paycrest rates", () => {
     await expect(new PaycrestRates("https://x", stubFetch([{ status: 500, body: {} }])).usdcToNgn(1)).rejects.toThrow();
   });
 });
+
+describe("float and screening", () => {
+  it("reads the VTpass float in kobo, rounded down", async () => {
+    const v = new Vtpass({ baseUrl: "https://sandbox.vtpass.com/api", apiKey: "a", publicKey: "p", secretKey: "s", fetch: stubFetch([{ body: { code: 1, contents: { balance: 1081.8199999998 } } }]) });
+    expect(await v.floatBalance()).toBe(108_182n);
+    const bad = new Vtpass({ baseUrl: "x", apiKey: "a", publicKey: "p", secretKey: "s", fetch: stubFetch([{ body: { code: 0 } }]) });
+    await expect(bad.floatBalance()).rejects.toThrow();
+  });
+  it("maps Circle's screening result; an outage is an error, never 'clear'", async () => {
+    const { CircleScreener } = await import("../src/index.js");
+    const seen: { url: string; init: RequestInit }[] = [];
+    const ok = new CircleScreener("KEY", "ETH", "https://api.circle.com", stubFetch([{ body: { data: { result: "APPROVED" } } }], seen));
+    expect(await ok.screen("0xabc")).toEqual({ result: "clear" });
+    expect(seen[0]!.url).toBe("https://api.circle.com/v1/w3s/compliance/screening/addresses");
+    expect(JSON.parse(seen[0]!.init.body as string)).toMatchObject({ address: "0xabc", chain: "ETH" });
+    const denied = new CircleScreener("KEY", "ETH", "x", stubFetch([{ body: { data: { result: "DENIED", decision: { ruleName: "Sanctions", reasons: [{ riskScore: "BLOCKLIST", riskCategories: ["SANCTIONS"] }] } } } }]));
+    expect(await denied.screen("0xdead9999")).toEqual({ result: "flagged", detail: "Sanctions · BLOCKLIST · SANCTIONS" });
+    const down = new CircleScreener("KEY", "ETH", "x", stubFetch([{ status: 503, body: {} }]));
+    await expect(down.screen("0x1")).rejects.toThrow();
+  });
+});
