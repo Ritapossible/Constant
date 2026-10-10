@@ -32,7 +32,7 @@ const QA = [
 ];
 
 export function Faq() {
-  const [open, setOpen] = useState<number | null>(0);
+  const [open, setOpen] = useState<number | null>(null);
   const base = useId();
   return (
     <section className="section" id="faq" aria-labelledby="faq-title">
