@@ -65,9 +65,15 @@ export async function screenPending(d: Deps, dd: DollarDeps): Promise<{ screened
 }
 
 /** One step: settle the sweep in flight, or start one when the spender holds enough USDC. */
-export async function sweepSpender(d: Deps, dd: DollarDeps): Promise<"none" | "sent" | "confirmed" | "waiting" | "failed"> {
+export async function sweepSpender(d: Deps, dd: DollarDeps, refill?: { lowWaterMinor: bigint }): Promise<"none" | "sent" | "confirmed" | "waiting" | "failed" | "kept_for_float"> {
   if (!dd.treasury) return "none";
   const now = d.now();
+  // With the off-ramp on, the float comes first: don't sweep while it's low or an off-ramp is in flight (D-068).
+  if (refill) {
+    const busy = await d.db.query("SELECT 1 FROM offramps WHERE status IN ('creating','created','funding','funded') LIMIT 1");
+    const float = await d.vending.floatBalance().catch(() => null);
+    if (busy.rowCount || float === null || float < refill.lowWaterMinor) return "kept_for_float";
+  }
   const inFlight = await sweepInFlight(d.db, "base", USDC_BASE.address);
   if (inFlight) {
     const st = await dd.chain.status(inFlight.tx_hash as Hex, dd.confirmations);

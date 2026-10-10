@@ -5,7 +5,16 @@
 
 import { renderStables, type StableNoticeKind, type StableParams } from "./stables.js";
 
-export type NoticeKind = "renewed" | "renewal_failed" | "insufficient" | "above_cap" | "funded" | "needs_attention" | StableNoticeKind;
+export type NoticeKind =
+  | "renewed"
+  | "renewal_failed"
+  | "insufficient"
+  | "above_cap"
+  | "funded"
+  | "needs_attention"
+  | "withdrawal_sent"
+  | "withdrawal_failed"
+  | StableNoticeKind;
 
 export interface Message {
   subject: string;
@@ -34,6 +43,7 @@ export interface NoticeParams {
   shortMinor?: string;
   dueAt?: string;
   balanceMinor?: string;
+  bank?: string;
 }
 
 /** One message per notice kind. Short enough for one SMS where it may go by SMS. */
@@ -65,6 +75,16 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
       return {
         subject: `${amt} added`,
         text: `Constant: ${amt} added to your account.${p.balanceMinor ? ` Balance ${naira(BigInt(p.balanceMinor))}.` : ""}`,
+      };
+    case "withdrawal_sent":
+      return {
+        subject: `${amt} is on its way`,
+        text: `Constant: ${amt} sent to your ${p.bank ?? "bank"} account ••${p.last4 ?? ""}. It usually arrives within minutes.`,
+      };
+    case "withdrawal_failed":
+      return {
+        subject: `Withdrawal didn't go through`,
+        text: `Constant: we couldn't send ${amt} to your bank. It's back in your Constant balance. Check your bank details in the app.`,
       };
     case "needs_attention":
       return {

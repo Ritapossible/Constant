@@ -65,6 +65,8 @@ export interface Deps {
   fallbackPhone: string;
   /** Dollar autopay on Base (D-063). Absent: dollar-funded lines and orders wait, nothing is charged or vended. */
   dollars?: DollarDeps;
+  /** Naira withdrawals (D-067). Absent: requests wait. */
+  payouts?: import("@constant/partners").Payouts;
 }
 
 const MIN = 60_000;

@@ -136,3 +136,36 @@ export function decideChargeGuard(i: ChargeGuardInput): ChargeGuard {
   if (i.floatMinor < i.needMinor + i.floatMarginMinor) return { kind: "hold", reason: "float_low" };
   return { kind: "ok" };
 }
+
+// ── Refilling the naira float from charged USDC (D-068) ──────────────────────────
+
+export interface FloatRefillInput {
+  /** Naira at the vend partner now (null: couldn't read it). */
+  floatMinor: bigint | null;
+  /** Refill when the float drops below this… */
+  lowWaterMinor: bigint;
+  /** …back up to about this. */
+  targetMinor: bigint;
+  /** USDC (micro) on the spender, i.e. charged and not yet swept. */
+  spenderMicro: bigint;
+  /** Smallest off-ramp worth its fees. */
+  minOrderMicro: bigint;
+  koboPerUsdc: bigint | null;
+  offrampInFlight: boolean;
+}
+
+export type FloatRefill =
+  | { kind: "refill"; usdcMicro: bigint }
+  | { kind: "none"; reason: "in_flight" | "float_unknown" | "float_ok" | "no_rate" | "too_small" };
+
+/** Never more USDC than the spender holds, never more than the target needs, never below the minimum. */
+export function decideFloatRefill(i: FloatRefillInput): FloatRefill {
+  if (i.offrampInFlight) return { kind: "none", reason: "in_flight" };
+  if (i.floatMinor === null) return { kind: "none", reason: "float_unknown" };
+  if (i.floatMinor >= i.lowWaterMinor) return { kind: "none", reason: "float_ok" };
+  if (!i.koboPerUsdc || i.koboPerUsdc <= 0n) return { kind: "none", reason: "no_rate" };
+  const needed = usdcForNaira(i.targetMinor - i.floatMinor, i.koboPerUsdc);
+  const send = (needed < i.spenderMicro ? needed : i.spenderMicro) / 10_000n * 10_000n; // whole cents
+  if (send < i.minOrderMicro || send <= 0n) return { kind: "none", reason: "too_small" };
+  return { kind: "refill", usdcMicro: send };
+}

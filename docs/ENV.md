@@ -38,6 +38,8 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | `SPENDER_ADDRESS` | Dollar autopay (API never holds the key) | Address of the spender key below |
 | ☐ | `BASE_RPC_URL` | Signature checks on Base | A paid Base RPC (Alchemy, QuickNode) |
 | ☐ | `PAYCREST_BASE_URL` (optional) | Dollar rate | Default `https://api.paycrest.io` |
+| ☐ | `OPS_TOKEN` | Operator API `/ops` (absent: no ops API) | `openssl rand -hex 32`; keep in a password manager, share only with operators |
+| ☐ | `PAYCREST_API_KEY`, `PAYCREST_API_SECRET` | Off-ramp webhooks | Paycrest Sender Dashboard → API keys |
 
 ## Render: constant-worker
 
@@ -61,6 +63,12 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | `FLOAT_MARGIN_NGN` (optional) | Naira kept at VTpass beyond each order | Default `50000` |
 | ☐ | `SWEEP_MIN_USD` (optional) | Sweep threshold | Default `50` |
 | ☐ | `BASE_CONFIRMATIONS` (optional) | Charge safety | Default `5` |
+| ☐ | `OPS_EMAIL` | Alerts emailed to a person | Your ops inbox (needs `RESEND_API_KEY`) |
+| ☐ | `PAYSTACK_SECRET_KEY`, `PAYSTACK_PREFERRED_BANK` | Withdrawals (still off until `payouts_enabled`) | Same as the API |
+| ☐ | `PAYCREST_API_KEY`, `PAYCREST_API_SECRET` | Off-ramp: charged USDC → naira float | Paycrest Sender Dashboard |
+| ☐ | `FLOAT_ACCOUNT_INSTITUTION`, `FLOAT_ACCOUNT_NUMBER`, `FLOAT_ACCOUNT_NAME` | Where the off-ramp pays naira | Your VTpass wallet funding account (VTpass dashboard → Fund wallet); institution is Paycrest's code for that bank (Paycrest "Code Standards") |
+| ☐ | `FLOAT_LOW_NGN`, `FLOAT_TARGET_NGN` (optional) | When to refill and to how much | Defaults `200000` and `1000000` |
+| ☐ | `OFFRAMP_MIN_USD` (optional) | Smallest off-ramp | Default `20` |
 
 ## Dashboards (not variables)
 
@@ -72,4 +80,7 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | VTpass → callback URL | `https://<constant-api>/webhooks/vtpass/<VTPASS_WEBHOOK_TOKEN>` |
 | ☐ | Paystack → webhook URL | `https://<constant-api>/webhooks/paystack` |
 | ☐ | Paystack → Dedicated Virtual Accounts | Ask Paystack to enable |
+| ☐ | Paystack → Transfers | Turn **off** OTP for transfers (otherwise withdrawals go to a person); fund the Paystack balance |
+| ☐ | Paycrest → Sender Dashboard → webhook URL | `https://<constant-api>/webhooks/paycrest` |
+| ☐ | Ops switch | Withdrawals on only after Paystack's written OK (D-050): `POST /ops/flags/payouts_enabled` |
 | ☐ | Database | Payments on: `UPDATE system_flags SET value = true … WHERE key = 'vending_enabled'` (GO-LIVE step 7) |

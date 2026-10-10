@@ -34,7 +34,8 @@ From the 2026-10-10 review: before any new screen, take **one** bill all the way
 *Done (D-060 to D-062):* `packages/chains` (verified chain facts, deposit reader, Merkle proofs, Stellar anchoring); users' addresses from Privy; deposit indexer for USDC/USDT on Base and USDC on Arc with notices; public receipts anchored hourly on Stellar and checked in the browser. Live-checked on Base, Arc and Stellar testnet.
 *Done (D-063):* dollar autopay on Base: per-bill spend permissions on the user's Privy smart wallet, charge confirmed before vend, crash-safe re-send, revoke without gas for the user. Typed data checked against the live contract.
 *Done (D-064, review):* pinned spender in the app, daily dollar limit with automatic stop, float check before any charge, Circle address screening, sweep to treasury, gas sponsorship policy.
-*Next:* the proof run in GO-LIVE; then the Paycrest off-ramp (treasury USDC → naira → VTpass float) and reconciliation. Arc treasury via CCTP after that. Needs the crypto legal opinion (B12) before real users.
+*Done (D-065 to D-068):* operator API and alert emails; nightly reconciliation with automatic stop; naira withdrawals (off until Paystack's letter); Paycrest off-ramp refilling the VTpass float from charged USDC.
+*Next:* the proof run in GO-LIVE; app screens for withdrawals; Arc treasury via CCTP. Needs the crypto legal opinion (B12) before real users.
 
 ### 3. Schema, ledger, fake partners, double-submit ⬜
 `packages/db`: owners, lines, readings, orders, order_tokens, ledger (append-only), funding, notices. One open order per line. `FOR UPDATE` decide transaction.
@@ -63,7 +64,7 @@ Also (D-054, `docs/DELIVERY.md`): Telegram bot (webhook with secret token, one-t
 Meter onboarding (wave-1 DisCos per D-038, each behind its gate), photo reading read on the phone, typed reading, forecast and ask-when-near prompts, buy on reading, spare token, optional buy-early, calendar and alert modes, token delivery with DONE.
 **Exit:** in the 10 concierge homes, no surprise outage with the spare-token mode on.
 
-### 9. Reconciliation and kill switch ⬜
+### 9. Reconciliation and kill switch ✅ (D-066)
 Nightly and on demand; a mismatch turns off all buying; ops clearing is logged.
 
 ### 10. Real partners, one line each ⬜

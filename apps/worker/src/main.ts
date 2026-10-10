@@ -1,15 +1,18 @@
 import { migrate } from "@constant/db";
 import { anchorReceipts, indexDeposits } from "./chains.js";
-import { chainsFromEnv, dollarsFromEnv, fromEnv } from "./config.js";
+import { chainsFromEnv, dollarsFromEnv, fromEnv, offrampFromEnv } from "./config.js";
+import { refillFloat } from "./offramp.js";
 import { processPermissions } from "./dollars.js";
 import { screenPending, sweepSpender } from "./guards.js";
 import { notifyOps } from "./ops.js";
 import { reconcileBooks } from "./reconcile.js";
+import { processWithdrawals } from "./withdrawals.js";
 import { processOrders, recover, scanRenewals, sendNotices, type Deps } from "./jobs.js";
 import { jsonLog } from "./log.js";
 
 const log = jsonLog("worker");
 const dollars = dollarsFromEnv();
+const offramp = dollars ? offrampFromEnv() : undefined;
 const deps: Deps = { ...fromEnv(), log, now: () => new Date(), ...(dollars ? { dollars } : {}) };
 const chainDeps = { db: deps.db, log, ...chainsFromEnv() };
 let stopping = false;
@@ -38,11 +41,13 @@ async function main() {
     every("notices", 10_000, () => sendNotices(deps)),
     every("ops alerts", 60_000, () => notifyOps(deps, process.env.OPS_EMAIL)),
     every("reconciliation", 60_000, () => reconcileBooks(deps)),
+    ...(deps.payouts ? [every("withdrawals", 15_000, () => processWithdrawals(deps, deps.payouts))] : []),
     ...(chainDeps.readers.length ? [every("deposits", 15_000, () => indexDeposits(chainDeps))] : []),
     ...(chainDeps.anchorer ? [every("anchors", 60 * 60_000, () => anchorReceipts(chainDeps))] : []),
     ...(dollars ? [every("permissions", 15_000, () => processPermissions(deps, dollars))] : []),
     ...(dollars?.screener ? [every("screening", 30_000, () => screenPending(deps, dollars))] : []),
-    ...(dollars?.treasury ? [every("sweep", 5 * 60_000, () => sweepSpender(deps, dollars))] : []),
+    ...(dollars && offramp ? [every("float refill", 2 * 60_000, () => refillFloat(deps, dollars, offramp))] : []),
+    ...(dollars?.treasury ? [every("sweep", 5 * 60_000, () => sweepSpender(deps, dollars, offramp))] : []),
   ]);
   await deps.db.end();
   log.info("worker stopped");

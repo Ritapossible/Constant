@@ -7,6 +7,7 @@ import {
   MAX_RATE_AGE_MS,
   USDC_UNIT,
   decideChargeGuard,
+  decideFloatRefill,
   decideDollarRenewal,
   parseRate,
   permissionAllowance,
@@ -145,6 +146,32 @@ describe("INV-68 to INV-70: guards before a USDC charge", () => {
       fc.property(fc.bigInt({ min: 0n, max: 10n ** 12n }), fc.bigInt({ min: 1n, max: 10n ** 10n }), fc.bigInt({ min: 0n, max: 10n ** 12n }), (spent, value, limit) => {
         const g = decideChargeGuard({ ...ok, spent24hMicro: spent, valueMicro: value, dailyLimitMicro: limit });
         if (g.kind === "ok") expect(spent + value <= limit).toBe(true);
+      }),
+    );
+  });
+});
+
+describe("INV-73: float refill", () => {
+  const base = { floatMinor: 2_000_000n, lowWaterMinor: 10_000_000n, targetMinor: 50_000_000n, spenderMicro: 100_000_000n, minOrderMicro: 20_000_000n, koboPerUsdc: 150_000n, offrampInFlight: false };
+  it("refills to the target, in whole cents", () => {
+    const d = decideFloatRefill(base);
+    expect(d).toEqual({ kind: "refill", usdcMicro: 320_000_000n > 100_000_000n ? 100_000_000n : 0n });
+  });
+  it.each([
+    ["one at a time", { offrampInFlight: true }, "in_flight"],
+    ["float unreadable", { floatMinor: null }, "float_unknown"],
+    ["float fine", { floatMinor: 10_000_000n }, "float_ok"],
+    ["no rate", { koboPerUsdc: null }, "no_rate"],
+    ["not worth the fees", { spenderMicro: 19_999_999n }, "too_small"],
+  ])("%s", (_n, over, reason) => expect(decideFloatRefill({ ...base, ...over })).toEqual({ kind: "none", reason }));
+  it("never sends more than the spender holds or the target needs", () => {
+    fc.assert(
+      fc.property(fc.bigInt({ min: 0n, max: 10n ** 9n }), fc.bigInt({ min: 0n, max: 10n ** 10n }), fc.bigInt({ min: 50_000n, max: 300_000n }), (float, spender, rate) => {
+        const d = decideFloatRefill({ ...base, floatMinor: float, spenderMicro: spender, koboPerUsdc: rate, minOrderMicro: 1n });
+        if (d.kind === "refill") {
+          expect(d.usdcMicro <= spender).toBe(true);
+          expect(d.usdcMicro <= usdcForNaira(base.targetMinor - float, rate)).toBe(true);
+        }
       }),
     );
   });

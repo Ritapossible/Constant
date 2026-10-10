@@ -1,6 +1,6 @@
 import { Secrets, createPool, keysFromEnv, migrate } from "@constant/db";
 import { BasePermissionVerifier, evmAddress } from "@constant/chains";
-import { FakeCableVending, FakeFunding, FakeIdentity, PaycrestRates, Paystack, Privy, Vtpass } from "@constant/partners";
+import { FakeCableVending, FakeFunding, FakeIdentity, PaycrestRates, PaycrestSender, Paystack, Privy, Vtpass } from "@constant/partners";
 import { buildApp } from "./app.js";
 
 function need(name: string): string {
@@ -22,12 +22,17 @@ const app = await buildApp({
   vending: fake
     ? FakeCableVending.withDemoDecoders()
     : new Vtpass({ baseUrl: need("VTPASS_BASE_URL"), apiKey: need("VTPASS_API_KEY"), publicKey: need("VTPASS_PUBLIC_KEY"), secretKey: need("VTPASS_SECRET_KEY") }),
-  funding: fake ? new FakeFunding() : new Paystack({ secretKey: need("PAYSTACK_SECRET_KEY"), preferredBank: env.PAYSTACK_PREFERRED_BANK ?? "wema-bank" }),
+  ...(() => {
+    const paystack = fake ? new FakeFunding() : new Paystack({ secretKey: need("PAYSTACK_SECRET_KEY"), preferredBank: env.PAYSTACK_PREFERRED_BANK ?? "wema-bank" });
+    // Withdrawals use the same Paystack account; still off until payouts_enabled is switched on (D-050).
+    return { funding: paystack, payouts: paystack };
+  })(),
   secrets: new Secrets(keysFromEnv(env)),
   webOrigins: need("WEB_ORIGINS").split(",").map((s) => s.trim()),
   vtpassWebhookToken: need("VTPASS_WEBHOOK_TOKEN"),
   fundingEmailDomain: env.FUNDING_EMAIL_DOMAIN ?? "users.constant.ng",
   ...(env.OPS_TOKEN ? { opsToken: env.OPS_TOKEN } : {}),
+  ...(env.PAYCREST_API_KEY && env.PAYCREST_API_SECRET ? { offramp: new PaycrestSender(env.PAYCREST_API_KEY, env.PAYCREST_API_SECRET) } : {}),
   // Dollar autopay (D-063): on when the spender's address is set. The API never holds the spender's key.
   ...(env.SPENDER_ADDRESS
     ? {

@@ -56,6 +56,12 @@ services:
         sync: false
       - key: PAYSTACK_PREFERRED_BANK
         value: test-bank
+      - key: OPS_TOKEN
+        sync: false
+      - key: PAYCREST_API_KEY
+        sync: false
+      - key: PAYCREST_API_SECRET
+        sync: false
       # Dollar autopay (D-063): the spender's public address only. Its key lives on the worker.
       - key: SPENDER_ADDRESS
         sync: false
@@ -104,6 +110,21 @@ services:
         value: "50000"
       - key: SWEEP_MIN_USD
         value: "50"
+      # Operations, withdrawals, off-ramp (D-065 to D-068)
+      - key: OPS_EMAIL
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYCREST_API_KEY
+        sync: false
+      - key: PAYCREST_API_SECRET
+        sync: false
+      - key: FLOAT_ACCOUNT_INSTITUTION
+        sync: false
+      - key: FLOAT_ACCOUNT_NUMBER
+        sync: false
+      - key: FLOAT_ACCOUNT_NAME
+        sync: false
       - key: VEND_FALLBACK_PHONE
         sync: false
       - key: RESEND_API_KEY

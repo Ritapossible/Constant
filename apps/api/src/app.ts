@@ -21,6 +21,15 @@ import {
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import {
+  flag,
+  getPayoutAccount,
+  insertWithdrawal,
+  listWithdrawals,
+  lockWithdrawal,
+  refundWithdrawal,
+  updateWithdrawal,
+  upsertPayoutAccount,
+  withdrawalByReference,
   DuplicateLine,
   PermissionExists,
   insertPermission,
@@ -62,8 +71,12 @@ import {
   type Secrets,
   type UserRow,
 } from "@constant/db";
-import type { CableProvider, CableVending, Funding, Identity, RateSource } from "@constant/partners";
+import type { CableProvider, CableVending, Funding, Identity, Payouts, RateSource } from "@constant/partners";
 import {
+  decideWithdrawal,
+  namesMatch,
+  payoutAccountUsable,
+  PAYOUT_ACCOUNT_COOLDOWN_HOURS,
   PERMISSION_LIFETIME_SECONDS,
   PERMISSION_PERIOD_SECONDS,
   availableBalance,
@@ -72,7 +85,7 @@ import {
   permissionAllowance,
   renewalRunAt,
 } from "@constant/rules";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { registerOps } from "./ops.js";
 
@@ -91,6 +104,10 @@ export interface ApiDeps {
   fundingEmailDomain: string;
   now?: () => Date;
   logger?: boolean;
+  /** Paycrest off-ramp webhooks (D-068). Absent: the route answers 404. */
+  offramp?: Pick<import("@constant/partners").Offramp, "verifyWebhook" | "parseWebhook">;
+  /** Naira withdrawals (D-067). Absent: the withdrawal routes answer 503. */
+  payouts?: Payouts;
   /** Operator API (D-065). Absent: /ops doesn't exist. */
   opsToken?: string;
   /** Dollar autopay on Base (D-063). Absent: the /usdc routes answer 503 and nothing changes. */
@@ -204,7 +221,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
   const json = (req: FastifyRequest) => ((req.body as { json?: Record<string, unknown> } | undefined)?.json ?? {}) as Record<string, unknown>;
   const raw = (req: FastifyRequest) => (req.body as { raw?: string } | undefined)?.raw ?? "";
 
-  await app.register(cors, { origin: d.webOrigins, methods: ["GET", "POST", "PATCH", "DELETE"], allowedHeaders: ["authorization", "content-type"], maxAge: 600 });
+  await app.register(cors, { origin: d.webOrigins, methods: ["GET", "POST", "PUT", "PATCH", "DELETE"], allowedHeaders: ["authorization", "content-type"], maxAge: 600 });
   await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
 
   app.setErrorHandler((err: Error, req, reply) => {
@@ -395,6 +412,86 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
 
     v1.get("/orders", async (req) => (await listOrders(d.db, req.user.id, 50)).map(orderView));
 
+    // ── Withdrawals to the user's own bank account (D-067) ──────────────────
+    const payouts = () => {
+      if (!d.payouts) throw new HttpError(503, "payouts_off", "Withdrawals aren't available yet.");
+      return d.payouts;
+    };
+    let bankCache: { at: number; banks: { code: string; name: string }[] } | null = null;
+
+    v1.get("/banks", async () => {
+      if (!bankCache || now().getTime() - bankCache.at > 86_400_000) bankCache = { at: now().getTime(), banks: await payouts().banks() };
+      return bankCache.banks;
+    });
+
+    const payoutView = (a: Awaited<ReturnType<typeof getPayoutAccount>>) =>
+      a && {
+        bankName: a.bank_name,
+        last4: a.account_last4,
+        accountName: a.account_name,
+        usableFrom: new Date(a.updated_at.getTime() + PAYOUT_ACCOUNT_COOLDOWN_HOURS * 3_600_000).toISOString(),
+      };
+
+    v1.get("/payout-account", async (req) => payoutView(await getPayoutAccount(d.db, req.user.id)));
+
+    /** The account must be in the same name as the user's Constant account (their naira account holder name). */
+    v1.put("/payout-account", async (req) => {
+      const p = payouts();
+      const b = json(req);
+      const bankCode = typeof b.bankCode === "string" && /^[0-9A-Za-z]{2,10}$/.test(b.bankCode) ? b.bankCode : null;
+      const accountNumber = typeof b.accountNumber === "string" && /^\d{10}$/.test(b.accountNumber) ? b.accountNumber : null;
+      if (!bankCode || !accountNumber) throw bad("invalid", "Choose your bank and enter the 10-digit account number");
+      const holder = await getFundingAccount(d.db, req.user.id);
+      if (!holder) throw bad("no_holder", "Get your Constant account number first, so we know the name to match");
+      const bankName = await p.resolveAccount(bankCode, accountNumber);
+      if (!bankName) throw bad("not_found", "That account number wasn't found at this bank");
+      if (!namesMatch(holder.account_name, bankName)) throw bad("name_mismatch", `This account is in the name ${bankName}. Withdrawals go only to an account in your own name.`);
+      const bank = (bankCache?.banks ?? (await p.banks())).find((x) => x.code === bankCode);
+      const recipient = await p.createRecipient({ name: bankName, bankCode, accountNumber });
+      const saved = await upsertPayoutAccount(d.db, {
+        user_id: req.user.id, provider: d.funding.name, bank_code: bankCode, bank_name: bank?.name ?? bankCode,
+        account_last4: accountNumber.slice(-4), account_name: bankName, recipient_code: recipient,
+      });
+      return payoutView(saved);
+    });
+
+    v1.get("/withdrawals", async (req) =>
+      (await listWithdrawals(d.db, req.user.id)).map((w) => ({ id: w.id, amountMinor: w.amount_minor.toString(), status: w.status, createdAt: w.created_at.toISOString() })),
+    );
+
+    v1.post("/withdrawals", async (req, reply) => {
+      payouts();
+      if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact Constant support.");
+      const amount = minor(json(req).amountMinor, "amountMinor");
+      const account = await getPayoutAccount(d.db, req.user.id);
+      const result = await withTx(d.db, async (tx) => {
+        await lockUser(tx, req.user.id);
+        const sum = await ledgerSum(tx, req.user.id);
+        const committed = await committedToOpenOrders(tx, req.user.id);
+        const decision = decideWithdrawal({
+          balanceMinor: sum,
+          committedMinor: committed,
+          amountMinor: amount,
+          payoutVerified: Boolean(account && payoutAccountUsable(account.updated_at, now())),
+          payoutsEnabled: await flag(tx, "payouts_enabled"),
+        });
+        if (decision.kind === "refuse") return decision;
+        const id = randomUUID();
+        await insertWithdrawal(tx, { id, userId: req.user.id, amountMinor: decision.amountMinor, currency: "NGN", recipientCode: account!.recipient_code, reference: `cw_${id.replace(/-/g, "")}` });
+        return { kind: "accepted" as const, id };
+      });
+      if (result.kind === "refuse") {
+        const msg = {
+          paused: "Withdrawals are paused right now. Your money is safe.",
+          non_positive: "Enter an amount.",
+          unverified_payout: account ? "Your bank account was added recently. You can withdraw 24 hours after adding it." : "Add your bank account first.",
+          insufficient: "That's more than you can withdraw right now.",
+        }[result.reason];
+        throw new HttpError(result.reason === "paused" ? 503 : 400, result.reason, msg);
+      }
+      return reply.status(202).send({ id: result.id, status: "requested" });
+    });
+
     // ── Paying a bill from USDC on Base (D-063) ─────────────────────────────
     const ownLine = async (req: FastifyRequest) => {
       const { id } = req.params as { id: string };
@@ -567,6 +664,27 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     };
   });
 
+  /** A signed transfer event settles a withdrawal: success is final; failure or reversal gives the money back, once. */
+  async function settleWithdrawal(reference: string, status: "succeeded" | "failed" | "reversed"): Promise<string> {
+    const w0 = await withdrawalByReference(d.db, reference);
+    if (!w0) return "unknown_reference";
+    return withTx(d.db, async (tx) => {
+      const w = (await lockWithdrawal(tx, w0.id))!;
+      if (status === "succeeded") {
+        if (w.status === "succeeded" || w.status === "failed" || w.status === "reversed") return "duplicate";
+        await updateWithdrawal(tx, w.id, { status: "succeeded" });
+        const acct = await getPayoutAccount(tx, w.user_id);
+        await queueNotice(tx, { key: `notice:withdrawal_sent:${w.id}`, userId: w.user_id, kind: "withdrawal_sent", params: { amountMinor: w.amount_minor.toString(), bank: acct?.bank_name, last4: acct?.account_last4 } });
+        return "succeeded";
+      }
+      if (w.status === "failed" || w.status === "reversed") return "duplicate";
+      await updateWithdrawal(tx, w.id, { status });
+      await refundWithdrawal(tx, w, `paystack:${status}`);
+      await queueNotice(tx, { key: `notice:withdrawal_failed:${w.id}`, userId: w.user_id, kind: "withdrawal_failed", params: { amountMinor: w.amount_minor.toString() } });
+      return status;
+    });
+  }
+
   if (d.opsToken) await registerOps(app, { db: d.db, opsToken: d.opsToken, now }, json);
 
   // ── Webhooks ───────────────────────────────────────────────────────────────
@@ -576,6 +694,8 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     const ok = d.funding.verifySignature(body, req.headers);
     await saveInboundWebhook(d.db, "paystack", ok, body); // stored before anything acts on it (rule 7)
     if (!ok) return reply.status(401).send({ error: "bad_signature" });
+    const transferEvent = d.payouts?.parseTransferEvent(body) ?? null;
+    if (transferEvent) return { ok: true, result: await settleWithdrawal(transferEvent.reference, transferEvent.status) };
     const credit = d.funding.parseCredit(body);
     if (!credit) return { ok: true, ignored: true };
 
@@ -605,6 +725,21 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       return r;
     });
     return { ok: true, result };
+  });
+
+  // Signed by Paycrest. Only moves a funded off-ramp to its final state; everything else the worker polls.
+  app.post("/webhooks/paycrest", { config: { rateLimit: false } }, async (req, reply) => {
+    if (!d.offramp) return reply.status(404).send();
+    const body = raw(req);
+    const sig = req.headers["x-paycrest-signature"];
+    const ok = d.offramp.verifyWebhook(body, typeof sig === "string" ? sig : undefined);
+    await saveInboundWebhook(d.db, "paycrest", ok, body);
+    if (!ok) return reply.status(401).send({ error: "bad_signature" });
+    const ev = d.offramp.parseWebhook(body);
+    if (ev && ev.status !== "pending") {
+      await d.db.query("UPDATE offramps SET status = $2, updated_at = now() WHERE provider_order = $1 AND status = 'funded'", [ev.orderId, ev.status]);
+    }
+    return { ok: true };
   });
 
   app.post("/webhooks/vtpass/:token", { config: { rateLimit: false } }, async (req, reply) => {

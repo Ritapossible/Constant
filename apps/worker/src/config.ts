@@ -1,6 +1,7 @@
 import { BasePermissionChain, FakeAnchorer, StellarAnchorer, ViemReader, evmAddress, type Anchorer, type EvmReader } from "@constant/chains";
 import { Secrets, createPool, keysFromEnv, type Db } from "@constant/db";
-import { CircleScreener, FakeCableVending, FakeMessaging, HttpMessaging, PaycrestRates, Vtpass, type CableVending, type Messaging } from "@constant/partners";
+import { CircleScreener, FakeCableVending, FakeMessaging, HttpMessaging, PaycrestRates, PaycrestSender, Paystack, Vtpass, type CableVending, type Messaging, type Payouts } from "@constant/partners";
+import type { OfframpDeps } from "./offramp.js";
 import type { Hex } from "viem";
 import type { DollarDeps } from "./dollars.js";
 
@@ -11,7 +12,7 @@ function need(env: NodeJS.ProcessEnv, name: string): string {
 }
 
 /** Builds the real dependencies from the environment. Fakes only when explicitly asked for. */
-export function fromEnv(env: NodeJS.ProcessEnv = process.env): { db: Db; vending: CableVending; messaging: Messaging; secrets: Secrets; fallbackPhone: string } {
+export function fromEnv(env: NodeJS.ProcessEnv = process.env): { db: Db; vending: CableVending; messaging: Messaging; secrets: Secrets; fallbackPhone: string; payouts?: Payouts } {
   const db = createPool(need(env, "DATABASE_URL"));
   const vending: CableVending =
     env.VENDING_PROVIDER === "vtpass"
@@ -28,7 +29,9 @@ export function fromEnv(env: NodeJS.ProcessEnv = process.env): { db: Db; vending
           ...(env.RESEND_API_KEY ? { resend: { apiKey: env.RESEND_API_KEY, from: need(env, "EMAIL_FROM") } } : {}),
           ...(env.TERMII_API_KEY ? { termii: { apiKey: env.TERMII_API_KEY, senderId: env.TERMII_SENDER_ID ?? "Constant", ...(env.TERMII_BASE_URL ? { baseUrl: env.TERMII_BASE_URL } : {}) } } : {}),
         });
-  return { db, vending, messaging, secrets: new Secrets(keysFromEnv(env)), fallbackPhone: need(env, "VEND_FALLBACK_PHONE") };
+  // Withdrawals go out through Paystack transfers when its key is set (still gated by payouts_enabled).
+  const payouts = env.PAYSTACK_SECRET_KEY ? new Paystack({ secretKey: env.PAYSTACK_SECRET_KEY, preferredBank: env.PAYSTACK_PREFERRED_BANK ?? "wema-bank" }) : undefined;
+  return { db, vending, messaging, secrets: new Secrets(keysFromEnv(env)), fallbackPhone: need(env, "VEND_FALLBACK_PHONE"), ...(payouts ? { payouts } : {}) };
 }
 
 /**
@@ -70,5 +73,27 @@ export function dollarsFromEnv(env: NodeJS.ProcessEnv = process.env): DollarDeps
     floatMarginMinor: BigInt(Math.round(Number(env.FLOAT_MARGIN_NGN ?? "50000") * 100)),
     ...(treasury ? { treasury } : {}),
     sweepMinMicro: dollars(env.SWEEP_MIN_USD, "50"),
+  };
+}
+
+/**
+ * Off-ramp (D-068): on when PAYCREST_API_KEY and the vend partner's funding account are set. Charged USDC is sold
+ * into that account when the float drops below FLOAT_LOW_NGN, up to FLOAT_TARGET_NGN.
+ */
+export function offrampFromEnv(env: NodeJS.ProcessEnv = process.env): OfframpDeps | undefined {
+  if (!env.PAYCREST_API_KEY) return undefined;
+  const need2 = (n: string) => {
+    const v = env[n];
+    if (!v) throw new Error(`${n} is required for the off-ramp`);
+    return v;
+  };
+  const naira = (v: string) => BigInt(Math.round(Number(v) * 100));
+  return {
+    offramp: new PaycrestSender(env.PAYCREST_API_KEY, need2("PAYCREST_API_SECRET"), env.PAYCREST_BASE_URL ?? "https://api.paycrest.io"),
+    rates: new PaycrestRates(env.PAYCREST_BASE_URL ?? "https://api.paycrest.io"),
+    recipient: { institution: need2("FLOAT_ACCOUNT_INSTITUTION"), accountIdentifier: need2("FLOAT_ACCOUNT_NUMBER"), accountName: need2("FLOAT_ACCOUNT_NAME"), memo: "Constant float" },
+    lowWaterMinor: naira(env.FLOAT_LOW_NGN ?? "200000"),
+    targetMinor: naira(env.FLOAT_TARGET_NGN ?? "1000000"),
+    minOrderMicro: BigInt(Math.round(Number(env.OFFRAMP_MIN_USD ?? "20") * 100)) * 10_000n,
   };
 }

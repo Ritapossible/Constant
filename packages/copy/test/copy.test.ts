@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { naira, render, type NoticeKind } from "../src/index.js";
 
-const KINDS: NoticeKind[] = ["renewed", "renewal_failed", "insufficient", "above_cap", "funded", "needs_attention"];
+const KINDS: NoticeKind[] = ["renewed", "renewal_failed", "insufficient", "above_cap", "funded", "needs_attention", "withdrawal_sent", "withdrawal_failed"];
 
 describe("copy", () => {
   it("formats naira from kobo", () => {

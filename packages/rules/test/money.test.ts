@@ -58,3 +58,19 @@ describe("INV-12 reconciliation", () => {
     }
   });
 });
+
+describe("payout accounts (D-067)", () => {
+  it("names must match the account holder, in any order, ignoring extra names and prefixes", async () => {
+    const { namesMatch } = await import("../src/index.js");
+    expect(namesMatch("CONSTANT/ADA OBI", "OBI ADAEZE ADA")).toBe(true);
+    expect(namesMatch("Ada Obi", "OBI, ADA CHIOMA")).toBe(true);
+    expect(namesMatch("Ada Obi", "ADA OKAFOR")).toBe(false);
+    expect(namesMatch("Ada", "ADA OBI")).toBe(false);
+  });
+  it("a new payout account waits 24 hours", async () => {
+    const { payoutAccountUsable } = await import("../src/index.js");
+    const t = new Date("2026-11-14T06:00:00Z");
+    expect(payoutAccountUsable(t, new Date(t.getTime() + 23 * 3_600_000))).toBe(false);
+    expect(payoutAccountUsable(t, new Date(t.getTime() + 24 * 3_600_000))).toBe(true);
+  });
+});

@@ -106,3 +106,13 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 70 | No USDC is taken unless the naira float covers the order plus the margin. | rules · worker |
 | 71 | The app signs permissions only for the pinned spender, manager and USDC. | web (code) |
 | 72 | Charged USDC doesn't stay on the hot key: one sweep at a time to the treasury, saved before sent. | worker |
+
+## Operations, reconciliation, withdrawals, float (D-065 to D-068)
+
+| # | Invariant | Test |
+|---|---|---|
+| 73 | The off-ramp never sends more USDC than the spender holds (fees included) or than the float target needs; one at a time; the sweep waits for the float. | rules (property) · worker |
+| 74 | A needs_human order is settled once, by a named operator with a note, with exactly the ledger effect of its outcome. | api |
+| 75 | Any reconciliation mismatch switches off vending, dollar charges and payouts. | rules · worker |
+| 76 | A withdrawal goes only to a 24-hour-old account in the holder's own name; its amount is held at request and returned once, only on a definite failure. | rules · api · worker |
+| 77 | Withdrawals are off until a person switches `payouts_enabled` on. | api · worker |

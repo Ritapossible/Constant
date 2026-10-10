@@ -156,3 +156,32 @@ export function decideWithdrawal(i: WithdrawalInput): WithdrawalDecision {
   if (i.amountMinor > withdrawableMinor) return { kind: "refuse", reason: "insufficient", withdrawableMinor };
   return { kind: "pay_out", amountMinor: i.amountMinor };
 }
+
+// ── Payout account checks (D-067) ─────────────────────────────────────────────
+
+/** "CONSTANT/ADA  OBI-EZE" → ["ADA", "OBI", "EZE"]. */
+function nameTokens(name: string): string[] {
+  return name
+    .toUpperCase()
+    .replace(/^[A-Z0-9 ]*\//, "") // a provider prefix like "CONSTANT/"
+    .split(/[^A-Z]+/)
+    .filter((t) => t.length >= 2);
+}
+
+/**
+ * The bank's name for the payout account must contain the account holder's first and last name, in any order
+ * (Nigerian banks often add middle names or reorder). At least two distinct names must match.
+ */
+export function namesMatch(holderName: string, bankAccountName: string): boolean {
+  const holder = [...new Set(nameTokens(holderName))];
+  const bank = new Set(nameTokens(bankAccountName));
+  if (holder.length < 2) return false;
+  return holder.every((t) => bank.has(t));
+}
+
+/** A new or changed payout account can't receive money for this long: an account takeover can't empty a balance at once. */
+export const PAYOUT_ACCOUNT_COOLDOWN_HOURS = 24;
+
+export function payoutAccountUsable(changedAt: Date, now: Date): boolean {
+  return now.getTime() - changedAt.getTime() >= PAYOUT_ACCOUNT_COOLDOWN_HOURS * 3_600_000;
+}

@@ -105,3 +105,35 @@ export interface Identity {
   /** Verified contact details from the identity provider, not from the client. */
   user(did: string): Promise<IdentityUser>;
 }
+
+export interface Bank {
+  code: string;
+  name: string;
+}
+
+export type TransferOutcome =
+  | { kind: "sent"; transferCode: string | null }
+  | { kind: "succeeded"; transferCode: string | null }
+  | { kind: "failed"; detail: string }
+  | { kind: "needs_otp" }
+  | { kind: "not_found" }
+  | { kind: "unknown"; detail: string };
+
+export interface TransferEvent {
+  reference: string;
+  status: "succeeded" | "failed" | "reversed";
+}
+
+/** Naira payouts to a user's own bank account (D-067). */
+export interface Payouts {
+  readonly name: string;
+  banks(): Promise<Bank[]>;
+  /** The bank's name for this account, or null if it doesn't exist. */
+  resolveAccount(bankCode: string, accountNumber: string): Promise<string | null>;
+  createRecipient(r: { name: string; bankCode: string; accountNumber: string }): Promise<string>;
+  /** Idempotent by reference: the same reference never pays twice. */
+  transfer(t: { reference: string; recipientCode: string; amountMinor: bigint; reason: string }): Promise<TransferOutcome>;
+  verifyTransfer(reference: string): Promise<TransferOutcome>;
+  /** A transfer event from a signed webhook body (signature checked separately), or null. */
+  parseTransferEvent(rawBody: string): TransferEvent | null;
+}

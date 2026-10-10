@@ -209,3 +209,50 @@ describe("float and screening", () => {
     await expect(down.screen("0x1")).rejects.toThrow();
   });
 });
+
+describe("Paystack transfers (D-067)", () => {
+  it("maps transfer responses; only explicit failures fail", async () => {
+    const { transferOutcome } = await import("../src/index.js");
+    expect(transferOutcome(200, { status: true, data: { status: "pending", transfer_code: "TRF_1" } })).toEqual({ kind: "sent", transferCode: "TRF_1" });
+    expect(transferOutcome(200, { status: true, data: { status: "success" } }).kind).toBe("succeeded");
+    expect(transferOutcome(200, { status: true, data: { status: "otp" } }).kind).toBe("needs_otp");
+    expect(transferOutcome(200, { status: true, data: { status: "failed" } }).kind).toBe("failed");
+    expect(transferOutcome(400, { status: false, message: "Duplicate Transfer Reference" }).kind).toBe("sent");
+    expect(transferOutcome(400, { status: false, message: "Insufficient balance" }).kind).toBe("failed");
+    expect(transferOutcome(502, {}).kind).toBe("unknown");
+  });
+  it("reads transfer webhooks", () => {
+    const p = new Paystack({ secretKey: "sk", preferredBank: "test-bank" });
+    expect(p.parseTransferEvent(JSON.stringify({ event: "transfer.success", data: { reference: "cw_1" } }))).toEqual({ reference: "cw_1", status: "succeeded" });
+    expect(p.parseTransferEvent(JSON.stringify({ event: "transfer.reversed", data: { reference: "cw_1" } }))?.status).toBe("reversed");
+    expect(p.parseTransferEvent(JSON.stringify({ event: "charge.success", data: { reference: "x" } }))).toBeNull();
+  });
+  it("resolves account names", async () => {
+    const p = new Paystack({ secretKey: "sk", preferredBank: "test-bank", fetch: stubFetch([{ body: { status: true, data: { account_name: "OBI ADA" } } }, { status: 422, body: { status: false } }]) });
+    expect(await p.resolveAccount("058", "0123456789")).toBe("OBI ADA");
+    expect(await p.resolveAccount("058", "0000000000")).toBeNull();
+  });
+});
+
+describe("Paycrest off-ramp (D-068)", () => {
+  it("creates an order and sends amount plus fees; maps statuses", async () => {
+    const { PaycrestSender, offrampStatus } = await import("../src/index.js");
+    const seen: { url: string; init: RequestInit }[] = [];
+    const p = new PaycrestSender("KEY", "SECRET", "https://api.paycrest.io", stubFetch([{ status: 201, body: { status: "success", data: { id: "o1", amount: "100", receiveAddress: "0xabc", senderFee: "0.5", transactionFee: "0.25", validUntil: "2026-11-14T09:00:00Z" } } }], seen));
+    const o = await p.createOrder({ amountMicro: 100_000_000n, rate: "1352.34", reference: "ofr_1", returnAddress: "0xspender", recipient: { institution: "GTBINGLA", accountIdentifier: "0123456789", accountName: "VTPASS", memo: "float" } });
+    expect(o.sendMicro).toBe(100_750_000n);
+    const h = seen[0]!.init.headers as Record<string, string>;
+    expect(h["API-Key"]).toBe("KEY");
+    expect(JSON.parse(seen[0]!.init.body as string)).toMatchObject({ amount: 100, token: "USDC", network: "base", rate: 1352.34, reference: "ofr_1" });
+    expect(["validated", "settled", "refunded", "expired", "pending", "deposited"].map(offrampStatus)).toEqual(["settled", "settled", "refunded", "expired", "pending", "pending"]);
+  });
+  it("verifies webhook signatures on the raw body, as hex strings", async () => {
+    const { PaycrestSender } = await import("../src/index.js");
+    const p = new PaycrestSender("KEY", "SECRET");
+    const body = JSON.stringify({ event: "payment_order.settled", data: { id: "o1", reference: "ofr_1", status: "settled" } });
+    const sig = createHmac("sha256", "SECRET").update(body).digest("hex");
+    expect(p.verifyWebhook(body, sig.toUpperCase())).toBe(true);
+    expect(p.verifyWebhook(body + " ", sig)).toBe(false);
+    expect(p.parseWebhook(body)).toEqual({ orderId: "o1", reference: "ofr_1", status: "settled" });
+  });
+});
