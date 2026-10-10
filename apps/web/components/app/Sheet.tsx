@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
 
@@ -13,6 +14,10 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  // Rendered into <body>: inside an animated (transformed) page, position: fixed would be relative to
+  // the page instead of the screen, and the sheet would stop halfway up a phone.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open) return;
@@ -52,7 +57,8 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
     };
   }, [open, onClose]);
 
-  return (
+  if (!mounted) return null;
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div className="ap-sheet-root">
@@ -81,6 +87,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

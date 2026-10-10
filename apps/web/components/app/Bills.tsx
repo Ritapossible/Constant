@@ -323,7 +323,9 @@ function BillForm({
             {...a}
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
-            placeholder={kind === "electricity" ? "Home meter" : kind === "tv" ? "Living room DSTV" : "My data"}
+            placeholder={
+              kind === "electricity" ? "Home meter" : kind === "tv" ? "Living room DSTV" : kind === "subscription" ? "ChatGPT Plus" : kind === "airtime" ? "My airtime" : "My data"
+            }
             maxLength={40}
           />
         )}
@@ -354,7 +356,11 @@ function BillForm({
         </Field>
       )}
 
-      <Field label={`Weekly cap (${sym}, optional)`} error={show(errors.cap)} hint="Constant never spends more than this in a week. Defaults to one payment.">
+      <Field
+        label={usage ? `Weekly cap (${sym}, optional)` : `Most per renewal (${sym}, optional)`}
+        error={show(errors.cap)}
+        hint={usage ? "Constant never spends more than this in a week. Defaults to one payment." : "If the price goes above this, Constant asks you first. Defaults to one payment."}
+      >
         {(a) => <input {...a} inputMode="decimal" value={cap} onChange={(e) => setCap(e.target.value)} />}
       </Field>
 
@@ -433,7 +439,7 @@ function BillDetail({ line, onChange, onDelete }: { line: Line; onChange: (l: Li
           <dd>{usage ? `${line.threshold} ${UNIT[line.kind]}` : `Day ${line.renewDay} of each month`}</dd>
         </div>
         <div>
-          <dt>Weekly cap</dt>
+          <dt>{usage ? "Weekly cap" : "Most per renewal"}</dt>
           <dd>{formatMoney(BigInt(line.weeklyCapMinor), line.currency)}</dd>
         </div>
         <div>

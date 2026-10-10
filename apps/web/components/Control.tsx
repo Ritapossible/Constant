@@ -14,7 +14,7 @@ const WORKS_WITH = [
 
 export function Control() {
   return (
-    <section className="section" aria-labelledby="control-title">
+    <section className="section section-marquee" aria-labelledby="control-title">
       <div className="container">
         <Reveal className="section-head">
           <span className="eyebrow">You stay in control</span>

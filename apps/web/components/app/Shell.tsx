@@ -99,9 +99,11 @@ export function Shell({ user }: { user: User }) {
         <AnimatePresence mode="wait">
           <motion.div
             key={tab}
-            initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            exit={{ opacity: 0, y: -6, filter: "blur(4px)" }}
+            // Opacity and a short slide only: a blur filter is slow on budget Android phones and leaves
+            // the page as the containing block for anything position: fixed inside it.
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0, transitionEnd: { transform: "none" } }}
+            exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           >
             {!store.loaded ? null : tab === "home" ? (

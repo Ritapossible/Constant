@@ -147,7 +147,11 @@ button {
 }
 
 .section {
-  padding-block: clamp(72px, 11vw, 140px);
+  padding-block: clamp(56px, 11vw, 140px);
+}
+/* The logo strip ends its section; the next section's own top padding is enough space. */
+.section-marquee {
+  padding-bottom: clamp(8px, 3vw, 48px);
 }
 
 .eyebrow {
@@ -304,6 +308,8 @@ button {
   position: fixed;
   inset: 12px 0 auto 0;
   z-index: 50;
+  /* Own compositing layer, so animated or masked content (the marquee) can never paint over it on Android. */
+  transform: translateZ(0);
   pointer-events: none;
   padding-inline: var(--gutter);
 }
@@ -317,7 +323,7 @@ button {
   gap: 16px;
   height: 64px;
   padding: 0 10px 0 18px;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.94);
   backdrop-filter: saturate(160%) blur(16px);
   -webkit-backdrop-filter: saturate(160%) blur(16px);
   border: 1px solid var(--line);
@@ -362,8 +368,6 @@ button {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  border-left: 1px solid var(--line);
-  border-radius: 0 12px 12px 0;
 }
 .menu-icon {
   position: relative;
@@ -1475,6 +1479,8 @@ button {
 /* marquee */
 .marquee {
   position: relative;
+  z-index: 0;
+  isolation: isolate;
   overflow: hidden;
   mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
