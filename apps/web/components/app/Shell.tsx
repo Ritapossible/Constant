@@ -9,6 +9,7 @@ import { Account } from "./Account";
 import { Bills } from "./Bills";
 import { Home } from "./Home";
 import { Money } from "./Money";
+import { ServerProvider, useServer } from "./Server";
 import { ToastProvider } from "./Toast";
 
 type Tab = "home" | "bills" | "money" | "account";
@@ -69,6 +70,7 @@ export function Shell({ user }: { user: User }) {
   return (
     <MotionConfig reducedMotion="user">
     <ToastProvider>
+    <ServerProvider>
     <div className="ap">
       <aside className="ap-side" aria-label="App navigation">
         <a href="/" className="ap-brand" aria-label="Constant home">
@@ -83,10 +85,7 @@ export function Shell({ user }: { user: User }) {
             </button>
           ))}
         </nav>
-        <div className="ap-preview-note">
-          <b>Preview</b>
-          <span>Payments switch on with our licensed partner. Your plan is saved on this device.</span>
-        </div>
+        <PreviewNote />
       </aside>
 
       <main className="ap-main" id="main" ref={main} tabIndex={-1} aria-label={TABS.find((t) => t.id === tab)?.label}>
@@ -95,7 +94,7 @@ export function Shell({ user }: { user: User }) {
             <LogoMark />
             <span>Constant</span>
           </a>
-          <span className="ap-badge">Preview</span>
+          <PreviewBadge />
         </div>
         <AnimatePresence mode="wait">
           <motion.div
@@ -127,8 +126,34 @@ export function Shell({ user }: { user: User }) {
         ))}
       </nav>
     </div>
+    </ServerProvider>
     </ToastProvider>
     </MotionConfig>
+  );
+}
+
+/** "Preview" stays until the server says payments are on (Grok review, 2026-10-10). */
+function usePreview() {
+  const server = useServer();
+  return !(server.enabled && server.me?.payments === "on");
+}
+
+function PreviewBadge() {
+  return usePreview() ? <span className="ap-badge">Preview</span> : null;
+}
+
+function PreviewNote() {
+  const server = useServer();
+  if (!usePreview()) return null;
+  return (
+    <div className="ap-preview-note">
+      <b>Preview</b>
+      <span>
+        {server.enabled
+          ? "Cable TV bills are saved to your account. Payments switch on with our licensed partner."
+          : "Payments switch on with our licensed partner. Your plan is saved on this device."}
+      </span>
+    </div>
   );
 }
 

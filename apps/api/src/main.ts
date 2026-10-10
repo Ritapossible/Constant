@@ -19,7 +19,7 @@ const app = await buildApp({
   db,
   identity: fake ? new FakeIdentity() : new Privy({ appId: need("PRIVY_APP_ID"), appSecret: need("PRIVY_APP_SECRET"), verificationKey: need("PRIVY_VERIFICATION_KEY") }),
   vending: fake
-    ? new FakeCableVending()
+    ? FakeCableVending.withDemoDecoders()
     : new Vtpass({ baseUrl: need("VTPASS_BASE_URL"), apiKey: need("VTPASS_API_KEY"), publicKey: need("VTPASS_PUBLIC_KEY"), secretKey: need("VTPASS_SECRET_KEY") }),
   funding: fake ? new FakeFunding() : new Paystack({ secretKey: need("PAYSTACK_SECRET_KEY"), preferredBank: env.PAYSTACK_PREFERRED_BANK ?? "wema-bank" }),
   secrets: new Secrets(keysFromEnv(env)),

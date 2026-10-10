@@ -1,0 +1,82 @@
+# Render Blueprint: the API, the worker and Postgres in Frankfurt (D-026, D-059).
+# Render → New → Blueprint → pick this repo. Values marked `sync: false` are asked for once in the dashboard.
+# Full steps: docs/GO-LIVE.md
+databases:
+  - name: constant-db
+    region: frankfurt
+    plan: basic-256mb
+    postgresMajorVersion: "16"
+
+envVarGroups:
+  - name: constant-shared
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: REF_ENCRYPTION_KEY
+        sync: false
+      - key: REF_HMAC_KEY
+        sync: false
+      - key: VTPASS_BASE_URL
+        value: https://sandbox.vtpass.com/api
+      - key: VTPASS_API_KEY
+        sync: false
+      - key: VTPASS_PUBLIC_KEY
+        sync: false
+      - key: VTPASS_SECRET_KEY
+        sync: false
+
+services:
+  - type: web
+    name: constant-api
+    runtime: node
+    region: frankfurt
+    plan: starter
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter "./packages/*" --filter @constant/api run build
+    startCommand: node apps/api/dist/main.js
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: constant-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: constant-db
+          property: connectionString
+      - key: WEB_ORIGINS
+        value: https://constant-units.vercel.app
+      - key: VTPASS_WEBHOOK_TOKEN
+        generateValue: true
+      - key: PRIVY_APP_ID
+        sync: false
+      - key: PRIVY_APP_SECRET
+        sync: false
+      - key: PRIVY_VERIFICATION_KEY
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PREFERRED_BANK
+        value: test-bank
+
+  - type: worker
+    name: constant-worker
+    runtime: node
+    region: frankfurt
+    plan: starter
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter "./packages/*" --filter @constant/worker run build
+    startCommand: node apps/worker/dist/main.js
+    envVars:
+      - fromGroup: constant-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: constant-db
+          property: connectionString
+      - key: VENDING_PROVIDER
+        value: vtpass
+      - key: VEND_FALLBACK_PHONE
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: TERMII_API_KEY
+        sync: false

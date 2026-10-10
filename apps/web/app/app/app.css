@@ -911,3 +911,30 @@
   border-color: var(--ink);
   color: #fff;
 }
+
+/* server-backed bills */
+.ap-link {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 550;
+}
+.ap-confirm {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.ap-confirm b {
+  display: block;
+  font-size: 16px;
+}
+.ap-confirm small {
+  color: var(--muted);
+}
+.ap-account-num {
+  font-size: clamp(24px, 6vw, 30px);
+  letter-spacing: 0.02em;
+}

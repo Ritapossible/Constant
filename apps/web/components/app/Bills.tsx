@@ -1,13 +1,17 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { KINDS, PROVIDERS, REF_LABEL, UNIT, isUsageKind, maskRef, validateRef, type Kind } from "@/lib/app/catalog";
 import { formatDay, formatMoney, toMinor, type Currency } from "@/lib/app/format";
 import { latest, outlook } from "@/lib/app/insights";
 import { newId, type Line } from "@/lib/app/store";
+import type { ServerLine } from "@/lib/app/api";
+import { CableAdd, CableDetail, cableStatus, providerName as cableProviderName } from "./Cable";
 import { outlookText } from "./Home";
+import { Field } from "./Field";
 import { KindIcon } from "./KindIcon";
 import type { Store } from "./Shell";
+import { useServer } from "./Server";
 import { Sheet } from "./Sheet";
 import { useNotify } from "./Toast";
 
@@ -24,7 +28,10 @@ export function Bills({ store }: { store: Store }) {
   const [adding, setAdding] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const now = useMemo(() => new Date(), []);
+  const server = useServer();
+  const serverLines = server.me?.lines ?? [];
   const open = store.plan.lines.find((l) => l.id === openId) ?? null;
+  const openServer = serverLines.find((l) => l.id === openId) ?? null;
 
   const update = (next: Line) => store.save((p) => ({ ...p, lines: p.lines.map((l) => (l.id === next.id ? next : l)) }));
 
@@ -55,7 +62,24 @@ export function Bills({ store }: { store: Store }) {
         </button>
       </header>
 
-      {store.plan.lines.length === 0 ? (
+      {server.enabled && server.error && !server.me && (
+        <div className="ap-warn" role="alert">
+          {server.error}{" "}
+          <button className="ap-link" onClick={() => server.reload()}>
+            Try again
+          </button>
+        </div>
+      )}
+
+      {serverLines.length > 0 && (
+        <ul className="ap-list" aria-label="Paid automatically">
+          {serverLines.map((l) => (
+            <ServerRow key={l.id} line={l} onOpen={() => setOpenId(l.id)} />
+          ))}
+        </ul>
+      )}
+
+      {store.plan.lines.length === 0 && serverLines.length === 0 ? (
         <div className="ap-empty">
           <p>
             <b>No bills yet.</b>
@@ -66,7 +90,7 @@ export function Bills({ store }: { store: Store }) {
             Add a bill
           </button>
         </div>
-      ) : (
+      ) : store.plan.lines.length === 0 ? null : (
         <ul className="ap-list" aria-label="Your bills">
           {store.plan.lines.map((l) => {
             const t = outlookText(l, outlook(l, now));
@@ -97,6 +121,11 @@ export function Bills({ store }: { store: Store }) {
 
       <Sheet open={adding} onClose={() => setAdding(false)} title="Add a bill">
         <AddBill
+          serverTv={server.enabled && server.me !== null}
+          onServerSaved={(line) => {
+            setAdding(false);
+            notify(`${line.nickname} added. It renews automatically.`);
+          }}
           onSave={(line) => {
             store.save((p) => ({ ...p, lines: [...p.lines, line] }));
             setAdding(false);
@@ -108,13 +137,44 @@ export function Bills({ store }: { store: Store }) {
       <Sheet open={open !== null} onClose={() => setOpenId(null)} title={open?.nickname ?? ""}>
         {open && <BillDetail line={open} onChange={update} onDelete={() => remove(open)} />}
       </Sheet>
+
+      <Sheet open={openServer !== null} onClose={() => setOpenId(null)} title={openServer?.nickname ?? ""}>
+        {openServer && (
+          <CableDetail line={openServer} orders={(server.me?.orders ?? []).filter((o) => o.lineId === openServer.id)} onClose={() => setOpenId(null)} />
+        )}
+      </Sheet>
     </div>
   );
 }
 
 /* ── Add ─────────────────────────────────────────────────── */
 
-function AddBill({ onSave }: { onSave: (l: Line) => void }) {
+function ServerRow({ line, onOpen }: { line: ServerLine; onOpen: () => void }) {
+  const t = cableStatus(line);
+  return (
+    <li>
+      <button className="ap-row ap-row-btn" onClick={onOpen} aria-label={`${line.nickname}, ${t.right}, ${t.sub}. Open details`}>
+        <KindIcon kind="tv" />
+        <span className="ap-row-main">
+          <b>
+            {line.nickname}
+            {line.status !== "active" && <span className="ap-chip">{line.status === "paused" ? "Paused" : "On hold"}</span>}
+          </b>
+          <small>{t.sub}</small>
+          <small>
+            {cableProviderName(line.provider)} · ••{line.last4}
+          </small>
+        </span>
+        <span className="ap-row-right">
+          <span className="mono">{t.right}</span>
+          <small>up to {formatMoney(BigInt(line.capMinor), "NGN")}</small>
+        </span>
+      </button>
+    </li>
+  );
+}
+
+function AddBill({ onSave, serverTv, onServerSaved }: { onSave: (l: Line) => void; serverTv: boolean; onServerSaved: (l: ServerLine) => void }) {
   const [kind, setKind] = useState<Kind | null>(null);
   if (!kind) {
     return (
@@ -129,41 +189,12 @@ function AddBill({ onSave }: { onSave: (l: Line) => void }) {
       </div>
     );
   }
+  // Cable TV is the first bill paid for real, on the server. The rest stay on this device for now.
+  if (kind === "tv" && serverTv) return <CableAdd onBack={() => setKind(null)} onDone={onServerSaved} />;
   return <BillForm kind={kind} onBack={() => setKind(null)} onSave={onSave} />;
 }
 
 /* ── Form (add and edit) ─────────────────────────────────── */
-
-function Field({
-  label,
-  error,
-  hint,
-  children,
-}: {
-  label: string;
-  error?: string | null;
-  hint?: string;
-  children: (a11y: { id: string; "aria-invalid": boolean; "aria-describedby"?: string }) => ReactNode;
-}) {
-  const id = useId();
-  const msgId = `${id}-msg`;
-  const described = error || hint ? msgId : undefined;
-  return (
-    <div className="ap-field">
-      <label htmlFor={id}>{label}</label>
-      {children({ id, "aria-invalid": Boolean(error), "aria-describedby": described })}
-      {error ? (
-        <span id={msgId} className="ap-err">
-          {error}
-        </span>
-      ) : hint ? (
-        <span id={msgId} className="ap-hint">
-          {hint}
-        </span>
-      ) : null}
-    </div>
-  );
-}
 
 function BillForm({
   kind,

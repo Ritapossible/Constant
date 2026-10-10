@@ -25,8 +25,10 @@ Generalise to lines (D-037) without weakening anything in step 1.
 - Spare-token rules (D-033): exactly one spare outstanding; the next is bought only when the spare is marked used.
 **Exit:** property tests: no buy above caps; no data buy from a forecast; silence never buys; a forecast never raises an amount; at most one spare outstanding.
 
-### Next build: one bill, end to end 🔜
+### Next build: one bill, end to end ✅ code · 🔜 go live
 From the 2026-10-10 review: before any new screen, take **one** bill all the way through on a server: a DSTV renewal or a data top-up that spends real money and delivers the result to the owner. It uses the thin slice of steps 3, 4, 7, 9 and 10 that one line needs. The app keeps its "Preview" badge until this works.
+*Done (D-057 to D-059):* cable TV renewals. `decideRenewal`; Postgres schema with append-only ledger and one open order per line; VTpass, Paystack, Privy, Resend/Termii adapters with fakes; worker (scan, vend, requery, needs_human, recovery, notices); API (`/v1`, webhooks); the app's Cable TV flow and naira account. 294 tests including concurrency and crash cases on a real Postgres.
+*Left:* accounts, keys and the sandbox run in `docs/GO-LIVE.md`. Then data top-ups on the same rails.
 
 ### 3. Schema, ledger, fake partners, double-submit ⬜
 `packages/db`: owners, lines, readings, orders, order_tokens, ledger (append-only), funding, notices. One open order per line. `FOR UPDATE` decide transaction.

@@ -14,7 +14,7 @@ export function fromEnv(env: NodeJS.ProcessEnv = process.env): { db: Db; vending
     env.VENDING_PROVIDER === "vtpass"
       ? new Vtpass({ baseUrl: need(env, "VTPASS_BASE_URL"), apiKey: need(env, "VTPASS_API_KEY"), publicKey: need(env, "VTPASS_PUBLIC_KEY"), secretKey: need(env, "VTPASS_SECRET_KEY") })
       : env.VENDING_PROVIDER === "fake"
-        ? new FakeCableVending()
+        ? FakeCableVending.withDemoDecoders()
         : (() => {
             throw new Error("VENDING_PROVIDER must be vtpass or fake");
           })();

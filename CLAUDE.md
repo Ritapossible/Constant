@@ -37,13 +37,13 @@ Company and sender name: **Constant**. First market: Nigeria, naira. Data nation
 ## Layout
 
 ```
-apps/api            Fastify: WhatsApp, funding and vend webhooks; receipt page     (not started)
-apps/worker         pg-boss: threshold + schedule scans, vend, notify, reconcile    (not started)
+apps/api            Fastify: /v1 for the app (Privy auth), Paystack + VTpass webhooks (cable: done)
+apps/worker         Renewal scan, vend, requery, notify, recovery; orders are the queue (cable: done)
 apps/android        Kotlin app: data/airtime sensor, wallet, light readings        (not started)
 packages/rules      Pure decisions and their tests                                  (DONE: step 1)
-packages/db         Postgres 16 schema, migrations, ledger and order repositories   (not started)
-packages/partners   Vending, Funding, Messaging interfaces; Fake + one real each    (not started)
-packages/copy       Every customer-facing string, per locale                        (not started)
+packages/db         Postgres 16 schema, migrations, ledger and order repositories   (cable: done)
+packages/partners   VTpass, Paystack, Privy, Resend/Termii behind interfaces; fakes (cable: done)
+packages/copy       Every customer-facing string, per locale                        (started)
 contracts/mandate   Soroban mandate. Not scheduled. See DECISIONS D-011.
 docs/               PRODUCT, IDEAS, SENSING, RAILS, DELIVERY, ROADMAP, REVIEW-2026-10-06, SPEC (v1), ARCHITECTURE, INVARIANTS, DECISIONS,
                     UX, EXPANSION, OPERATIONS, GO_TO_MARKET
@@ -53,7 +53,7 @@ docs/               PRODUCT, IDEAS, SENSING, RAILS, DELIVERY, ROADMAP, REVIEW-20
 
 ```
 pnpm install
-pnpm check          # typecheck + all tests
+pnpm check          # typecheck + all tests (db, api, worker tests need TEST_DATABASE_URL)
 pnpm test           # tests only
 pnpm build
 ./scripts/guard.sh  # banned words in copy, obvious secrets
@@ -77,4 +77,4 @@ Android app is required (D-029, supersedes "no app"). First users: urban Android
 
 ## Where we are
 
-See `PLAN.md`. Rules done so far: electricity calendar, forecasts and reminders, withdrawal, data refill, light confidence and supply hours, spare token (173 tests). Next: the rest of step 2 (lines, readings, thresholds, pots), and step 5, the Android sensor spike, in parallel.
+See `PLAN.md`. Cable TV renewals run end to end on the server (D-057 to D-059); going live is `docs/GO-LIVE.md`. Rules done so far: electricity calendar, forecasts and reminders, withdrawal, data refill, light confidence and supply hours, spare token (173 tests). Next: the rest of step 2 (lines, readings, thresholds, pots), and step 5, the Android sensor spike, in parallel.

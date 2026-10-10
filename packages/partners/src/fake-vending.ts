@@ -16,6 +16,16 @@ export class FakeCableVending implements CableVending {
   readonly calls: { renew: { requestId: string; smartcard: string; amountMinor: bigint }[]; requery: string[] } = { renew: [], requery: [] };
   private readonly state = new Map<string, VendOutcome>();
 
+  /** Local dev: a few decoders that look up, ending tomorrow, so a renewal runs straight away. */
+  static withDemoDecoders(now = new Date()): FakeCableVending {
+    const v = new FakeCableVending();
+    const due = new Date(now.getTime() + 86_400_000);
+    v.decoders.set("7012345678", { customerName: "ADA OBI", plan: "DStv Compact", renewalAmountMinor: 1_995_000n, dueAt: due });
+    v.decoders.set("2012345678", { customerName: "TUNDE BELLO", plan: "GOtv Max", renewalAmountMinor: 850_000n, dueAt: due });
+    v.decoders.set("01234567890", { customerName: "CHIOMA EZE", plan: "Nova", renewalAmountMinor: 190_000n, dueAt: null });
+    return v;
+  }
+
   async plans(_provider: CableProvider): Promise<CablePlan[]> {
     return [
       { code: "compact", name: "Compact", amountMinor: 1_995_000n },

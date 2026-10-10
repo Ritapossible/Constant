@@ -7,6 +7,8 @@ import { createPublicClient, erc20Abi, http, type Address } from "viem";
 import { EXPLORER, STABLES, arc, base } from "@/lib/app/chains";
 import { formatMoney, formatUnits6 } from "@/lib/app/format";
 import type { Plan } from "@/lib/app/store";
+import { NairaAccount } from "./NairaAccount";
+import { useServer } from "./Server";
 import { useNotify } from "./Toast";
 import { useWalletAddress } from "./useWalletAddress";
 
@@ -19,6 +21,7 @@ type Balances = Record<string, bigint | null>;
 
 export function Money({ user, plan }: { user: User; plan: Plan }) {
   const notify = useNotify();
+  const server = useServer();
   const wallet = useWalletAddress(user);
   const address = wallet.status === "ready" ? wallet.address : null;
   const [balances, setBalances] = useState<Balances>({});
@@ -78,13 +81,17 @@ export function Money({ user, plan }: { user: User; plan: Plan }) {
         </div>
       </section>
 
-      <section className="ap-card" aria-labelledby="bank-title">
-        <div className="ap-card-head">
-          <h2 id="bank-title">Bank transfer (naira)</h2>
-          <span className="ap-chip">Opening soon</span>
-        </div>
-        <p className="ap-muted">You will get your own account number. Transfers from any Nigerian bank app land in your Constant pots.</p>
-      </section>
+      {server.enabled ? (
+        <NairaAccount />
+      ) : (
+        <section className="ap-card" aria-labelledby="bank-title">
+          <div className="ap-card-head">
+            <h2 id="bank-title">Bank transfer (naira)</h2>
+            <span className="ap-chip">Opening soon</span>
+          </div>
+          <p className="ap-muted">You will get your own account number. Transfers from any Nigerian bank app land in your Constant pots.</p>
+        </section>
+      )}
 
       <section className="ap-card" aria-labelledby="stables-title">
         <div className="ap-card-head">

@@ -273,3 +273,18 @@ The app uses Privy: Google, email, SMS, passkey and wallet sign-in, and a self-c
   - Bills, readings, forecasts and reminders computed by `packages/rules`.
   - The plan is stored on the user's device until the backend (PLAN steps 3–4) exists.
   - Bills are not paid until the licensed partner is live.
+
+### D-057 The first real bill is cable TV — *from the 2026-10-10 review*
+One bill, stored on a server, that spends money and delivers a result, before any new screen. Cable TV (DSTV, GOtv, StarTimes) goes first because it needs no sensor and no token (D-041).
+- **Rule:** `decideRenewal` in `packages/rules/src/renewal.ts`. The amount is always the provider's fresh lookup price, never the client's. A price above the user's limit is asked about once (INV-39), never paid.
+- **Timing:** renew at 07:00 Lagos the day before the plan ends. If the lookup shows the plan already runs more than 3 days, someone renewed it elsewhere: move the run, pay nothing (INV-51).
+- **Retries:** short money or a price above the limit is told once per cycle and rechecked hourly, so money added later the same day still renews. A failed payment is retried after 2 hours; 3 failures in a cycle pause the line and page a person.
+- **Fee:** none. Cable is sold at face value like data and airtime (D-031); Constant earns the partner's commission. The fee table is data (`fees`), so this can change.
+
+### D-058 Orders are the queue; money is held, not debited, while a renewal is in flight — *amends ARCHITECTURE (pg-boss)*
+- The `orders` and `notices` tables are the work queues. The worker claims rows with row locks. Creating an order and queueing it is one insert in one transaction, which is what pg-boss was chosen for, without a second schema to run.
+- The vend and fee ledger entries are still written once, at delivery (INV-13). Until then the order's amount is **held**: available = ledger sum − open orders without a vend entry (`availableBalance`, INV-52). A user with two bills due the same morning can't spend the same naira twice.
+- VTpass's request id is the partner reference. It is saved on the order before the call, so a crash can always be asked about (INV-8). VTpass webhooks are unsigned, so they only trigger an immediate recheck; settlement comes from the requery (rule 6).
+
+### D-059 Hosting: Render, Frankfurt — *implements D-026*
+API (web service), worker (background worker) and Postgres 16 on Render in Frankfurt, from `render.yaml`. The web app stays on Vercel and calls the API with the user's Privy access token. Steps: `docs/GO-LIVE.md`.

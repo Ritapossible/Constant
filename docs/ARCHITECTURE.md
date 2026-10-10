@@ -52,7 +52,7 @@ The primary trigger is the clock, not a message. WhatsApp is how the owner confi
 | TypeScript, Node 22 | One language across api, worker, rules; the team can hire for it in Lagos and Nairobi. |
 | Fastify | Raw body access for HMAC checks, mature rate-limit and schema plugins, good pino logging with redaction (D-002). |
 | Postgres 16 | Transactions, unique constraints for idempotency, row locks for the one-open-order rule, point-in-time recovery. |
-| pg-boss | Jobs live in the same Postgres, so "insert order + enqueue vend" is one transaction. No Redis to run or lose. |
+| Orders as the queue (D-058) | Jobs live in the same Postgres, so "insert order + enqueue vend" is one transaction. No Redis to run or lose. Replaced pg-boss: the orders and notices tables are claimed with row locks. |
 | bigint minor units | Integer money in every market (D-003). |
 | Monorepo, pnpm | Rules are shared by api and worker without publishing. |
 

@@ -9,15 +9,15 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 3 | Silence does not create an early buy. | `not_due` | rules: INV-2/3 |
 | 4 | A frozen site does not buy. | `frozen` | rules: INV-4 |
 | 5 | Amount above the balance or the weekly cap does not buy. | `insufficient`, `weekly_cap` | rules: INV-5 (boundary to the kobo) |
-| 6 | Two runs inside the minimum gap do not buy twice; scheduler and LOW share the gap. An open order counts as a buy. | `too_soon`, `in_flight`; row lock in db | rules: INV-6 · db: **pending** (concurrent LOW + scan) |
-| 7 | A duplicate webhook or retried job does not vend twice. | unique idempotency keys (`keys.ts`) | rules: INV-7 · db: **pending** |
-| 8 | A partner timeout does not vend twice. No saved partnerRef: stop, freeze site, page a human. | `recoverVending`, order state machine | rules: INV-8 · worker: **pending** (both crash cases) |
+| 6 | Two runs inside the minimum gap do not buy twice; scheduler and LOW share the gap. An open order counts as a buy. | `too_soon`, `in_flight`; row lock in db | rules: INV-6 · db: 50 concurrent inserts → 1 order · worker: 5 concurrent scans → 1 partner call |
+| 7 | A duplicate webhook or retried job does not vend twice. | unique idempotency keys (`keys.ts`) | rules: INV-7 · db: funding replay credits once · api: 5 concurrent replays → 1 credit |
+| 8 | A partner timeout does not vend twice. No saved partnerRef: stop, freeze site, page a human. | `recoverVending`, order state machine, request id saved before the call | rules: INV-8 · worker: crash after send, pending → delivered, unclear → needs_human |
 | 9 | SKIP cancels only the next run. It does not freeze. | `skipped` → `advance` | rules: INV-9 |
 | 10 | The site phone cannot change meter, DisCo, amount, days or owner phone. It may send LOW and SKIP only. | `routeInbound` | rules: INV-10 |
 | 11 | The token is stored before SMS. SMS failure resends the stored token; it never buys again. | order state machine | rules: INV-11 · worker: **pending** |
 | 12 | Ledger vs partner disagreement stops vending for everyone until a human clears it. | `reconcile`, `killed` | rules: INV-12 |
 | 13 | A vend is settled only from the signed webhook or fetch(partnerRef). | order state machine | rules: INV-13 |
-| 14 | The full token never appears in a URL, a log line or the public receipt. | redaction in logger, receipt view model | api: **pending** |
+| 14 | The full token never appears in a URL, a log line or the public receipt. | redaction in logger, receipt view model | api: smartcard never in a response or stored in clear · worker log redacts 10+ digits |
 | 15 | Once the mandate is wired, spend succeeds before vend. Until then, nothing pretends the chain is in the path. | not scheduled (D-011) | — |
 | 16 | An alert site never creates an order, writes a vend entry, or calls the partner. | `decideSchedule` → `not_schedule`; `decideAlert` has no amount | rules: INV-16 (property) · worker: **pending** |
 | 17 | No unit reading, no alert. Above the threshold, no owner alert. | `decideAlert` | rules: INV-17 |
@@ -51,8 +51,8 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 35 | Wallet runway names the first upcoming charge that the money set aside cannot cover, and the exact shortfall. | rules: INV-35 |
 | 36 | A user can withdraw any amount except money committed to an open order, only to a verified account in their name; payouts stop with the kill switch. | rules: INV-36 (property) |
 | 37 | A pot pays only its own line. Moving money between pots needs the user's explicit permission each time. | pending |
-| 38 | Cancelling a line returns its pot to the main balance in the same transaction; no payment is made for a cancelled or paused line. | pending |
-| 39 | A cable renewal never pays above the user's cap; a price rise is asked about once. | pending |
+| 38 | Cancelling a line returns its pot to the main balance in the same transaction; no payment is made for a cancelled or paused line. | rules: INV-38 (property) · worker: paused before and after order creation (pots pending) |
+| 39 | A cable renewal never pays above the user's cap; a price rise is asked about once. | rules: INV-39 (property) · worker: above_cap notice once |
 | 40 | A failed, menu or SMS-deferred USSD reply is never a low balance and never triggers a buy. | rules: INV-40 (property) |
 | 41 | Never guess the SIM on a dual-SIM phone; never auto-buy a data plan not known to add to the active bundle. | rules: INV-41 |
 | 42 | Light forecasts show no percentage before 4 readings over 7 days, and nothing before 2 readings. | rules: INV-42 |
@@ -63,3 +63,16 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 47 | A token goes first to the user's chosen, linked channel. | rules: INV-47 |
 | 48 | If it fails or isn't confirmed in time, the next channel is tried, ending in SMS; every attempt resends the same stored token, and delivery never buys again. | rules: INV-48 |
 | 49 | Delivery never retries the same channel in a loop; when all channels fail, the owner and support are told. | rules: INV-49 (property) |
+
+## Cable renewals on the server (D-057, D-058)
+
+| # | Invariant | Test |
+|---|---|---|
+| 50 | A renewal needs available money for amount + fee, to the kobo. | rules: INV-50 |
+| 51 | A decoder renewed elsewhere (plan runs > 3 more days) is not paid; the run moves to the day before its new end. | rules: INV-51 · worker |
+| 52 | Money held by an open order can't be spent by another order. | rules: INV-52 · db · worker (two bills, money for one) |
+| 53 | The ledger is append-only: UPDATE, DELETE and TRUNCATE are refused by the database. | db |
+| 54 | The payee is looked up and fixed by the server when the bill is added; no request can change it. | api |
+| 55 | A funding webhook is stored raw before it is acted on, and a bad signature credits nothing. | api |
+| 56 | The partner's VTpass webhook never settles an order; it only triggers a requery. | api |
+| 57 | Vending starts off in every new database; only a person turns it on. The worker turns it off when the partner balance is empty. | db, worker |

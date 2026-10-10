@@ -6,7 +6,9 @@ import { UNIT, isUsageKind } from "@/lib/app/catalog";
 import { formatDay, formatMoney } from "@/lib/app/format";
 import { notices, outlook, type Outlook } from "@/lib/app/insights";
 import type { Line } from "@/lib/app/store";
+import { cableStatus } from "./Cable";
 import { KindIcon } from "./KindIcon";
+import { useServer } from "./Server";
 import { displayName, signInMethods, type GoTo, type Store } from "./Shell";
 
 function greeting(now: Date) {
@@ -35,6 +37,9 @@ export function outlookText(line: Line, o: Outlook): { right: string; sub: strin
 
 export function Home({ user, store, goTo }: { user: User; store: Store; goTo: GoTo }) {
   const now = useMemo(() => new Date(), []);
+  const server = useServer();
+  const serverLines = useMemo(() => (server.me?.lines ?? []).filter((l) => l.status !== "cancelled"), [server.me]);
+  const serverActive = serverLines.filter((l) => l.status === "active");
   const active = store.plan.lines.filter((l) => l.status === "active");
   const totals = useMemo(() => {
     let ngn = 0n;
@@ -44,8 +49,10 @@ export function Home({ user, store, goTo }: { user: User; store: Store; goTo: Go
       if (l.currency === "NGN") ngn += BigInt(l.amountMinor);
       else usd += BigInt(l.amountMinor);
     }
+    // Server cable bills count at their limit, which starts at the provider's price.
+    for (const l of serverActive) ngn += BigInt(l.capMinor);
     return { ngn, usd };
-  }, [active]);
+  }, [active, serverActive]);
   const heads = useMemo(() => notices(store.plan.lines, now), [store.plan.lines, now]);
   const upcoming = useMemo(
     () =>
@@ -59,7 +66,7 @@ export function Home({ user, store, goTo }: { user: User; store: Store; goTo: Go
     <div className="ap-page">
       <header className="ap-page-head">
         <p className="ap-kicker">{greeting(now)}</p>
-        <h1>{displayName(user, store.plan.name)}</h1>
+        <h1>{displayName(user, server.me?.user.displayName ?? store.plan.name)}</h1>
       </header>
 
       <section className="ap-hero-card" aria-label="Monthly plan">
@@ -68,7 +75,7 @@ export function Home({ user, store, goTo }: { user: User; store: Store; goTo: Go
         {totals.usd > 0n && <span className="ap-hero-sub">+ {formatMoney(totals.usd, "USD")} in subscriptions</span>}
         <div className="ap-hero-row">
           <span>
-            {active.length} active {active.length === 1 ? "bill" : "bills"}
+            {active.length + serverActive.length} active {active.length + serverActive.length === 1 ? "bill" : "bills"}
           </span>
           <button className="ap-pill-btn" onClick={() => goTo("bills")}>
             Manage bills
@@ -101,7 +108,7 @@ export function Home({ user, store, goTo }: { user: User; store: Store; goTo: Go
         <h2 id="up-title" className="ap-section-title">
           Covered until
         </h2>
-        {upcoming.length === 0 ? (
+        {upcoming.length === 0 && serverLines.length === 0 ? (
           <div className="ap-empty">
             <p>
               <b>Nothing to keep paid yet.</b>
@@ -114,6 +121,21 @@ export function Home({ user, store, goTo }: { user: User; store: Store; goTo: Go
           </div>
         ) : (
           <ul className="ap-list">
+            {[...serverLines]
+              .sort((a, b) => (a.nextRunAt ?? "9").localeCompare(b.nextRunAt ?? "9"))
+              .map((l) => {
+                const t = cableStatus(l);
+                return (
+                  <li key={l.id} className="ap-row">
+                    <KindIcon kind="tv" />
+                    <span className="ap-row-main">
+                      <b>{l.nickname}</b>
+                      <small>{t.sub}</small>
+                    </span>
+                    <span className="ap-row-right mono">{t.right}</span>
+                  </li>
+                );
+              })}
             {upcoming.map(({ l, o }) => {
               const t = outlookText(l, o);
               return (
@@ -149,12 +171,15 @@ function sortKey(o: Outlook): number {
  * and recovery counts only real sign-in methods, not the wallet created at sign-in.
  */
 function Checklist({ user, store, goTo }: { user: User; store: Store; goTo: GoTo }) {
+  const server = useServer();
   const lines = store.plan.lines;
-  const hasBill = lines.length > 0;
+  const serverCount = server.me?.lines.length ?? 0;
+  const hasBill = lines.length > 0 || serverCount > 0;
   const usage = lines.filter((l) => isUsageKind(l.kind));
   const steps: { done: boolean; locked?: boolean; label: string; sub: string; to: "bills" | "account" }[] = [
     { done: hasBill, label: "Add your first bill", sub: "Data, light, cable or a subscription", to: "bills" },
   ];
+  // Cable and subscriptions have nothing to read; the reading step is only for data, airtime and light.
   if (!hasBill || usage.length > 0) {
     steps.push({
       done: usage.some((l) => l.readings.length > 0),

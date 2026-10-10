@@ -1,9 +1,10 @@
 "use client";
 
 import { usePrivy, type User } from "@privy-io/react-auth";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { Channel } from "@/lib/app/store";
 import { displayName, type Store } from "./Shell";
+import { useServer } from "./Server";
 import { useNotify } from "./Toast";
 import { useWalletAddress } from "./useWalletAddress";
 
@@ -228,9 +229,12 @@ export function Account({ user, store }: { user: User; store: Store }) {
 
 function Profile({ user, store }: { user: User; store: Store }) {
   const notify = useNotify();
+  const server = useServer();
   const id = useId();
-  const saved = store.plan.name ?? "";
+  const saved = server.me?.user.displayName ?? store.plan.name ?? "";
   const [value, setValue] = useState(saved);
+  // The account loads after first paint; show its saved name once it arrives, unless the person is typing.
+  useEffect(() => setValue((v) => v || saved), [saved]);
   const [error, setError] = useState<string | null>(null);
   const trimmed = value.trim();
 
@@ -249,6 +253,13 @@ function Profile({ user, store }: { user: User; store: Store }) {
           setError(null);
           store.save((p) => ({ ...p, name: trimmed || undefined }));
           setValue(trimmed);
+          if (server.enabled) {
+            // Also saved to the account, so messages use it too.
+            server
+              .call("/v1/me", { method: "PATCH", body: { displayName: trimmed || null } })
+              .then(() => server.reload())
+              .catch(() => notify("Saved on this device. We'll sync it next time."));
+          }
           notify(trimmed ? `We'll call you ${trimmed}` : "Name cleared");
         }}
       >

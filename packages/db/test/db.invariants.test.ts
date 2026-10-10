@@ -62,6 +62,7 @@ describe("schema", () => {
     await insertLedger(db, { userId: user.id, kind: "adjust", amountMinor: 100n, currency: "NGN", idempotencyKey: "t:append", actor: "test" });
     await expect(db.query("UPDATE ledger_entries SET amount_minor = 5 WHERE idempotency_key = 't:append'")).rejects.toThrow(/append-only/);
     await expect(db.query("DELETE FROM ledger_entries WHERE idempotency_key = 't:append'")).rejects.toThrow(/append-only/);
+    await expect(db.query("TRUNCATE ledger_entries CASCADE")).rejects.toThrow(/append-only/);
   });
 
   it("money comes back as bigint", async () => {
