@@ -38,7 +38,6 @@ export interface NoticeParams {
 
 /** One message per notice kind. Short enough for one SMS where it may go by SMS. */
 export function render(kind: NoticeKind, p: NoticeParams & Record<string, string | undefined>): Message {
-  if (kind === "stables_arrived" || kind === "token_quarantined") return renderStables(kind, p as StableParams);
   const who = p.line ?? `${p.provider ?? "TV"} ••${p.last4 ?? ""}`;
   const amt = p.amountMinor ? naira(BigInt(p.amountMinor)) : "";
   switch (kind) {
@@ -72,5 +71,7 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
         subject: `We're checking ${who}`,
         text: `Constant: a payment for ${who} needs a person to confirm it. We've paused this bill and will message you soon. Your money is safe.`,
       };
+    default:
+      return renderStables(kind, p as StableParams);
   }
 }

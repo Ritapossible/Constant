@@ -5,3 +5,4 @@ export * from "./fake-vending.js";
 export * from "./paystack.js";
 export * from "./messaging.js";
 export * from "./privy.js";
+export * from "./paycrest.js";

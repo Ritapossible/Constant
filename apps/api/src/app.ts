@@ -4,11 +4,29 @@
  * It never spends money: it stores what the user set up, looks decoders up (side-effect free), and records
  * signed funding webhooks. The worker decides and pays (ARCHITECTURE "Shape of the system").
  */
-import { EVM_CHAINS, STELLAR, evmAddress, formatUnits6, stableFor, type EvmChain } from "@constant/chains";
+import {
+  EVM_CHAINS,
+  STABLES,
+  STELLAR,
+  evmAddress,
+  formatUnits6,
+  permissionFromJson,
+  permissionToJson,
+  SPEND_PERMISSION_MANAGER,
+  spendPermissionTypedData,
+  stableFor,
+  type EvmChain,
+  type PermissionChain,
+} from "@constant/chains";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import {
   DuplicateLine,
+  PermissionExists,
+  insertPermission,
+  livePermission,
+  setLineFunding,
+  updatePermission,
   addressesOf,
   depositsOf,
   publicReceipt,
@@ -44,8 +62,17 @@ import {
   type Secrets,
   type UserRow,
 } from "@constant/db";
-import type { CableProvider, CableVending, Funding, Identity } from "@constant/partners";
-import { availableBalance, decideFundingCredit, renewalRunAt } from "@constant/rules";
+import type { CableProvider, CableVending, Funding, Identity, RateSource } from "@constant/partners";
+import {
+  PERMISSION_LIFETIME_SECONDS,
+  PERMISSION_PERIOD_SECONDS,
+  availableBalance,
+  decideFundingCredit,
+  parseRate,
+  permissionAllowance,
+  renewalRunAt,
+} from "@constant/rules";
+import { randomBytes } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 
 export interface ApiDeps {
@@ -63,6 +90,8 @@ export interface ApiDeps {
   fundingEmailDomain: string;
   now?: () => Date;
   logger?: boolean;
+  /** Dollar autopay on Base (D-063). Absent: the /usdc routes answer 503 and nothing changes. */
+  dollars?: { chain: Pick<PermissionChain, "spender" | "verifySignature">; rates: RateSource };
 }
 
 declare module "fastify" {
@@ -111,7 +140,11 @@ function smartcard(v: unknown): string {
   return s;
 }
 
+const USDC_BASE = STABLES.find((t) => t.key === "base-usdc")!;
+const usd = (micro: bigint) => formatUnits6(micro);
+
 const lineView = (l: LineRow) => ({
+  funding: l.funding,
   id: l.id,
   kind: l.kind,
   provider: l.provider,
@@ -352,10 +385,134 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       if (!line || line.status === "cancelled") throw new HttpError(404, "not_found", "No such bill");
       if (await hasOpenOrder(d.db, id)) throw new HttpError(409, "in_flight", "A renewal is in progress. Try again in a few minutes.");
       await updateLine(d.db, id, { status: "cancelled", next_run_at: null });
+      const perm = await livePermission(d.db, id);
+      if (perm) await updatePermission(d.db, perm.id, perm.status === "signed" ? { status: "revoked" } : { status: "revoke_pending", tx_hash: null, tx_raw: null });
       return reply.status(204).send();
     });
 
     v1.get("/orders", async (req) => (await listOrders(d.db, req.user.id, 50)).map(orderView));
+
+    // ── Paying a bill from USDC on Base (D-063) ─────────────────────────────
+    const ownLine = async (req: FastifyRequest) => {
+      const { id } = req.params as { id: string };
+      const line = await getLine(d.db, id, req.user.id);
+      if (!line || line.status === "cancelled") throw new HttpError(404, "not_found", "No such bill");
+      return line;
+    };
+    const dollars = () => {
+      if (!d.dollars) throw new HttpError(503, "usdc_off", "Paying from USDC isn't switched on yet.");
+      return d.dollars;
+    };
+    const currentRate = async () => {
+      try {
+        return parseRate((await dollars().rates.usdcToNgn(20)).ngnPerUsdc);
+      } catch (err) {
+        if (err instanceof HttpError) throw err;
+        throw new HttpError(503, "rate_unavailable", "We can't get today's dollar rate. Try again in a minute.");
+      }
+    };
+
+    v1.get("/lines/:id/usdc", async (req) => {
+      const line = await ownLine(req);
+      const perm = await livePermission(d.db, line.id);
+      return {
+        available: Boolean(d.dollars),
+        funding: line.funding,
+        permission: perm && { status: perm.status, allowanceUsd: usd(BigInt(perm.allowance)), periodDays: Number(perm.period) / 86_400, account: perm.account, until: new Date(Number(perm.end_at) * 1000).toISOString() },
+      };
+    });
+
+    /** What the user is asked to sign: Constant may take up to this much USDC every 30 days for this bill. */
+    v1.post("/lines/:id/usdc/proposal", async (req) => {
+      const line = await ownLine(req);
+      const dd = dollars();
+      const account = evmAddress(json(req).account);
+      const mine = (await addressesOf(d.db, req.user.id)).filter((a) => a.kind === "smart").map((a) => a.address.toLowerCase());
+      if (!account || !mine.includes(account.toLowerCase())) throw bad("not_your_account", "Use your Constant smart account on Base.");
+      const rate = await currentRate();
+      const start = Math.floor(now().getTime() / 1000) - 60;
+      const permission = {
+        account,
+        spender: dd.chain.spender,
+        token: USDC_BASE.address,
+        allowance: permissionAllowance(line.cap_minor, rate),
+        period: PERMISSION_PERIOD_SECONDS,
+        start,
+        end: start + PERMISSION_LIFETIME_SECONDS,
+        salt: BigInt("0x" + randomBytes(16).toString("hex")),
+        extraData: "0x" as const,
+      };
+      const td = spendPermissionTypedData(permission);
+      return {
+        // The app adds this contract as an owner of the user's smart wallet before signing (once per wallet).
+        manager: SPEND_PERMISSION_MANAGER,
+        permission: permissionToJson(permission),
+        typedData: { domain: td.domain, types: td.types, primaryType: td.primaryType },
+        display: { allowanceUsd: usd(permission.allowance), periodDays: 30, capNgnMinor: line.cap_minor.toString(), rateNgnPerUsdc: (Number(rate) / 100).toFixed(2), until: new Date(permission.end * 1000).toISOString() },
+      };
+    });
+
+    /** The signed permission. Every field is checked against what Constant would propose, and the signature on Base. */
+    v1.post("/lines/:id/usdc", async (req, reply) => {
+      const line = await ownLine(req);
+      const dd = dollars();
+      const b = json(req);
+      let p;
+      try {
+        p = permissionFromJson(b.permission);
+      } catch {
+        throw bad("invalid_permission", "That permission isn't valid.");
+      }
+      const signature = typeof b.signature === "string" && /^0x[0-9a-fA-F]+$/.test(b.signature) ? (b.signature as `0x${string}`) : null;
+      if (!signature) throw bad("invalid_signature", "Missing signature.");
+      const mine = (await addressesOf(d.db, req.user.id)).filter((a) => a.kind === "smart").map((a) => a.address.toLowerCase());
+      const t = Math.floor(now().getTime() / 1000);
+      const rate = await currentRate();
+      const maxAllowance = (permissionAllowance(line.cap_minor, rate) * 125n) / 100n; // the rate may move between proposal and signing
+      const problems = [
+        !mine.includes(p.account.toLowerCase()) && "account",
+        p.spender.toLowerCase() !== dd.chain.spender.toLowerCase() && "spender",
+        p.token.toLowerCase() !== USDC_BASE.address.toLowerCase() && "token",
+        p.period !== PERMISSION_PERIOD_SECONDS && "period",
+        (p.start > t + 300 || p.start < t - 86_400) && "start",
+        (p.end <= t || p.end - p.start > PERMISSION_LIFETIME_SECONDS + 86_400) && "end",
+        (p.allowance <= 0n || p.allowance > maxAllowance) && "allowance",
+        p.extraData !== "0x" && "extraData",
+      ].filter(Boolean);
+      if (problems.length) throw bad("permission_mismatch", `This permission doesn't match what Constant offered (${problems.join(", ")}).`);
+      if (!(await dd.chain.verifySignature(p, signature))) throw bad("invalid_signature", "The signature doesn't match your account.");
+      try {
+        await insertPermission(d.db, {
+          userId: req.user.id,
+          lineId: line.id,
+          account: p.account,
+          spender: p.spender,
+          token: p.token,
+          allowance: p.allowance,
+          period: p.period,
+          start: p.start,
+          end: p.end,
+          salt: p.salt,
+          extraData: p.extraData,
+          signature,
+        });
+      } catch (err) {
+        if (err instanceof PermissionExists) throw new HttpError(409, "exists", "This bill already pays from USDC.");
+        throw err;
+      }
+      // The worker registers it on Base; the bill switches to USDC once that is confirmed.
+      return reply.status(202).send({ status: "signed" });
+    });
+
+    /** Stop paying this bill from USDC. Effective at once; the on-chain revoke follows (Constant pays the gas). */
+    v1.delete("/lines/:id/usdc", async (req, reply) => {
+      const line = await ownLine(req);
+      const perm = await livePermission(d.db, line.id);
+      await setLineFunding(d.db, line.id, "naira");
+      // Never registered on chain: nothing to revoke there. Otherwise revoke on chain too.
+      if (perm) await updatePermission(d.db, perm.id, perm.status === "signed" ? { status: "revoked" } : { status: "revoke_pending", tx_hash: null, tx_raw: null });
+      return reply.status(204).send();
+    });
 
     // Stablecoins: the user's own addresses and what arrived in them (D-060). Shown only on the dollar screens.
     v1.get("/stables", async (req) => {

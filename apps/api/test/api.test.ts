@@ -2,9 +2,9 @@
  * API: auth, the cable bill lifecycle, funding webhooks (INV-7), the VTpass hint webhook (rule 6), privacy (rule 9).
  */
 import { createHmac } from "node:crypto";
-import { FakeAnchorer, merkle, receiptLeaf, verifyProof } from "@constant/chains";
+import { FakeAnchorer, FakePermissionChain, merkle, permissionFromJson, receiptLeaf, verifyProof } from "@constant/chains";
 import { Secrets, claimUnanchored, freshDatabase, insertBatch, insertDeposit, ledgerSum, markBatch, testKeyB64, withTx, type Db } from "@constant/db";
-import { FakeCableVending, FakeFunding, FakeIdentity } from "@constant/partners";
+import { FakeCableVending, FakeFunding, FakeIdentity, FakeRates } from "@constant/partners";
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/index.js";
@@ -14,6 +14,7 @@ let drop: () => Promise<void>;
 let app: FastifyInstance;
 const vending = new FakeCableVending();
 const identity = new FakeIdentity();
+const permChain = new FakePermissionChain();
 const funding = new FakeFunding("whsec");
 const NOW = new Date("2026-11-10T09:00:00Z");
 const WEBHOOK_TOKEN = "vt-0123456789abcdef";
@@ -33,6 +34,7 @@ beforeAll(async () => {
     fundingEmailDomain: "users.example",
     now: () => NOW,
     logger: false,
+    dollars: { chain: permChain, rates: new FakeRates("1352.34") },
   });
 });
 afterAll(async () => {
@@ -238,5 +240,49 @@ describe("public receipts", () => {
     for (const secret of ["7012345678", "ADA OBI", "alice@example.com", me.user.id]) expect(text).not.toContain(secret);
 
     expect((await app.inject({ method: "GET", url: "/receipts/nope" })).statusCode).toBe(404);
+  });
+});
+
+describe("paying a bill from USDC (D-063)", () => {
+  const SMART = "0x4444444444444444444444444444444444444444";
+  let lineId = "";
+
+  it("proposes a capped permission only for the user's own smart account", async () => {
+    identity.users.set("did:privy:usdc", { did: "did:privy:usdc", email: "u@example.com", phoneE164: null, wallets: [{ address: SMART, kind: "smart" }] });
+    const l = await call("POST", "/v1/lines", "did:privy:usdc", { provider: "dstv", smartcard: "7012345678", nickname: "USD TV", capMinor: "2500000" });
+    lineId = l.json().id;
+    expect((await call("POST", `/v1/lines/${lineId}/usdc/proposal`, "did:privy:usdc", { account: "0x5555555555555555555555555555555555555555" })).json().error).toBe("not_your_account");
+    const r = await call("POST", `/v1/lines/${lineId}/usdc/proposal`, "did:privy:usdc", { account: SMART });
+    expect(r.statusCode).toBe(200);
+    const body = r.json();
+    expect(body.permission).toMatchObject({ account: SMART, spender: permChain.spender, token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", allowance: "19970000", period: 2_592_000, extraData: "0x" });
+    expect(body.display).toMatchObject({ allowanceUsd: "19.97", periodDays: 30 });
+    expect(body.typedData.domain.name).toBe("Spend Permission Manager");
+  });
+
+  it("accepts it only with a valid signature and fields that match the offer", async () => {
+    const offer = (await call("POST", `/v1/lines/${lineId}/usdc/proposal`, "did:privy:usdc", { account: SMART })).json().permission;
+    expect((await call("POST", `/v1/lines/${lineId}/usdc`, "did:privy:usdc", { permission: offer, signature: "0xbad" })).json().error).toBe("invalid_signature");
+
+    const greedy = { ...offer, allowance: "900000000" };
+    permChain.validSignatures.add(`${permChain.key(permissionFromJson(greedy))}:0xgood`);
+    expect((await call("POST", `/v1/lines/${lineId}/usdc`, "did:privy:usdc", { permission: greedy, signature: "0x600d" })).json().error).toBe("permission_mismatch");
+
+    const otherSpender = { ...offer, spender: "0x6666666666666666666666666666666666666666" };
+    expect((await call("POST", `/v1/lines/${lineId}/usdc`, "did:privy:usdc", { permission: otherSpender, signature: "0x600d" })).json().message).toContain("spender");
+
+    permChain.validSignatures.add(`${permChain.key(permissionFromJson(offer))}:0x600d`);
+    const ok = await call("POST", `/v1/lines/${lineId}/usdc`, "did:privy:usdc", { permission: offer, signature: "0x600d" });
+    expect(ok.statusCode).toBe(202);
+    expect((await call("POST", `/v1/lines/${lineId}/usdc`, "did:privy:usdc", { permission: offer, signature: "0x600d" })).statusCode).toBe(409);
+    const st = (await call("GET", `/v1/lines/${lineId}/usdc`, "did:privy:usdc")).json();
+    expect(st).toMatchObject({ available: true, funding: "naira", permission: { status: "signed", allowanceUsd: "19.97", periodDays: 30 } });
+  });
+
+  it("another user can't touch it; stopping is immediate", async () => {
+    expect((await call("DELETE", `/v1/lines/${lineId}/usdc`, "did:privy:bob")).statusCode).toBe(404);
+    expect((await call("DELETE", `/v1/lines/${lineId}/usdc`, "did:privy:usdc")).statusCode).toBe(204);
+    const st = (await call("GET", `/v1/lines/${lineId}/usdc`, "did:privy:usdc")).json();
+    expect(st).toMatchObject({ funding: "naira", permission: null });
   });
 });

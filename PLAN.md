@@ -32,7 +32,8 @@ From the 2026-10-10 review: before any new screen, take **one** bill all the way
 
 ### Chains: Base, Arc, Stellar ✅ first step · 🔜 dollar autopay
 *Done (D-060 to D-062):* `packages/chains` (verified chain facts, deposit reader, Merkle proofs, Stellar anchoring); users' addresses from Privy; deposit indexer for USDC/USDT on Base and USDC on Arc with notices; public receipts anchored hourly on Stellar and checked in the browser. Live-checked on Base, Arc and Stellar testnet.
-*Next:* spend permissions per line on Base (Privy smart wallet), charge-then-vend with the naira float, Paycrest off-ramp, Arc treasury via CCTP. Needs the crypto legal opinion (B12) before real users.
+*Done (D-063):* dollar autopay on Base: per-bill spend permissions on the user's Privy smart wallet, charge confirmed before vend, crash-safe re-send, revoke without gas for the user. Typed data checked against the live contract.
+*Next:* sweep charged USDC to an Arc treasury via CCTP and off-ramp through Paycrest to refill the naira float; reconciliation. Needs the crypto legal opinion (B12) before real users.
 
 ### 3. Schema, ledger, fake partners, double-submit ⬜
 `packages/db`: owners, lines, readings, orders, order_tokens, ledger (append-only), funding, notices. One open order per line. `FOR UPDATE` decide transaction.

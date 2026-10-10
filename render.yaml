@@ -56,6 +56,11 @@ services:
         sync: false
       - key: PAYSTACK_PREFERRED_BANK
         value: test-bank
+      # Dollar autopay (D-063): the spender's public address only. Its key lives on the worker.
+      - key: SPENDER_ADDRESS
+        sync: false
+      - key: BASE_RPC_URL
+        value: https://base-rpc.publicnode.com
 
   - type: worker
     name: constant-worker
@@ -83,6 +88,11 @@ services:
         value: testnet
       - key: STELLAR_SECRET
         sync: false
+      # Dollar autopay (D-063). Empty = off. Holds a little ETH for gas; receives charged USDC.
+      - key: SPENDER_PRIVATE_KEY
+        sync: false
+      - key: BASE_CONFIRMATIONS
+        value: "5"
       - key: VEND_FALLBACK_PHONE
         sync: false
       - key: RESEND_API_KEY

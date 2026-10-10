@@ -1,5 +1,6 @@
 import { Secrets, createPool, keysFromEnv, migrate } from "@constant/db";
-import { FakeCableVending, FakeFunding, FakeIdentity, Paystack, Privy, Vtpass } from "@constant/partners";
+import { BasePermissionVerifier, evmAddress } from "@constant/chains";
+import { FakeCableVending, FakeFunding, FakeIdentity, PaycrestRates, Paystack, Privy, Vtpass } from "@constant/partners";
 import { buildApp } from "./app.js";
 
 function need(name: string): string {
@@ -26,6 +27,15 @@ const app = await buildApp({
   webOrigins: need("WEB_ORIGINS").split(",").map((s) => s.trim()),
   vtpassWebhookToken: need("VTPASS_WEBHOOK_TOKEN"),
   fundingEmailDomain: env.FUNDING_EMAIL_DOMAIN ?? "users.constant.ng",
+  // Dollar autopay (D-063): on when the spender's address is set. The API never holds the spender's key.
+  ...(env.SPENDER_ADDRESS
+    ? {
+        dollars: {
+          chain: new BasePermissionVerifier(evmAddress(env.SPENDER_ADDRESS) ?? (() => { throw new Error("SPENDER_ADDRESS is not an address"); })(), env.BASE_RPC_URL),
+          rates: new PaycrestRates(env.PAYCREST_BASE_URL ?? "https://api.paycrest.io"),
+        },
+      }
+    : {}),
 });
 
 const port = Number(env.PORT ?? 8080);

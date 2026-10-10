@@ -4,3 +4,4 @@ export * from "./crypto.js";
 export * from "./repo.js";
 export * from "./testing.js";
 export * from "./chains.js";
+export * from "./dollars.js";

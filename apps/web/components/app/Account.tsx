@@ -102,7 +102,9 @@ export function Account({ user, store }: { user: User; store: Store }) {
         {wallet.status === "ready" ? (
           <>
             <p className="ap-muted">
-              {wallet.embedded
+              {wallet.smart
+                ? "Your Constant account on Base, created for you. It holds your stablecoins; only you can move them, and bills you approve can take only what you allowed."
+                : wallet.embedded
                 ? "Created for you when you signed in. It holds your stablecoins, and only you can move them."
                 : "The wallet you signed in with. Stablecoins you send to it stay in your control."}
             </p>
@@ -140,7 +142,7 @@ export function Account({ user, store }: { user: User; store: Store }) {
                         onClick={async () => {
                           setConfirmExport(false);
                           try {
-                            await exportWallet({ address: wallet.address });
+                            await exportWallet({ address: wallet.signer ?? wallet.address });
                           } catch {
                             notify("Export was cancelled");
                           }

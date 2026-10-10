@@ -58,7 +58,7 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 42 | Light forecasts show no percentage before 4 readings over 7 days, and nothing before 2 readings. | rules: INV-42 |
 | 43 | Light usage is counted per hour of grid supply; units come from vend receipts, never amount ÷ tariff. | rules: INV-43 |
 | 44 | A spare token is bought only when the cautious run-out is within the lead time, never while one is waiting; an old spare triggers a reminder, not a second spare. | rules: INV-44 |
-| 45 | Dollar path: the on-chain charge is confirmed before the vend; a charge never exceeds the user's signed allowance; a quote above it asks the user. | pending (RAILS) |
+| 45 | Dollar path: the on-chain charge is confirmed before the vend; a charge never exceeds the user's signed allowance; a quote above it asks the user. | rules: INV-45 (property) · worker: no vend before confirmation, re-checked on chain before charging, missing module never vends |
 | 46 | Dollar deposits are credited only for the listed USDC and USDT contracts on Base (and USDC on Arc via CCTP); anything else is quarantined for manual review. | chains: token list · worker: unknown tokens quarantined, USDT's Base address on Arc rejected |
 | 47 | A token goes first to the user's chosen, linked channel. | rules: INV-47 |
 | 48 | If it fails or isn't confirmed in time, the next channel is tried, ending in SMS; every attempt resends the same stored token, and delivery never buys again. | rules: INV-48 |
@@ -85,3 +85,14 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 59 | Every settled renewal ends up in exactly one anchored batch, and its proof verifies against the published root; a changed receipt does not. | chains (property) · worker · api · browser |
 | 60 | A user's chain addresses come from the identity provider, never the request; one address, one user. | api · worker |
 | 61 | Nothing in the chain jobs moves a user's money. | by construction: read-only EVM client; the Stellar transaction's only operation is a no-op |
+
+## Dollar autopay (D-063)
+
+| # | Invariant | Test |
+|---|---|---|
+| 62 | The USDC charged always covers the naira price, rounded up by less than one micro-unit. | rules (property) |
+| 63 | A charge never exceeds what the permission has left this period or what the account holds; both are re-read on chain just before charging. | rules (property) · worker |
+| 64 | A charge nobody can confirm within 60 minutes goes to a person and freezes the line; it is re-sent, never re-signed; nothing is vended. | worker |
+| 65 | A permission is accepted only for the user's own smart wallet, Constant's spender, USDC on Base, a 30-day period and an allowance within 125% of a fresh proposal, with a valid signature. | api |
+| 66 | The app adds only the pinned Spend Permission Manager as an owner, whatever the server returns. | web (code) |
+| 67 | Only the worker holds the spender key; the API holds its address. | config |

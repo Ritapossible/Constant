@@ -5,11 +5,11 @@ export interface AddressRow {
   family: "evm";
   address: string;
   user_id: string;
-  kind: "embedded" | "external";
+  kind: "embedded" | "external" | "smart";
 }
 
 /** Records addresses for a user. An address already owned by someone else is left alone and reported. */
-export async function saveAddresses(q: Q, userId: string, addresses: { address: string; kind: "embedded" | "external" }[]): Promise<{ conflicts: string[] }> {
+export async function saveAddresses(q: Q, userId: string, addresses: { address: string; kind: "embedded" | "external" | "smart" }[]): Promise<{ conflicts: string[] }> {
   const conflicts: string[] = [];
   for (const a of addresses) {
     const r = await q.query<{ user_id: string }>(

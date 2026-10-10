@@ -1,6 +1,8 @@
-import { FakeAnchorer, StellarAnchorer, ViemReader, type Anchorer, type EvmReader } from "@constant/chains";
+import { BasePermissionChain, FakeAnchorer, StellarAnchorer, ViemReader, type Anchorer, type EvmReader } from "@constant/chains";
 import { Secrets, createPool, keysFromEnv, type Db } from "@constant/db";
-import { FakeCableVending, FakeMessaging, HttpMessaging, Vtpass, type CableVending, type Messaging } from "@constant/partners";
+import { FakeCableVending, FakeMessaging, HttpMessaging, PaycrestRates, Vtpass, type CableVending, type Messaging } from "@constant/partners";
+import type { Hex } from "viem";
+import type { DollarDeps } from "./dollars.js";
 
 function need(env: NodeJS.ProcessEnv, name: string): string {
   const v = env[name];
@@ -43,4 +45,19 @@ export function chainsFromEnv(env: NodeJS.ProcessEnv = process.env): { readers: 
   const network = env.STELLAR_NETWORK === "public" ? "public" : "testnet";
   const anchorer = env.STELLAR_SECRET === "fake" ? new FakeAnchorer() : env.STELLAR_SECRET ? new StellarAnchorer(network, env.STELLAR_SECRET) : null;
   return { readers, anchorer, scanAllTokens: env.DEPOSITS_ALL_TOKENS === "true" };
+}
+
+/**
+ * Dollar autopay on Base (D-063): on only when SPENDER_PRIVATE_KEY is set. That key is Constant's spender:
+ * it receives charged USDC and pays Base gas, so it should hold a little ETH and be swept to treasury.
+ */
+export function dollarsFromEnv(env: NodeJS.ProcessEnv = process.env): DollarDeps | undefined {
+  const key = env.SPENDER_PRIVATE_KEY;
+  if (!key) return undefined;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(key)) throw new Error("SPENDER_PRIVATE_KEY must be 0x + 64 hex characters");
+  return {
+    chain: new BasePermissionChain(key as Hex, env.BASE_RPC_URL),
+    rates: new PaycrestRates(env.PAYCREST_BASE_URL ?? "https://api.paycrest.io"),
+    confirmations: BigInt(env.BASE_CONFIRMATIONS ?? "5"),
+  };
 }

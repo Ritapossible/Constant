@@ -21,5 +21,8 @@ describe("stablecoin copy (D-053)", () => {
     expect(m.text).toContain("20.00 USDC arrived on Base");
     expect(m.text.length).toBeLessThanOrEqual(160);
     expect(render("token_quarantined", { network: "Arc" }).text.length).toBeLessThanOrEqual(160);
+    for (const k of ["stables_short", "allowance_low", "permission_needed", "permission_on", "permission_failed"] as const) {
+      expect(render(k, { line: "Living room DSTV", usd: "14.76", have: "10.00" }).text.length).toBeLessThanOrEqual(160);
+    }
   });
 });

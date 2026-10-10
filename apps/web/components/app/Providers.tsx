@@ -1,6 +1,7 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
+import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import type { ReactNode } from "react";
 import { arc, base } from "@/lib/app/chains";
 
@@ -31,7 +32,9 @@ export function Providers({ children }: { children: ReactNode }) {
         legal: { privacyPolicyUrl: "/privacy" },
       }}
     >
-      {children}
+      {/* Smart wallets (Coinbase Smart Wallet on Base) let a bill be paid from USDC within a signed limit (D-063).
+          Turned on in the Privy dashboard; without that, the client is simply absent and the option is hidden. */}
+      <SmartWalletsProvider>{children}</SmartWalletsProvider>
     </PrivyProvider>
   );
 }

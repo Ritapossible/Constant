@@ -71,3 +71,10 @@ Swap `VTPASS_BASE_URL` to `https://vtpass.com/api` with live keys, Paystack live
    - Testnet first: create a key pair (stellar.org Laboratory), fund it with Friendbot, put the secret in `STELLAR_SECRET`, keep `STELLAR_NETWORK=testnet`.
    - Public network: a new key pair funded with ~5 XLM (minimum balance plus years of fees at 24 transactions a day), `STELLAR_NETWORK=public`. Keep the secret in a password manager as well as Render.
    - Check: after a renewal settles, within an hour its receipt page says "Checked in your browser".
+
+## Dollar autopay on Base (after deposits work)
+
+1. **Privy dashboard → Smart wallets:** turn on, choose **Coinbase Smart Wallet**, network **Base**, and set up gas sponsorship (a paymaster) so users never need ETH. Existing users get their smart wallet on next sign-in; deposits should go to that address (the app shows it).
+2. **Spender key:** create a new key pair just for this (e.g. `cast wallet new`). Put the private key in `SPENDER_PRIVATE_KEY` on **constant-worker** only, and the address in `SPENDER_ADDRESS` on **constant-api**. Send it about $5 of ETH on Base for gas. It receives charged USDC; sweep it regularly until the treasury step is built.
+3. **Test with small amounts:** your own decoder, a $5 USDC balance, a low naira limit. Approve "Pay from USDC" on the bill, wait for "On", make it due (`UPDATE lines SET next_run_at = now() WHERE id = '…'`), and watch: charge → naira credited → renewal → receipt.
+4. **Stop:** "Stop paying from USDC" takes effect at once; the on-chain revoke follows within a minute.

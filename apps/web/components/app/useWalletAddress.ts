@@ -5,7 +5,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 
 export type WalletState =
-  | { status: "ready"; address: Address; embedded: boolean }
+  /**
+   * address: where stables should be sent. With a smart wallet (Coinbase Smart Wallet on Base) that's the smart
+   * wallet, because dollar autopay charges it (D-063); its signer is the embedded wallet, which is what "export
+   * key" exports. Without one, the embedded or external wallet itself.
+   */
+  | { status: "ready"; address: Address; embedded: boolean; smart: boolean; signer: Address | null }
   | { status: "creating" }
   | { status: "error"; retry: () => void };
 
@@ -40,8 +45,9 @@ export function useWalletAddress(user: User): WalletState {
     return () => clearTimeout(t);
   }, [ready, embedded, external, create]);
 
-  if (embedded) return { status: "ready", address: embedded.address as Address, embedded: true };
-  if (external) return { status: "ready", address: external.address as Address, embedded: false };
+  const smart = user.smartWallet?.address as Address | undefined;
+  if (embedded) return { status: "ready", address: smart ?? (embedded.address as Address), embedded: true, smart: Boolean(smart), signer: embedded.address as Address };
+  if (external) return { status: "ready", address: external.address as Address, embedded: false, smart: false, signer: null };
   if (failed) return { status: "error", retry: create };
   return { status: "creating" };
 }

@@ -4,6 +4,7 @@ export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, ""
 
 export type ServerLine = {
   id: string;
+  funding: "naira" | "usdc_base";
   kind: "tv";
   provider: "dstv" | "gotv" | "startimes";
   last4: string;

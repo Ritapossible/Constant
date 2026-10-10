@@ -59,7 +59,10 @@ export function contactFromPrivyUser(did: string, body: unknown): IdentityUser {
   const phoneE164 = digits ? (digits.startsWith("+") ? digits : `+${digits}`) : null;
   const wallets = accounts
     .filter((a) => a.type === "wallet" && a.chain_type === "ethereum" && typeof a.address === "string" && /^0x[0-9a-fA-F]{40}$/.test(a.address as string))
-    .map((a) => ({ address: a.address as string, kind: (a.wallet_client_type === "privy" || a.connector_type === "embedded" ? "embedded" : "external") as "embedded" | "external" }));
+    .map((a) => ({ address: a.address as string, kind: (a.wallet_client_type === "privy" || a.connector_type === "embedded" ? "embedded" : "external") as "embedded" | "external" | "smart" }));
+  for (const a of accounts) {
+    if (a.type === "smart_wallet" && typeof a.address === "string" && /^0x[0-9a-fA-F]{40}$/.test(a.address)) wallets.push({ address: a.address, kind: "smart" });
+  }
   return { did, email, phoneE164, wallets };
 }
 

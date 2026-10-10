@@ -83,8 +83,11 @@ export interface IdentityUser {
   did: string;
   email: string | null;
   phoneE164: string | null;
-  /** EVM addresses the identity provider says this user controls: the embedded one it created, and any linked. */
-  wallets: { address: string; kind: "embedded" | "external" }[];
+  /**
+   * EVM addresses the identity provider says this user controls: the embedded signer it created, any linked
+   * wallet, and the smart wallet (a Coinbase Smart Wallet on Base) that holds dollars for autopay.
+   */
+  wallets: { address: string; kind: "embedded" | "external" | "smart" }[];
 }
 
 export interface Identity {

@@ -42,7 +42,7 @@ export type OrderEvent =
   | { type: "resolved_failed" };
 
 const TRANSITIONS: Record<OrderState, Partial<Record<OrderEvent["type"], OrderState>>> = {
-  ready: { start: "vending", rejected: "failed" },
+  ready: { start: "vending", rejected: "failed", ambiguous: "needs_human" }, // ambiguous: a dollar charge nobody can confirm (D-063)
   vending: { accepted: "vending", token: "token_stored", rejected: "failed", ambiguous: "needs_human" },
   token_stored: { notify_start: "notifying" },
   notifying: { notified: "settled", notify_failed: "notifying" },

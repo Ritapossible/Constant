@@ -158,6 +158,7 @@ describe("Privy", () => {
           { type: "wallet", chain_type: "ethereum", address: "0x1111111111111111111111111111111111111111", wallet_client_type: "privy", connector_type: "embedded" },
           { type: "wallet", chain_type: "ethereum", address: "0x2222222222222222222222222222222222222222", wallet_client_type: "metamask", connector_type: "injected" },
           { type: "wallet", chain_type: "solana", address: "So1ana" },
+          { type: "smart_wallet", address: "0x3333333333333333333333333333333333333333", smart_wallet_type: "coinbase_smart_wallet" },
         ],
       }),
     ).toEqual({
@@ -167,7 +168,23 @@ describe("Privy", () => {
       wallets: [
         { address: "0x1111111111111111111111111111111111111111", kind: "embedded" },
         { address: "0x2222222222222222222222222222222222222222", kind: "external" },
+        { address: "0x3333333333333333333333333333333333333333", kind: "smart" },
       ],
     });
+  });
+});
+
+describe("Paycrest rates", () => {
+  it("reads naira per USDC on Base", async () => {
+    const { PaycrestRates } = await import("../src/index.js");
+    const seen: { url: string; init: RequestInit }[] = [];
+    const r = await new PaycrestRates("https://api.paycrest.io", stubFetch([{ body: { status: "success", message: "ok", data: "1352.34" } }], seen)).usdcToNgn(14.7);
+    expect(r.ngnPerUsdc).toBe("1352.34");
+    expect(seen[0]!.url).toBe("https://api.paycrest.io/v1/rates/USDC/15/NGN?network=base");
+  });
+  it("refuses anything that isn't a plain rate", async () => {
+    const { PaycrestRates } = await import("../src/index.js");
+    await expect(new PaycrestRates("https://x", stubFetch([{ body: { status: "success", data: "-1" } }])).usdcToNgn(1)).rejects.toThrow();
+    await expect(new PaycrestRates("https://x", stubFetch([{ status: 500, body: {} }])).usdcToNgn(1)).rejects.toThrow();
   });
 });

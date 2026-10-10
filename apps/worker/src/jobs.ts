@@ -51,6 +51,7 @@ import {
   renewalRunAt,
   type RenewalQuote,
 } from "@constant/rules";
+import { awaitingCharge, chargeStep, renewDollarLine, type DollarDeps } from "./dollars.js";
 import type { Log } from "./log.js";
 
 export interface Deps {
@@ -62,6 +63,8 @@ export interface Deps {
   now: () => Date;
   /** Phone number sent to the partner when the user has none (VTpass requires one). */
   fallbackPhone: string;
+  /** Dollar autopay on Base (D-063). Absent: dollar-funded lines and orders wait, nothing is charged or vended. */
+  dollars?: DollarDeps;
 }
 
 const MIN = 60_000;
@@ -105,6 +108,7 @@ async function renewLine(d: Deps, lineId: string): Promise<boolean> {
   const lookup = await d.vending.lookup(pre.provider as CableProvider, smartcard);
   const quote: RenewalQuote | null =
     lookup.ok && lookup.renewalAmountMinor !== null ? { amountMinor: lookup.renewalAmountMinor, dueAt: lookup.dueAt } : null;
+  if (pre.funding === "usdc_base") return d.dollars ? renewDollarLine(d, d.dollars, pre, quote) : false;
 
   return withTx(d.db, async (tx) => {
     const user = await lockUser(tx, pre.user_id);
@@ -182,6 +186,11 @@ async function renewLine(d: Deps, lineId: string): Promise<boolean> {
 export async function processOrders(d: Deps): Promise<void> {
   for (const id of await claimableOrderIds(d.db, d.now())) {
     try {
+      // A dollar order is charged on Base first; only a confirmed charge lets it reach the vend step.
+      if (await awaitingCharge(d, id)) {
+        if (d.dollars) await chargeStep(d, d.dollars, id);
+        continue;
+      }
       await stepOrder(d, id);
     } catch (err) {
       d.log.error("order step failed", { orderId: id, err: (err as Error).message });
@@ -199,6 +208,11 @@ export async function stepOrder(d: Deps, orderId: string): Promise<void> {
       return { call: "requery" as const, order };
     }
     if (order.state !== "ready") return null;
+    if (order.funding === "usdc_base") {
+      // Defence in depth: never vend a dollar order whose charge isn't confirmed (INV-45).
+      const charge = await tx.query<{ status: string }>("SELECT status FROM charges WHERE order_id = $1", [order.id]);
+      if (charge.rows[0]?.status !== "confirmed") return null;
+    }
 
     const line = await lockLine(tx, order.line_id);
     const user = await getUser(tx, order.user_id);

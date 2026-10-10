@@ -114,6 +114,7 @@ export interface LineRow {
   due_at: Date | null;
   next_run_at: Date | null;
   last_renewed_at: Date | null;
+  funding: "naira" | "usdc_base";
   created_at: Date;
 }
 
@@ -269,6 +270,7 @@ export interface OrderRow {
   next_check_at: Date | null;
   error: string | null;
   receipt_id: string;
+  funding: "naira" | "usdc_base";
   created_at: Date;
   updated_at: Date;
   settled_at: Date | null;
@@ -284,6 +286,7 @@ export interface NewOrder {
   scheduledFor: Date;
   partner: string;
   receiptId: string;
+  funding?: "naira" | "usdc_base";
 }
 
 /** Inserts the order in `ready`. Returns null if the key exists or the line already has an open order. */
@@ -291,9 +294,9 @@ export async function insertOrder(tx: Tx, o: NewOrder): Promise<OrderRow | null>
   await tx.query("SAVEPOINT insert_order");
   try {
     const r = await tx.query<OrderRow>(
-      `INSERT INTO orders (user_id, line_id, trigger, state, amount_minor, fee_minor, currency, idempotency_key, scheduled_for, partner, receipt_id, next_check_at)
-       VALUES ($1,$2,'renewal','ready',$3,$4,$5,$6,$7,$8,$9, now()) RETURNING *`,
-      [o.userId, o.lineId, o.amountMinor, o.feeMinor, o.currency, o.idempotencyKey, o.scheduledFor, o.partner, o.receiptId],
+      `INSERT INTO orders (user_id, line_id, trigger, state, amount_minor, fee_minor, currency, idempotency_key, scheduled_for, partner, receipt_id, next_check_at, funding)
+       VALUES ($1,$2,'renewal','ready',$3,$4,$5,$6,$7,$8,$9, now(), $10) RETURNING *`,
+      [o.userId, o.lineId, o.amountMinor, o.feeMinor, o.currency, o.idempotencyKey, o.scheduledFor, o.partner, o.receiptId, o.funding ?? "naira"],
     );
     await tx.query("RELEASE SAVEPOINT insert_order");
     const row = r.rows[0]!;
