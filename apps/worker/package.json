@@ -1,0 +1,22 @@
+{
+  "name": "@constant/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The only process that spends money: renewal scan, vend, requery, notify, recovery.",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@constant/copy": "workspace:*",
+    "@constant/db": "workspace:*",
+    "@constant/partners": "workspace:*",
+    "@constant/rules": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}

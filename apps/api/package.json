@@ -1,0 +1,25 @@
+{
+  "name": "@constant/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "HTTP API for the app, and partner webhooks. Never spends money; the worker does.",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@constant/copy": "workspace:*",
+    "@constant/db": "workspace:*",
+    "@constant/partners": "workspace:*",
+    "@constant/rules": "workspace:*",
+    "@fastify/cors": "^11.1.0",
+    "@fastify/rate-limit": "^10.3.0",
+    "fastify": "^5.6.1"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,9 +1,9 @@
 {
-  "name": "@constant/rules",
+  "name": "@constant/copy",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Pure decision functions. The only place that returns buy or do-not-buy.",
+  "description": "Every customer-facing string, per locale. Guarded by scripts/guard.sh.",
   "exports": {
     ".": {
       "source": "./src/index.ts",
@@ -19,11 +19,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run"
   },
   "devDependencies": {
-    "fast-check": "^4.3.0",
     "vitest": "^3.2.4"
   }
 }

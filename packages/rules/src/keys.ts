@@ -45,3 +45,8 @@ export function withdrawalLedgerKey(userId: string, requestId: string): string {
 export function reminderKey(lineId: string, windowStart: Date): string {
   return `notice:low_reminder:${lineId}:${windowStart.toISOString()}`;
 }
+
+/** One renewal order per line per cycle, whatever the scan retries. */
+export function renewalOrderKey(lineId: string, runAt: Date): string {
+  return `order:renewal:${lineId}:${runAt.toISOString()}`;
+}

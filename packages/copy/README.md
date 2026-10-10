@@ -1,5 +1,3 @@
 # copy
 
-Not started.
-
-Every customer-facing string, keyed by message id and locale. Tests check GSM-7 single-segment SMS and banned words. See docs/UX.md. PLAN step 4.
+Every customer-facing message, English first. `scripts/guard.sh` fails the build on chain words here (CLAUDE.md rule 10). Messages fit one SMS and never contain a full smartcard, meter or token.
