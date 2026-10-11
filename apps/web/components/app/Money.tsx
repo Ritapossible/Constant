@@ -129,14 +129,16 @@ export function Money({ user, plan }: { user: User; plan: Plan }) {
             <ul className="ap-list ap-list-tight">
               {STABLES.map((t) => (
                 <li key={t.key} className="ap-row">
-                  <span className="ap-token">{t.symbol}</span>
+                  <span className="ap-token-logo">
+                    <img src={t.symbol === "USDC" ? "/tokens/usdc.svg" : "/tokens/usdt.png"} alt="" width={40} height={40} />
+                    <img className="ap-token-net" src={`/tokens/${t.chain}.svg`} alt="" width={18} height={18} />
+                  </span>
                   <span className="ap-row-main">
-                    <b>
-                      {t.symbol} on {t.chain === "base" ? "Base" : "Arc"}
-                    </b>
+                    <b>{t.symbol === "USDC" ? "USD Coin" : "Tether USD"}</b>
                     <small>
+                      {t.symbol} · {t.chain === "base" ? "Base" : "Arc"} ·{" "}
                       <a href={EXPLORER[t.chain](address)} target="_blank" rel="noreferrer">
-                        View on explorer
+                        Explorer
                       </a>
                     </small>
                   </span>
