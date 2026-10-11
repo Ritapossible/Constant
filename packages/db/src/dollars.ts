@@ -28,6 +28,8 @@ export interface PermissionRow {
 export interface NewPermission {
   userId: string;
   lineId: string;
+  /** Default base. */
+  chain?: "base" | "arc";
   account: string;
   spender: string;
   token: string;
@@ -45,9 +47,9 @@ export class PermissionExists extends Error {}
 export async function insertPermission(q: Q, p: NewPermission): Promise<PermissionRow> {
   try {
     const r = await q.query<PermissionRow>(
-      `INSERT INTO spend_permissions (user_id, line_id, account, spender, token, allowance, period, start_at, end_at, salt, extra_data, signature, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'signed') RETURNING *`,
-      [p.userId, p.lineId, p.account, p.spender, p.token, p.allowance.toString(), p.period, p.start, p.end, p.salt.toString(), p.extraData, p.signature],
+      `INSERT INTO spend_permissions (user_id, line_id, account, spender, token, allowance, period, start_at, end_at, salt, extra_data, signature, status, chain)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'signed',$13) RETURNING *`,
+      [p.userId, p.lineId, p.account, p.spender, p.token, p.allowance.toString(), p.period, p.start, p.end, p.salt.toString(), p.extraData, p.signature, p.chain ?? "base"],
     );
     return r.rows[0]!;
   } catch (err) {

@@ -15,6 +15,8 @@ export interface EvmChainConfig {
   key: EvmChain;
   chainId: number;
   name: string;
+  /** The gas token. On Arc it is USDC itself, with 18 decimals natively (its ERC-20 interface uses 6). */
+  nativeCurrency: { name: string; symbol: string; decimals: number };
   defaultRpc: string;
   explorer: string;
   /** Blocks to wait before a deposit counts. Arc is final in under a second; Base is an L2 with a sequencer. */
@@ -29,6 +31,7 @@ export const EVM_CHAINS: Record<EvmChain, EvmChainConfig> = {
     key: "base",
     chainId: 8453,
     name: "Base",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     defaultRpc: "https://mainnet.base.org",
     explorer: "https://basescan.org",
     confirmations: 12n,
@@ -39,6 +42,7 @@ export const EVM_CHAINS: Record<EvmChain, EvmChainConfig> = {
     key: "arc",
     chainId: 5042,
     name: "Arc",
+    nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
     defaultRpc: "https://rpc.mainnet.arc.io",
     explorer: "https://explorer.arc.io",
     confirmations: 0n,
@@ -68,6 +72,25 @@ export function stableFor(chain: EvmChain, token: string): StableToken | null {
 }
 
 export const CCTP_DOMAIN = { base: 6, arc: 26, stellar: 27 } as const;
+
+/** Test networks, used only by the proof scripts (scripts/arc). Arc docs and Circle docs, checked 2026-10-11. */
+export const EVM_TESTNETS: Record<EvmChain, { chainId: number; name: string; defaultRpc: string }> = {
+  base: { chainId: 84532, name: "Base Sepolia", defaultRpc: "https://sepolia.base.org" },
+  arc: { chainId: 5042002, name: "Arc Testnet", defaultRpc: "https://rpc.testnet.arc.network" },
+};
+export const CCTP_V2_TESTNET = {
+  tokenMessenger: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" as Address,
+  messageTransmitter: "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275" as Address,
+};
+/** Base Sepolia USDC (Circle). Arc's is 0x3600…0000 on both networks. */
+export const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as Address;
+
+/** A viem chain definition for a Constant chain, so wallets sign with the right chain id. */
+export function viemChain(chain: EvmChain, rpcUrl?: string, testnet = false) {
+  const c = EVM_CHAINS[chain];
+  const t = testnet ? EVM_TESTNETS[chain] : null;
+  return { id: t?.chainId ?? c.chainId, name: t?.name ?? c.name, nativeCurrency: c.nativeCurrency, rpcUrls: { default: { http: [rpcUrl || t?.defaultRpc || c.defaultRpc] } } } as const;
+}
 
 /** CCTP V2 contracts share one address on EVM mainnets (Arc docs, contract-addresses). */
 export const CCTP_V2 = {

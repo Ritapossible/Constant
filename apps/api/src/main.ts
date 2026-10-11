@@ -1,5 +1,5 @@
 import { Secrets, createPool, keysFromEnv, migrate } from "@constant/db";
-import { BasePermissionVerifier, evmAddress } from "@constant/chains";
+import { BasePermissionVerifier, EvmPermissionVerifier, evmAddress } from "@constant/chains";
 import { FakeCableVending, FakeFunding, FakeIdentity, PaycrestRates, PaycrestSender, Paystack, Privy, Vtpass } from "@constant/partners";
 import { buildApp } from "./app.js";
 
@@ -35,12 +35,17 @@ const app = await buildApp({
   ...(env.PAYCREST_API_KEY && env.PAYCREST_API_SECRET ? { offramp: new PaycrestSender(env.PAYCREST_API_KEY, env.PAYCREST_API_SECRET) } : {}),
   // Dollar autopay (D-063): on when the spender's address is set. The API never holds the spender's key.
   ...(env.SPENDER_ADDRESS
-    ? {
-        dollars: {
-          chain: new BasePermissionVerifier(evmAddress(env.SPENDER_ADDRESS) ?? (() => { throw new Error("SPENDER_ADDRESS is not an address"); })(), env.BASE_RPC_URL),
-          rates: new PaycrestRates(env.PAYCREST_BASE_URL ?? "https://api.paycrest.io"),
-        },
-      }
+    ? (() => {
+        const spender = evmAddress(env.SPENDER_ADDRESS) ?? (() => { throw new Error("SPENDER_ADDRESS is not an address"); })();
+        return {
+          dollars: {
+            chain: new BasePermissionVerifier(spender, env.BASE_RPC_URL),
+            // USDC on Arc (D-070): same spender address, signatures checked on Arc. Same switch as the worker.
+            ...(env.ARC_AUTOPAY === "true" ? { arc: new EvmPermissionVerifier("arc", spender, env.ARC_RPC_URL) } : {}),
+            rates: new PaycrestRates(env.PAYCREST_BASE_URL ?? "https://api.paycrest.io"),
+          },
+        };
+      })()
     : {}),
 });
 

@@ -3,6 +3,7 @@ import { anchorReceipts, indexDeposits } from "./chains.js";
 import { chainsFromEnv, dollarsFromEnv, fromEnv, offrampFromEnv } from "./config.js";
 import { refillFloat } from "./offramp.js";
 import { processPermissions } from "./dollars.js";
+import { bridgeStep } from "./bridge.js";
 import { screenPending, sweepSpender } from "./guards.js";
 import { notifyOps } from "./ops.js";
 import { reconcileBooks } from "./reconcile.js";
@@ -33,8 +34,11 @@ async function every(name: string, ms: number, fn: () => Promise<unknown>) {
 
 async function main() {
   await migrate(deps.db, (m) => log.info(m));
+  if (dollars?.arc && !(await dollars.arc.chain.managerDeployed())) {
+    throw new Error("ARC_AUTOPAY is on but the Spend Permission Manager isn't deployed on Arc: run scripts/arc/deploy-spend-permissions.mjs first");
+  }
   await recover(deps);
-  log.info("worker started", { vending: deps.vending.name, chains: chainDeps.readers.map((r) => r.chain), anchoring: chainDeps.anchorer?.network ?? "off", dollarAutopay: dollars ? dollars.chain.spender : "off" });
+  log.info("worker started", { vending: deps.vending.name, chains: chainDeps.readers.map((r) => r.chain), anchoring: chainDeps.anchorer?.network ?? "off", dollarAutopay: dollars ? dollars.chain.spender : "off", arcAutopay: dollars?.arc ? "on" : "off" });
   await Promise.all([
     every("renewal scan", 5 * 60_000, () => scanRenewals(deps)),
     every("orders", 10_000, () => processOrders(deps)),
@@ -48,6 +52,7 @@ async function main() {
     ...(dollars?.screener ? [every("screening", 30_000, () => screenPending(deps, dollars))] : []),
     ...(dollars && offramp ? [every("float refill", 2 * 60_000, () => refillFloat(deps, dollars, offramp))] : []),
     ...(dollars?.treasury ? [every("sweep", 5 * 60_000, () => sweepSpender(deps, dollars, offramp))] : []),
+    ...(dollars?.arc ? [every("arc bridge", 2 * 60_000, () => bridgeStep(deps, dollars))] : []),
   ]);
   await deps.db.end();
   log.info("worker stopped");

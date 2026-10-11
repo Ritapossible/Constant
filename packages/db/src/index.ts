@@ -9,3 +9,4 @@ export * from "./guards.js";
 export * from "./ops.js";
 export * from "./payouts.js";
 export * from "./offramps.js";
+export * from "./bridges.js";

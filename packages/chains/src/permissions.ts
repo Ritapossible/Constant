@@ -1,8 +1,10 @@
 /**
- * Coinbase Spend Permissions on Base (D-063). Source checked 2026-10-10: github.com/coinbase/spend-permissions,
+ * Coinbase Spend Permissions on Base (D-063) and Arc (D-070). Source checked 2026-10-10: github.com/coinbase/spend-permissions,
  * src/SpendPermissionManager.sol. The user's Coinbase Smart Wallet signs an EIP-712 SpendPermission; the
  * manager, once added as an owner of that wallet, lets only the named spender move at most `allowance` of
- * `token` per `period`. Constant's spender is a server key that holds a little ETH for gas and nothing else.
+ * `token` per `period`. Constant's spender is a server key that holds a little gas money and nothing else.
+ * On Arc the manager is Coinbase's same code at the same address (scripts/arc/deploy-spend-permissions.mjs);
+ * only the chain id in the signed data differs.
  */
 import {
   createPublicClient,
@@ -18,8 +20,7 @@ import {
   type PublicClient,
 } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import { base } from "viem/chains";
-import { EVM_CHAINS } from "./config.js";
+import { EVM_CHAINS, viemChain, type EvmChain } from "./config.js";
 
 export const SPEND_PERMISSION_MANAGER: Address = "0xf85210B21cC50302F477BA56686d2019dC9b67Ad";
 
@@ -138,8 +139,9 @@ export interface PreparedTx {
   nonce: number;
 }
 
-/** Everything the worker and API need from Base for dollar autopay. */
+/** Everything the worker and API need from one chain (Base or Arc) for dollar autopay. */
 export interface PermissionChain {
+  readonly chain: EvmChain;
   readonly spender: Address;
   /** True if `signature` is the account's signature over the permission (ERC-1271 and ERC-6492 included). */
   verifySignature(p: SpendPermission, signature: Hex): Promise<boolean>;
@@ -156,26 +158,40 @@ export interface PermissionChain {
   broadcast(raw: Hex): Promise<void>;
   /** Confirmed only after `minConfirmations` blocks on top. */
   status(hash: Hex, minConfirmations: bigint): Promise<TxState>;
+  /** True if Coinbase's Spend Permission Manager is deployed on this chain (always on Base; on Arc once deployed, D-070). */
+  managerDeployed(): Promise<boolean>;
 }
 
-export class BasePermissionChain implements PermissionChain {
+export class EvmPermissionChain implements PermissionChain {
   readonly spender: Address;
   private readonly account: PrivateKeyAccount;
   private readonly client: PublicClient;
   private readonly wallet;
+  private readonly def;
 
-  constructor(spenderKey: Hex, rpcUrl?: string) {
+  constructor(
+    readonly chain: EvmChain,
+    spenderKey: Hex,
+    rpcUrl?: string,
+    opts: { testnet?: boolean } = {},
+  ) {
     this.account = privateKeyToAccount(spenderKey);
     this.spender = this.account.address;
-    const transport = http(rpcUrl || EVM_CHAINS.base.defaultRpc, { timeout: 20_000, retryCount: 2 });
-    this.client = createPublicClient({ chain: base, transport }) as PublicClient;
-    this.wallet = createWalletClient({ chain: base, transport, account: this.account });
+    this.def = viemChain(chain, rpcUrl, opts.testnet);
+    const transport = http(this.def.rpcUrls.default.http[0], { timeout: 20_000, retryCount: 2 });
+    this.client = createPublicClient({ chain: this.def, transport }) as PublicClient;
+    this.wallet = createWalletClient({ chain: this.def, transport, account: this.account });
   }
 
   verifySignature(p: SpendPermission, signature: Hex): Promise<boolean> {
     // viem checks EOA, ERC-1271 (deployed smart wallet) and ERC-6492 (not yet deployed) signatures.
-    const params = { address: p.account, signature, ...spendPermissionTypedData(p) } as unknown as Parameters<PublicClient["verifyTypedData"]>[0];
+    const params = { address: p.account, signature, ...spendPermissionTypedData(p, this.def.id) } as unknown as Parameters<PublicClient["verifyTypedData"]>[0];
     return this.client.verifyTypedData(params).catch(() => false);
+  }
+
+  async managerDeployed(): Promise<boolean> {
+    const code = await this.client.getCode({ address: SPEND_PERMISSION_MANAGER });
+    return !!code && code !== "0x";
   }
 
   isApproved(p: SpendPermission): Promise<boolean> {
@@ -195,7 +211,7 @@ export class BasePermissionChain implements PermissionChain {
   }
 
   private async prepare(data: Hex, to: Address = SPEND_PERMISSION_MANAGER): Promise<PreparedTx> {
-    const req = await this.wallet.prepareTransactionRequest({ to, data, account: this.account, chain: base });
+    const req = await this.wallet.prepareTransactionRequest({ to, data, account: this.account, chain: this.def });
     const raw = await this.wallet.signTransaction(req);
     return { hash: keccak256(raw), raw, nonce: req.nonce };
   }
@@ -239,9 +255,17 @@ export class BasePermissionChain implements PermissionChain {
 
 const FAKE_DEFAULT_TOKEN = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"; // USDC on Base
 
-/** In-memory Base for tests: approvals, period spend, balances, and transactions you can mine or revert. */
+/** Constant's spender on Base. */
+export class BasePermissionChain extends EvmPermissionChain {
+  constructor(spenderKey: Hex, rpcUrl?: string) {
+    super("base", spenderKey, rpcUrl);
+  }
+}
+
+/** In-memory chain for tests: approvals, period spend, balances, and transactions you can mine or revert. */
 export class FakePermissionChain implements PermissionChain {
   readonly spender: Address = "0x5000000000000000000000000000000000000005";
+  constructor(readonly chain: EvmChain = "base") {}
   approved = new Set<string>();
   spent = new Map<string, bigint>();
   /** USDC balances by lower-case account; other tokens by `${token}:${account}` (see balanceKey). */
@@ -330,22 +354,36 @@ export class FakePermissionChain implements PermissionChain {
   async status(hash: Hex) {
     return this.txs.get(hash)?.state ?? "unknown";
   }
+  deployed = true;
+  async managerDeployed() {
+    return this.deployed;
+  }
 }
 
 /**
  * Read-only: what the API needs. It knows the spender's address but never holds its key (least privilege);
  * only the worker can move money.
  */
-export class BasePermissionVerifier implements Pick<PermissionChain, "spender" | "verifySignature"> {
+export class EvmPermissionVerifier implements Pick<PermissionChain, "chain" | "spender" | "verifySignature"> {
   private readonly client: PublicClient;
+  private readonly chainId: number;
   constructor(
+    readonly chain: EvmChain,
     readonly spender: Address,
     rpcUrl?: string,
   ) {
-    this.client = createPublicClient({ chain: base, transport: http(rpcUrl || EVM_CHAINS.base.defaultRpc, { timeout: 20_000, retryCount: 2 }) }) as PublicClient;
+    const def = viemChain(chain, rpcUrl);
+    this.chainId = def.id;
+    this.client = createPublicClient({ chain: def, transport: http(rpcUrl || EVM_CHAINS[chain].defaultRpc, { timeout: 20_000, retryCount: 2 }) }) as PublicClient;
   }
   verifySignature(p: SpendPermission, signature: Hex): Promise<boolean> {
-    const params = { address: p.account, signature, ...spendPermissionTypedData(p) } as unknown as Parameters<PublicClient["verifyTypedData"]>[0];
+    const params = { address: p.account, signature, ...spendPermissionTypedData(p, this.chainId) } as unknown as Parameters<PublicClient["verifyTypedData"]>[0];
     return this.client.verifyTypedData(params).catch(() => false);
+  }
+}
+
+export class BasePermissionVerifier extends EvmPermissionVerifier {
+  constructor(spender: Address, rpcUrl?: string) {
+    super("base", spender, rpcUrl);
   }
 }

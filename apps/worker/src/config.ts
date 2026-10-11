@@ -1,4 +1,4 @@
-import { BasePermissionChain, FakeAnchorer, StellarAnchorer, ViemReader, evmAddress, type Anchorer, type EvmReader } from "@constant/chains";
+import { BasePermissionChain, CctpBridge, EvmPermissionChain, FakeAnchorer, StellarAnchorer, ViemReader, evmAddress, type Anchorer, type EvmReader } from "@constant/chains";
 import { Secrets, createPool, keysFromEnv, type Db } from "@constant/db";
 import { CircleScreener, FakeCableVending, FakeMessaging, HttpMessaging, PaycrestRates, PaycrestSender, Paystack, Vtpass, type CableVending, type Messaging, type Payouts } from "@constant/partners";
 import type { OfframpDeps } from "./offramp.js";
@@ -73,6 +73,18 @@ export function dollarsFromEnv(env: NodeJS.ProcessEnv = process.env): DollarDeps
     floatMarginMinor: BigInt(Math.round(Number(env.FLOAT_MARGIN_NGN ?? "50000") * 100)),
     ...(treasury ? { treasury } : {}),
     sweepMinMicro: dollars(env.SWEEP_MIN_USD, "50"),
+    // USDC on Arc (D-070): on only after Coinbase's manager is deployed there (scripts/arc/deploy-spend-permissions.mjs).
+    ...(env.ARC_AUTOPAY === "true"
+      ? {
+          arc: {
+            chain: new EvmPermissionChain("arc", key as Hex, env.ARC_RPC_URL),
+            bridge: new CctpBridge("arc", "base", key as Hex, { arc: env.ARC_RPC_URL, base: env.BASE_RPC_URL }),
+            confirmations: 1n,
+            bridgeMinMicro: dollars(env.ARC_BRIDGE_MIN_USD, "20"),
+            bridgeMaxFeeBps: BigInt(env.ARC_BRIDGE_MAX_FEE_BPS ?? "10"),
+          },
+        }
+      : {}),
   };
 }
 

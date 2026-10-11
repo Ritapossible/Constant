@@ -1,5 +1,5 @@
 /**
- * Paying naira bills from stablecoins on Base: USDC (D-063) and USDT (D-069).
+ * Paying naira bills from stablecoins: USDC (D-063) and USDT (D-069) on Base, USDC on Arc (D-070).
  *
  *   permission: signed ──approveWithSignature──▶ approving ──confirmed──▶ approved ──user stops──▶ revoke_pending ──▶ revoked
  *   order (stables): ready + charge pending ──spend tx saved, then sent──▶ submitted ──confirmed──▶ naira credited ──▶ normal vend
@@ -9,7 +9,7 @@
  * the user's balance, so the vend, ledger, receipts and refunds are the naira path unchanged. If the vend then fails,
  * the naira stays in the user's balance for the next renewal.
  */
-import { STABLES, permissionFromJson, stableFor, type PermissionChain, type SpendPermission, type StableToken } from "@constant/chains";
+import { STABLES, permissionFromJson, stableFor, type Bridge, type EvmChain, type PermissionChain, type SpendPermission, type StableToken } from "@constant/chains";
 import {
   accountScreening,
   charged24hMicro,
@@ -61,7 +61,10 @@ import type { Address, Hex } from "viem";
 import type { Deps } from "./jobs.js";
 
 export interface DollarDeps {
+  /** Base: charges, sweeps, the off-ramp. */
   chain: PermissionChain;
+  /** Arc (D-070): charges USDC on Arc; Constant's charged USDC is moved to Base with CCTP. Absent: Arc is off. */
+  arc?: ArcDeps;
   rates: RateSource;
   /** Blocks on top of a Base transaction before it counts. */
   confirmations: bigint;
@@ -77,6 +80,24 @@ export interface DollarDeps {
   treasury?: Address;
   /** Sweep once the spender holds at least this much USDC (micro). */
   sweepMinMicro: bigint;
+}
+
+export interface ArcDeps {
+  chain: PermissionChain;
+  bridge: Bridge;
+  /** Arc is final in under a second; one block is enough. */
+  confirmations: bigint;
+  /** Move charged USDC to Base once the spender holds at least this much on Arc (micro). */
+  bridgeMinMicro: bigint;
+  /** Never pay Circle more than this fee per transfer, in basis points. */
+  bridgeMaxFeeBps: bigint;
+}
+
+/** The chain a permission or charge lives on, if Constant is set up for it. */
+export function chainFor(dd: DollarDeps, chain: string): { chain: PermissionChain; confirmations: bigint } | null {
+  if (chain === "base") return { chain: dd.chain, confirmations: dd.confirmations };
+  if (chain === "arc" && dd.arc) return { chain: dd.arc.chain, confirmations: dd.arc.confirmations };
+  return null;
 }
 
 const MIN = 60_000;
@@ -102,16 +123,18 @@ const usd = (micro: bigint) => `${micro / 1_000_000n}.${((micro % 1_000_000n) / 
 
 // ── Renewal decision for a dollar-funded line ────────────────────────────────
 
-/** The token a permission is for: only tokens Constant accepts on Base, in the order they're tried. */
-function tokenOf(p: PermissionRow): StableToken | null {
-  return p.chain === "base" ? stableFor("base", p.token) : null;
+/** The token a permission is for: only tokens Constant accepts, on a chain it's set up for, in the order they're tried. */
+function tokenOf(p: PermissionRow, dd?: DollarDeps): StableToken | null {
+  if (p.chain !== "base" && p.chain !== "arc") return null;
+  if (dd && !chainFor(dd, p.chain)) return null;
+  return stableFor(p.chain as EvmChain, p.token);
 }
 const preference = (t: StableToken) => STABLES.indexOf(t);
 
 export async function renewDollarLine(d: Deps, dd: DollarDeps, pre: LineRow, quote: RenewalQuote | null): Promise<boolean> {
   // Everything that needs the network happens before the transaction.
   const perms = (await livePermissions(d.db, pre.id))
-    .map((p) => ({ row: p, token: tokenOf(p) }))
+    .map((p) => ({ row: p, token: tokenOf(p, dd) }))
     .filter((x): x is { row: PermissionRow; token: StableToken } => x.token !== null)
     .sort((a, b) => preference(a.token) - preference(b.token));
   // The amount only picks the provider's rate tier; a rough dollar figure is enough.
@@ -129,7 +152,8 @@ export async function renewDollarLine(d: Deps, dd: DollarDeps, pre: LineRow, quo
   const sources: (StableSource & { row: PermissionRow; token: StableToken })[] = await Promise.all(
     perms.map(async ({ row, token }) => {
       const sp = rowToPermission(row);
-      const [remaining, balance] = await Promise.all([dd.chain.remainingThisPeriod(sp), dd.chain.balanceOf(sp.token, sp.account)]);
+      const on = chainFor(dd, row.chain)!.chain;
+      const [remaining, balance] = await Promise.all([on.remainingThisPeriod(sp), on.balanceOf(sp.token, sp.account)]);
       return {
         key: row.id,
         row,
@@ -141,7 +165,15 @@ export async function renewDollarLine(d: Deps, dd: DollarDeps, pre: LineRow, quo
     }),
   );
   const walletMicro = sources.reduce((sum, x) => sum + x.walletMicro, 0n);
-  const symbols = [...new Set(sources.map((x) => x.token.symbol))].join(" or ") || "USDC";
+  // "USDC or USDT on Base", "USDC on Base or USDC on Arc": what the user can add to get the bill paid.
+  const symbols =
+    (["base", "arc"] as const)
+      .map((c) => {
+        const syms = [...new Set(sources.filter((x) => x.token.chain === c).map((x) => x.token.symbol))];
+        return syms.length ? `${syms.join(" or ")} on ${c === "base" ? "Base" : "Arc"}` : null;
+      })
+      .filter(Boolean)
+      .join(" or ") || "USDC on Base";
 
   return withTx(d.db, async (tx) => {
     const user = await lockUser(tx, pre.user_id);
@@ -256,11 +288,14 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
   if (!perm) return;
   const sp = rowToPermission(perm);
   const now = d.now();
+  const on = chainFor(dd, perm.chain);
+  if (!on) return; // that chain isn't configured on this worker: nothing is charged or vended (awaitingCharge holds it)
+  const { chain, confirmations } = on;
 
   if (c.status === "pending") {
     // Re-check on chain right before charging: the user may have spent, moved money or revoked since the scan.
     const value = BigInt(c.amount_micro);
-    const [approved, remaining, balance] = await Promise.all([dd.chain.isApproved(sp), dd.chain.remainingThisPeriod(sp), dd.chain.balanceOf(sp.token, sp.account)]);
+    const [approved, remaining, balance] = await Promise.all([chain.isApproved(sp), chain.remainingThisPeriod(sp), chain.balanceOf(sp.token, sp.account)]);
     if (perm.status === "approved" && !approved) {
       // Revoked from the user's own wallet, outside Constant: record it, and leave stablecoins if nothing else is on.
       await withTx(d.db, async (tx) => {
@@ -310,7 +345,7 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
       return failCharge(d, orderId, guard.reason, true);
     }
 
-    const prepared = await dd.chain.prepareSpend(sp, value);
+    const prepared = await chain.prepareSpend(sp, value);
     // Save the hash before sending (rule 7): a crash after this line is recoverable by re-sending the same bytes.
     const saved = await withTx(d.db, async (tx) => {
       const locked = await lockCharge(tx, orderId);
@@ -319,12 +354,12 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
       await touchOrder(tx, orderId, { next_check_at: new Date(now.getTime() + 15_000) });
       return true;
     });
-    if (saved) await dd.chain.broadcast(prepared.raw);
+    if (saved) await chain.broadcast(prepared.raw);
     return;
   }
 
   if (c.status === "submitted" && c.tx_hash) {
-    const st = await dd.chain.status(c.tx_hash as Hex, dd.confirmations);
+    const st = await chain.status(c.tx_hash as Hex, confirmations);
     if (st === "confirmed") {
       await withTx(d.db, async (tx) => {
         const locked = await lockCharge(tx, orderId);
@@ -361,7 +396,7 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
       });
       return;
     }
-    if (age > REBROADCAST_AFTER_MIN * MIN && c.tx_raw) await dd.chain.broadcast(c.tx_raw as Hex);
+    if (age > REBROADCAST_AFTER_MIN * MIN && c.tx_raw) await chain.broadcast(c.tx_raw as Hex);
     await touchOrder(d.db, orderId, { next_check_at: new Date(now.getTime() + 30_000) });
   }
 }
@@ -396,19 +431,22 @@ export async function processPermissions(d: Deps, dd: DollarDeps): Promise<void>
   for (const p of await permissionsInStatus(d.db, ["signed", "approving", "revoke_pending"])) {
     try {
       const sp = rowToPermission(p);
+      const on = chainFor(dd, p.chain);
+      if (!on) continue; // a chain this worker isn't set up for
+      const { chain, confirmations } = on;
       if (p.status === "signed" || (p.status === "revoke_pending" && !p.tx_hash)) {
-        const prepared = p.status === "signed" ? await dd.chain.prepareApprove(sp, p.signature as Hex) : await dd.chain.prepareRevoke(sp);
+        const prepared = p.status === "signed" ? await chain.prepareApprove(sp, p.signature as Hex) : await chain.prepareRevoke(sp);
         const saved = await withTx(d.db, async (tx) => {
           const locked = await lockPermission(tx, p.id);
           if (locked.status !== p.status || locked.tx_hash) return false;
           await updatePermission(tx, p.id, { status: p.status === "signed" ? "approving" : "revoke_pending", tx_hash: prepared.hash, tx_raw: prepared.raw });
           return true;
         });
-        if (saved) await dd.chain.broadcast(prepared.raw);
+        if (saved) await chain.broadcast(prepared.raw);
         continue;
       }
       if (!p.tx_hash) continue;
-      const st = await dd.chain.status(p.tx_hash as Hex, dd.confirmations);
+      const st = await chain.status(p.tx_hash as Hex, confirmations);
       if (st === "confirmed" || st === "reverted") {
         await withTx(d.db, async (tx) => {
           const locked = await lockPermission(tx, p.id);
@@ -423,7 +461,7 @@ export async function processPermissions(d: Deps, dd: DollarDeps): Promise<void>
               userId: p.user_id,
               lineId: p.line_id,
               kind: st === "confirmed" ? "permission_on" : "permission_failed",
-              params: { line: line.nickname, usd: usd(BigInt(p.allowance)), symbol: tokenOf(p)?.symbol ?? "USDC" },
+              params: { line: line.nickname, usd: usd(BigInt(p.allowance)), symbol: tokenOf(p)?.symbol ?? "USDC", network: p.chain === "arc" ? "Arc" : "Base" },
             });
           } else if (locked.status === "revoke_pending") {
             // Constant stopped using it the moment the user asked; this records the on-chain revoke.
@@ -438,7 +476,7 @@ export async function processPermissions(d: Deps, dd: DollarDeps): Promise<void>
         if (p.status === "approving" && !(await hasApprovedPermission(d.db, p.line_id, p.id))) await setLineFunding(d.db, p.line_id, "naira");
         await raiseOpsAlert(d.db, "warn", "permission_tx_stuck", { permissionId: p.id, txHash: p.tx_hash });
       } else if (age > REBROADCAST_AFTER_MIN * MIN && p.tx_raw) {
-        await dd.chain.broadcast(p.tx_raw as Hex);
+        await chain.broadcast(p.tx_raw as Hex);
       }
     } catch (err) {
       d.log.error("permission step failed", { permissionId: p.id, err: (err as Error).message });

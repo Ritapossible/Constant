@@ -67,6 +67,11 @@ services:
         sync: false
       - key: BASE_RPC_URL
         value: https://base-rpc.publicnode.com
+      # USDC on Arc (D-070): "true" only after the Arc proof run and deploy (docs/GO-LIVE.md "USDC on Arc").
+      - key: ARC_AUTOPAY
+        value: "false"
+      - key: ARC_RPC_URL
+        value: https://rpc.mainnet.arc.io
 
   - type: worker
     name: constant-worker
@@ -97,6 +102,9 @@ services:
       # Dollar autopay (D-063). Empty = off. Holds a little ETH for gas; receives charged USDC.
       - key: SPENDER_PRIVATE_KEY
         sync: false
+      # USDC on Arc (D-070). Same switch as the API; the spender also needs ~$2 of USDC on Arc for gas.
+      - key: ARC_AUTOPAY
+        value: "false"
       - key: BASE_CONFIRMATIONS
         value: "5"
       # Guards (D-064). Required in production: treasury and screening.

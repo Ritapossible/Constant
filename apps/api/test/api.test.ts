@@ -15,6 +15,7 @@ let app: FastifyInstance;
 const vending = new FakeCableVending();
 const identity = new FakeIdentity();
 const permChain = new FakePermissionChain();
+const arcChain = new FakePermissionChain("arc");
 const funding = new FakeFunding("whsec");
 const NOW = new Date("2026-11-10T09:00:00Z");
 const WEBHOOK_TOKEN = "vt-0123456789abcdef";
@@ -34,7 +35,7 @@ beforeAll(async () => {
     fundingEmailDomain: "users.example",
     now: () => NOW,
     logger: false,
-    dollars: { chain: permChain, rates: new FakeRates("1352.34") },
+    dollars: { chain: permChain, arc: arcChain, rates: new FakeRates("1352.34") },
   });
 });
 afterAll(async () => {
@@ -276,7 +277,7 @@ describe("paying a bill from stablecoins (D-063, D-069)", () => {
     expect(ok.statusCode).toBe(202);
     expect((await call("POST", `/v1/lines/${lineId}/stables`, "did:privy:usdc", { permission: offer, signature: "0x600d" })).statusCode).toBe(409);
     const st = (await call("GET", `/v1/lines/${lineId}/stables`, "did:privy:usdc")).json();
-    expect(st).toMatchObject({ available: true, funding: "naira", tokens: [{ symbol: "USDC", permission: { status: "signed", allowanceUsd: "19.97", periodDays: 30 } }, { symbol: "USDT", permission: null }] });
+    expect(st).toMatchObject({ available: true, funding: "naira", tokens: [{ symbol: "USDC", network: "Base", permission: { status: "signed", allowanceUsd: "19.97", periodDays: 30 } }, { symbol: "USDT", permission: null }, { symbol: "USDC", network: "Arc", chainId: 5042, permission: null }] });
   });
 
   it("USDT on Base is a second, separate permission at USDT's own rate", async () => {
@@ -293,14 +294,31 @@ describe("paying a bill from stablecoins (D-063, D-069)", () => {
     expect(ok.statusCode).toBe(202);
     expect(ok.json().symbol).toBe("USDT");
     const st = (await call("GET", `/v1/lines/${lineId}/stables`, "did:privy:usdc")).json();
-    expect(st.tokens.map((t: { permission: { status: string } | null }) => t.permission?.status)).toEqual(["signed", "signed"]);
+    expect(st.tokens.map((t: { permission: { status: string } | null }) => t.permission?.status ?? null)).toEqual(["signed", "signed", null]);
+  });
+
+  it("USDC on Arc (D-070): signed for Arc's chain id, checked on Arc, stored as Arc", async () => {
+    const r = (await call("POST", `/v1/lines/${lineId}/stables/proposal`, "did:privy:usdc", { account: SMART, symbol: "USDC", network: "arc" })).json();
+    expect(r).toMatchObject({ symbol: "USDC", network: "arc", permission: { token: "0x3600000000000000000000000000000000000000", spender: arcChain.spender } });
+    expect(r.typedData.domain).toMatchObject({ chainId: 5042, verifyingContract: "0xf85210B21cC50302F477BA56686d2019dC9b67Ad" });
+    // A signature valid on Base is not valid on Arc.
+    permChain.validSignatures.add(`${permChain.key(permissionFromJson(r.permission))}:0xba5e`);
+    expect((await call("POST", `/v1/lines/${lineId}/stables`, "did:privy:usdc", { permission: r.permission, signature: "0xba5e", network: "arc" })).json().error).toBe("invalid_signature");
+    arcChain.validSignatures.add(`${arcChain.key(permissionFromJson(r.permission))}:0xa4c0`);
+    const ok = await call("POST", `/v1/lines/${lineId}/stables`, "did:privy:usdc", { permission: r.permission, signature: "0xa4c0", network: "arc" });
+    expect(ok.json()).toEqual({ status: "signed", symbol: "USDC", network: "arc" });
+    expect((await db.query("SELECT chain FROM spend_permissions WHERE line_id = $1 AND lower(token) = lower($2)", [lineId, r.permission.token])).rows[0].chain).toBe("arc");
+    // The Base USDC token sent as "arc" is refused.
+    const wrong = (await call("POST", `/v1/lines/${lineId}/stables/proposal`, "did:privy:usdc", { account: SMART, symbol: "USDT", network: "arc" })).json();
+    expect(wrong.error).toBe("unsupported_token");
+    expect((await call("DELETE", `/v1/lines/${lineId}/stables/USDC?network=arc`, "did:privy:usdc")).statusCode).toBe(204);
   });
 
   it("another user can't touch it; stopping is immediate", async () => {
     expect((await call("DELETE", `/v1/lines/${lineId}/stables/USDC`, "did:privy:bob")).statusCode).toBe(404);
     expect((await call("DELETE", `/v1/lines/${lineId}/stables/USDC`, "did:privy:usdc")).statusCode).toBe(204);
     let st = (await call("GET", `/v1/lines/${lineId}/stables`, "did:privy:usdc")).json();
-    expect(st).toMatchObject({ funding: "naira", tokens: [{ symbol: "USDC", permission: null }, { symbol: "USDT", permission: { status: "signed" } }] });
+    expect(st).toMatchObject({ funding: "naira", tokens: [{ symbol: "USDC", permission: null }, { symbol: "USDT", permission: { status: "signed" } }, { symbol: "USDC", network: "Arc", permission: null }] });
     expect((await call("DELETE", `/v1/lines/${lineId}/stables/USDT`, "did:privy:usdc")).statusCode).toBe(204);
     st = (await call("GET", `/v1/lines/${lineId}/stables`, "did:privy:usdc")).json();
     expect(st.tokens.every((t: { permission: unknown }) => t.permission === null)).toBe(true);

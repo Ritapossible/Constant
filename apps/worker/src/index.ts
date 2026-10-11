@@ -7,3 +7,4 @@ export * from "./ops.js";
 export * from "./reconcile.js";
 export * from "./withdrawals.js";
 export * from "./offramp.js";
+export * from "./bridge.js";

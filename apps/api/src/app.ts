@@ -113,7 +113,7 @@ export interface ApiDeps {
   /** Operator API (D-065). Absent: /ops doesn't exist. */
   opsToken?: string;
   /** Dollar autopay on Base (D-063). Absent: the /usdc routes answer 503 and nothing changes. */
-  dollars?: { chain: Pick<PermissionChain, "spender" | "verifySignature">; rates: RateSource };
+  dollars?: { chain: Pick<PermissionChain, "spender" | "verifySignature">; arc?: Pick<PermissionChain, "spender" | "verifySignature">; rates: RateSource };
 }
 
 declare module "fastify" {
@@ -162,7 +162,7 @@ function smartcard(v: unknown): string {
   return s;
 }
 
-const BASE_STABLES = STABLES.filter((t) => t.chain === "base");
+const NETWORK_NAME = { base: "Base", arc: "Arc" } as const;
 const usd = (micro: bigint) => formatUnits6(micro);
 
 const lineView = (l: LineRow) => ({
@@ -493,8 +493,8 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       return reply.status(202).send({ id: result.id, status: "requested" });
     });
 
-    // ── Paying a bill from stablecoins on Base: USDC (D-063) and USDT (D-069) ──
-    // One permission per token. The worker charges the first that can pay the whole bill, USDC first.
+    // ── Paying a bill from stablecoins: USDC and USDT on Base (D-063, D-069), USDC on Arc (D-070) ──
+    // One permission per token and chain. The worker charges the first that can pay the whole bill: Base USDC, Base USDT, Arc USDC.
     const ownLine = async (req: FastifyRequest) => {
       const { id } = req.params as { id: string };
       const line = await getLine(d.db, id, req.user.id);
@@ -505,9 +505,14 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       if (!d.dollars) throw new HttpError(503, "stables_off", "Paying from stablecoins isn't switched on yet.");
       return d.dollars;
     };
-    const tokenBySymbol = (v: unknown) => {
-      const t = BASE_STABLES.find((x) => x.symbol === (typeof v === "string" ? v.toUpperCase() : ""));
-      if (!t) throw bad("unsupported_token", "Choose USDC or USDT on Base.");
+    /** The stablecoins a bill can pay from on this deployment: Base always, Arc once switched on. */
+    const offered = () => STABLES.filter((t) => t.chain === "base" || (t.chain === "arc" && Boolean(d.dollars?.arc)));
+    const verifierFor = (chain: string) => (chain === "arc" ? dollars().arc : chain === "base" ? dollars().chain : undefined);
+    const tokenBySymbol = (v: unknown, network: unknown = "base") => {
+      const sym = typeof v === "string" ? v.toUpperCase() : "";
+      const net = typeof network === "string" ? network.toLowerCase() : "";
+      const t = offered().find((x) => x.symbol === sym && x.chain === net);
+      if (!t) throw bad("unsupported_token", d.dollars?.arc ? "Choose USDC or USDT on Base, or USDC on Arc." : "Choose USDC or USDT on Base.");
       return t;
     };
     const currentRate = async (symbol: StableSymbol) => {
@@ -530,11 +535,14 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       return {
         available: Boolean(d.dollars),
         funding: line.funding,
-        tokens: BASE_STABLES.map((t) => {
+        tokens: offered().map((t) => {
           const perm = live.find((p) => p.chain === t.chain && p.token.toLowerCase() === t.address.toLowerCase());
           return {
+            key: t.key,
             symbol: t.symbol,
-            network: "Base",
+            chain: t.chain,
+            chainId: EVM_CHAINS[t.chain].chainId,
+            network: NETWORK_NAME[t.chain],
             token: t.address,
             permission: perm
               ? { status: perm.status, allowanceUsd: usd(BigInt(perm.allowance)), periodDays: Number(perm.period) / 86_400, account: perm.account, until: new Date(Number(perm.end_at) * 1000).toISOString() }
@@ -548,17 +556,18 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     v1.post("/lines/:id/stables/proposal", async (req) => {
       const line = await ownLine(req);
       if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact Constant support.");
-      const dd = dollars();
       const b = json(req);
-      const token = tokenBySymbol(b.symbol ?? "USDC");
+      const token = tokenBySymbol(b.symbol ?? "USDC", b.network ?? "base");
+      const verifier = verifierFor(token.chain)!;
       const account = evmAddress(b.account);
       const mine = (await addressesOf(d.db, req.user.id)).filter((a) => a.kind === "smart").map((a) => a.address.toLowerCase());
-      if (!account || !mine.includes(account.toLowerCase())) throw bad("not_your_account", "Use your Constant smart account on Base.");
+      // The same smart-account address on every chain (same factory, same owner).
+      if (!account || !mine.includes(account.toLowerCase())) throw bad("not_your_account", "Use your Constant smart account.");
       const rate = await currentRate(token.symbol);
       const start = Math.floor(now().getTime() / 1000) - 60;
       const permission = {
         account,
-        spender: dd.chain.spender,
+        spender: verifier.spender,
         token: token.address,
         allowance: permissionAllowance(line.cap_minor, rate),
         period: PERMISSION_PERIOD_SECONDS,
@@ -567,11 +576,12 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         salt: BigInt("0x" + randomBytes(16).toString("hex")),
         extraData: "0x" as const,
       };
-      const td = spendPermissionTypedData(permission);
+      const td = spendPermissionTypedData(permission, EVM_CHAINS[token.chain].chainId);
       return {
-        // The app adds this contract as an owner of the user's smart wallet before signing (once per wallet).
+        // The app adds this contract as an owner of the user's smart wallet before signing (once per wallet and chain).
         manager: SPEND_PERMISSION_MANAGER,
         symbol: token.symbol,
+        network: token.chain,
         permission: permissionToJson(permission),
         typedData: { domain: td.domain, types: td.types, primaryType: td.primaryType },
         display: { allowanceUsd: usd(permission.allowance), periodDays: 30, capNgnMinor: line.cap_minor.toString(), rateNgnPerUsdc: (Number(rate) / 100).toFixed(2), until: new Date(permission.end * 1000).toISOString() },
@@ -582,7 +592,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     v1.post("/lines/:id/stables", async (req, reply) => {
       const line = await ownLine(req);
       if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact Constant support.");
-      const dd = dollars();
+      dollars();
       const b = json(req);
       let p;
       try {
@@ -592,15 +602,17 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       }
       const signature = typeof b.signature === "string" && /^0x[0-9a-fA-F]+$/.test(b.signature) ? (b.signature as `0x${string}`) : null;
       if (!signature) throw bad("invalid_signature", "Missing signature.");
-      const token = stableFor("base", p.token);
-      if (!token) throw bad("permission_mismatch", "This permission doesn't match what Constant offered (token).");
+      const network = typeof b.network === "string" ? b.network.toLowerCase() : "base";
+      const token = network === "base" || network === "arc" ? stableFor(network, p.token) : null;
+      if (!token || !offered().includes(token)) throw bad("permission_mismatch", "This permission doesn't match what Constant offered (token).");
+      const verifier = verifierFor(token.chain)!;
       const mine = (await addressesOf(d.db, req.user.id)).filter((a) => a.kind === "smart").map((a) => a.address.toLowerCase());
       const t = Math.floor(now().getTime() / 1000);
       const rate = await currentRate(token.symbol);
       const maxAllowance = (permissionAllowance(line.cap_minor, rate) * 125n) / 100n; // the rate may move between proposal and signing
       const problems = [
         !mine.includes(p.account.toLowerCase()) && "account",
-        p.spender.toLowerCase() !== dd.chain.spender.toLowerCase() && "spender",
+        p.spender.toLowerCase() !== verifier.spender.toLowerCase() && "spender",
         p.period !== PERMISSION_PERIOD_SECONDS && "period",
         (p.start > t + 300 || p.start < t - 86_400) && "start",
         (p.end <= t || p.end - p.start > PERMISSION_LIFETIME_SECONDS + 86_400) && "end",
@@ -608,11 +620,12 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         p.extraData !== "0x" && "extraData",
       ].filter(Boolean);
       if (problems.length) throw bad("permission_mismatch", `This permission doesn't match what Constant offered (${problems.join(", ")}).`);
-      if (!(await dd.chain.verifySignature(p, signature))) throw bad("invalid_signature", "The signature doesn't match your account.");
+      if (!(await verifier.verifySignature(p, signature))) throw bad("invalid_signature", "The signature doesn't match your account.");
       try {
         await insertPermission(d.db, {
           userId: req.user.id,
           lineId: line.id,
+          chain: token.chain,
           account: p.account,
           spender: p.spender,
           token: p.token,
@@ -625,17 +638,21 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
           signature,
         });
       } catch (err) {
-        if (err instanceof PermissionExists) throw new HttpError(409, "exists", `This bill already pays from ${token.symbol}.`);
+        if (err instanceof PermissionExists) throw new HttpError(409, "exists", `This bill already pays from ${token.symbol} on ${NETWORK_NAME[token.chain]}.`);
         throw err;
       }
-      // The worker registers it on Base; the bill switches to stablecoins once that is confirmed.
-      return reply.status(202).send({ status: "signed", symbol: token.symbol });
+      // The worker registers it on its chain; the bill switches to stablecoins once that is confirmed.
+      return reply.status(202).send({ status: "signed", symbol: token.symbol, network: token.chain });
     });
 
     /** Stop paying this bill from one token. Effective at once; the on-chain revoke follows (Constant pays the gas). */
     v1.delete("/lines/:id/stables/:symbol", async (req, reply) => {
       const line = await ownLine(req);
-      const token = tokenBySymbol((req.params as { symbol: string }).symbol);
+      // Stopping never depends on Arc being switched on: any live permission on the bill can be stopped.
+      const sym = (req.params as { symbol: string }).symbol.toUpperCase();
+      const net = String((req.query as { network?: string }).network ?? "base").toLowerCase();
+      const token = STABLES.find((t) => t.symbol === sym && t.chain === net);
+      if (!token) throw bad("unsupported_token", "No such token.");
       const perm = await livePermission(d.db, line.id, token.chain, token.address);
       if (perm) await stopPermission(line.id, perm);
       return reply.status(204).send();

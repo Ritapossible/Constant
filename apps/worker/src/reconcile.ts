@@ -6,6 +6,7 @@
 import { raiseOpsAlert, setFlag, withTx } from "@constant/db";
 import { checkBooks, localParts, type FundingFacts, type OrderFacts } from "@constant/rules";
 import type { Hex } from "viem";
+import { chainFor } from "./dollars.js";
 import type { Deps } from "./jobs.js";
 
 const PARTNER_CHECK_DAYS = 7;
@@ -32,12 +33,12 @@ export async function reconcileBooks(d: Deps, force = false): Promise<{ ran: boo
 
   const rows = await d.db.query<{
     id: string; state: string; amount_minor: bigint; fee_minor: bigint; partner_ref: string | null; updated_at: Date;
-    vend: string; fee: string; charge_status: string | null; naira_minor: bigint | null; charge_fund: string; tx_hash: string | null;
+    vend: string; fee: string; charge_status: string | null; naira_minor: bigint | null; charge_fund: string; tx_hash: string | null; charge_chain: string | null;
   }>(
     `SELECT o.id, o.state, o.amount_minor, o.fee_minor, o.partner_ref, o.updated_at,
             COALESCE((SELECT SUM(amount_minor) FROM ledger_entries l WHERE l.order_id = o.id AND l.kind = 'vend'), 0)::text AS vend,
             COALESCE((SELECT SUM(amount_minor) FROM ledger_entries l WHERE l.order_id = o.id AND l.kind = 'fee'), 0)::text AS fee,
-            c.status AS charge_status, c.naira_minor, c.tx_hash,
+            c.status AS charge_status, c.naira_minor, c.tx_hash, c.chain AS charge_chain,
             COALESCE((SELECT SUM(amount_minor) FROM ledger_entries l WHERE l.idempotency_key = 'ledger:fund:charge:' || c.id::text), 0)::text AS charge_fund
      FROM orders o LEFT JOIN charges c ON c.order_id = o.id
      WHERE o.created_at > $1::timestamptz - interval '35 days'`,
@@ -58,9 +59,11 @@ export async function reconcileBooks(d: Deps, force = false): Promise<{ ran: boo
     }
     if (r.charge_status) {
       o.charge = { status: r.charge_status as "confirmed", nairaMinor: r.naira_minor ?? 0n, fundLedgerMinor: BigInt(r.charge_fund) };
-      if (r.charge_status === "confirmed" && r.tx_hash && d.dollars && r.updated_at.getTime() > recent) {
+      // Each charge is checked on its own chain (Base or Arc, D-070).
+      const on = d.dollars && r.charge_chain ? chainFor(d.dollars, r.charge_chain) : null;
+      if (r.charge_status === "confirmed" && r.tx_hash && on && r.updated_at.getTime() > recent) {
         chainChecks += 1;
-        o.charge.chain = await d.dollars.chain.status(r.tx_hash as Hex, 1n).catch(() => "unknown" as const);
+        o.charge.chain = await on.chain.status(r.tx_hash as Hex, 1n).catch(() => "unknown" as const);
       }
     }
     orders.push(o);

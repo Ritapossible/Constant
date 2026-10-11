@@ -348,7 +348,7 @@ describe("USDT on Base (D-069)", () => {
     expect(await orders(s.line.id)).toHaveLength(0);
     const notice = (await db.query("SELECT kind, params FROM notices WHERE user_id = $1", [s.user.id])).rows;
     expect(notice).toHaveLength(1);
-    expect(notice[0]).toMatchObject({ kind: "stables_short", params: { symbol: "USDC or USDT", have: "3.00" } });
+    expect(notice[0]).toMatchObject({ kind: "stables_short", params: { symbol: "USDC or USDT on Base", have: "3.00" } });
   });
 
   it("a USDT approval that fails leaves the bill on stablecoins while USDC is on", async () => {

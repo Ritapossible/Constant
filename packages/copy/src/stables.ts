@@ -33,8 +33,11 @@ export interface StableParams {
 }
 
 export function renderStables(kind: StableNoticeKind, p: StableParams): Message {
-  // The token(s) the bill pays from, e.g. "USDT" or "USDC or USDT". Older notices carry none: they were USDC.
+  // The token(s) the bill pays from. Shortage notices carry the full phrase ("USDC or USDT on Base"); permission
+  // notices carry one symbol and its network. Older notices carry none: they were USDC on Base.
   const sym = p.symbol ?? "USDC";
+  const net = p.network ?? "Base";
+  const where = /\bon (Base|Arc)\b/.test(sym) ? sym : `${sym} on ${net}`;
   switch (kind) {
     case "stables_arrived":
       return {
@@ -44,7 +47,7 @@ export function renderStables(kind: StableNoticeKind, p: StableParams): Message 
     case "stables_short":
       return {
         subject: `Add ${sym} for ${p.line}`,
-        text: `Constant: ${p.line} is due and needs about ${p.usd} ${sym} on Base. Your account has ${p.have}. Add ${sym} and we'll pay it.`,
+        text: `Constant: ${p.line} is due and needs about ${p.usd} in ${where}. Your account has ${p.have}. Add some and we'll pay it.`,
       };
     case "allowance_low":
       return {
@@ -59,7 +62,7 @@ export function renderStables(kind: StableNoticeKind, p: StableParams): Message 
     case "permission_on":
       return {
         subject: `${p.line} now pays from ${sym}`,
-        text: `Constant: ${p.line} now pays from your ${sym} on Base, up to ${p.usd} every 30 days. Stop any time in the app.`,
+        text: `Constant: ${p.line} now pays from your ${where}, up to ${p.usd} every 30 days. Stop any time in the app.`,
       };
     case "permission_failed":
       return {

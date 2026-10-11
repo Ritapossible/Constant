@@ -80,6 +80,20 @@ Swap `VTPASS_BASE_URL` to `https://vtpass.com/api` with live keys, Paystack live
 4. **Test with small amounts:** your own decoder, $5 of USDC and $5 of USDT, a low naira limit. Under "Pay from stablecoins", turn on USDC and USDT, wait for "On", make it due (`UPDATE lines SET next_run_at = now() WHERE id = '…'`), and watch: charge → naira credited → renewal → receipt. Empty the USDC to see USDT pay the next one.
 5. **Stop:** "Stop" on a token takes effect at once; the on-chain revoke follows within a minute.
 
+## USDC on Arc (after Base autopay works)
+
+Users' money stays in their own Arc account; Constant deploys **Coinbase's** manager there, never its own contract (D-070).
+1. **Ask Privy:** "Do smart wallets of type Coinbase Smart Wallet work on a custom chain, Arc (chain 5042), with Pimlico as bundler and paymaster?" Without a yes, stop here.
+2. **Pimlico:** create an account and API key with Arc testnet and Arc mainnet; set a sponsorship policy like Base's.
+3. **Testnet proof:** make a new key used only for testing (`cast wallet new`). Get Arc testnet USDC for it at faucet.circle.com (choose Arc Testnet, ~5 USDC) and a little Base Sepolia ETH from any Base Sepolia faucet. Then:
+   - `ARC_RPC_URL=https://rpc.testnet.arc.network DEPLOYER_PRIVATE_KEY=0x… node scripts/arc/deploy-spend-permissions.mjs --broadcast`
+   - `pnpm --filter @constant/chains build && PROOF_KEY=0x… node scripts/arc/proof-testnet.mjs`
+   Every line must say ok, ending ALL PASSED. Send me the output.
+4. **Review:** a security review of the dollar path including Arc (worker `dollars.ts`, `bridge.ts`, `packages/chains`).
+5. **Mainnet deploy:** a deployer key with ~$1 of USDC on Arc mainnet: `ARC_RPC_URL=https://rpc.mainnet.arc.io DEPLOYER_PRIVATE_KEY=0x… node scripts/arc/deploy-spend-permissions.mjs --broadcast`. It prints "same code as Base ✓" for both contracts. Anyone can run it; the contracts have no owner.
+6. **Privy:** add Arc as a smart-wallet network (ENV "Dashboards"). Send the spender ~$2 of USDC on Arc for gas.
+7. **Switch on:** `ARC_AUTOPAY=true` on constant-api and constant-worker, `NEXT_PUBLIC_ARC_AUTOPAY=true` on Vercel (redeploy). Test with $5 of your own: turn on "USDC on Arc", empty your Base USDC, make the bill due, watch the charge on Arc, then the transfer to Base (`bridges` table: burning → attesting → minting → done).
+
 ## Gas sponsorship policy (Privy smart wallets, Base)
 
 Users pay no gas. Sponsor only what the dollar path needs, so the paymaster can't be drained:

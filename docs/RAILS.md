@@ -11,7 +11,7 @@ Bills in Nigeria are paid in naira. USDC and USDT never pay IKEDC or DSTV direct
 | Network | Live in code | Next |
 |---|---|---|
 | **Base** | Each user's own address, from Privy, server-side. USDC/USDT deposits recorded after 12 confirmations, user told (D-060). Dollar autopay: per-bill spend permission per token (USDC, USDT) on the user's smart wallet, charge confirmed before vend (D-063, D-069). Paycrest off-ramp refills the naira float (D-068). | USDC on Arc autopay. |
-| **Arc** | Same address; USDC deposits recorded (final in under a second). Chain facts verified (D-061). | Treasury on Arc; CCTP from Base (domain 6 → 26). |
+| **Arc** | Same address; USDC deposits recorded (final in under a second). Chain facts verified (D-061). Autopay from USDC on Arc built (D-070): Coinbase's manager at the same address as Base, charged USDC moved to Base with CCTP. Off until the Arc proof run. | The Arc proof run on testnet, then the mainnet deploy. Treasury on Arc. |
 | **Stellar** | Hourly Merkle root of settled receipts as a memo; public receipt page checks it in the browser. Tested on testnet (D-062). | Fund a public-network account; Soroban mandate and CCTP deposits in Phase 3. |
 
 ## Two ways to fund, one experience
@@ -66,7 +66,7 @@ Charging before vending is the original invariant 15 ("spend must succeed before
 | Network | Role in Constant | Not used for |
 |---|---|---|
 | **Base** | User accounts (embedded wallet + smart account), USDC/USDT deposits, spend permissions, off-ramp via Paycrest (supports USDC and USDT on Base to NGN). | — |
-| **Arc** (mainnet since 16 Sep 2026; USDC is the gas token) | Constant's USDC treasury and settlement; later StableFX if a naira-linked stablecoin or FX route appears. Users who already hold USDC on Arc can deposit to a Constant-managed Arc address, which is bridged to their Base account with CCTP. | USDT (no USDT on Arc), user accounts, the off-ramp (Paycrest does not list Arc). |
+| **Arc** (mainnet since 16 Sep 2026; USDC is the gas token) | Constant's USDC treasury and settlement; later StableFX if a naira-linked stablecoin or FX route appears. Users who hold USDC on Arc keep it in their own Arc account and pay bills from it with a spend permission, as on Base (D-070 replaced the earlier plan of a Constant-managed Arc address, which would have held user funds in transit). | USDT (no USDT on Arc), user accounts, the off-ramp (Paycrest does not list Arc). |
 | **Stellar** (CCTP live since May 2026) | Phase 3: an optional on-chain cap and audit trail per line (the Soroban mandate from the original spec), and USDC deposits from Stellar wallets via CCTP. Fees and reserves sponsored by Constant, so the user never holds XLM. | Sign-up; the first release. |
 
 Start with Base alone. Add Arc as treasury once there is volume to hold. Add Stellar when its role (an independent cap, or Stellar-native users) has a real user asking for it. Running three chains on day one triples security work, monitoring and reconciliation for no extra customer value.

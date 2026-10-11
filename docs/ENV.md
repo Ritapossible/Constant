@@ -13,6 +13,7 @@ Status: ☐ to do · ☑ done (tick them in your own copy).
 | ☐ | `NEXT_PUBLIC_SPENDER_ADDRESS` (public) | "Pay from USDC" (hidden until set) | Same address as `SPENDER_ADDRESS` below |
 | ☐ | `NEXT_PUBLIC_BASE_RPC_URL` (public, optional) | Balances on Base | A Base RPC URL (default: public) |
 | ☐ | `NEXT_PUBLIC_ARC_RPC_URL` (public, optional) | Balances on Arc | Default `https://rpc.mainnet.arc.io` |
+| ☐ | `NEXT_PUBLIC_ARC_AUTOPAY` (public) | "USDC on Arc" row under Pay from stablecoins | `true` only after the Arc go-live steps (GO-LIVE "USDC on Arc"); default off |
 | ☐ | `NEXT_PUBLIC_SITE_URL` (public, optional) | Links and previews on a custom domain | `https://your-domain` |
 | ☐ | `NEXT_PUBLIC_CONTACT_EMAIL` (public, optional) | Privacy page | Support email |
 
@@ -40,6 +41,8 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | `PAYCREST_BASE_URL` (optional) | Dollar rate | Default `https://api.paycrest.io` |
 | ☐ | `OPS_TOKEN` | Operator API `/ops` (absent: no ops API) | `openssl rand -hex 32`; keep in a password manager, share only with operators |
 | ☐ | `PAYCREST_API_KEY`, `PAYCREST_API_SECRET` | Off-ramp webhooks | Paycrest Sender Dashboard → API keys |
+| ☐ | `ARC_AUTOPAY` | USDC on Arc (D-070) | `true` only after the Arc go-live steps; same value on the worker |
+| ☐ | `ARC_RPC_URL` | Signature checks on Arc | Default `https://rpc.mainnet.arc.io` |
 
 ## Render: constant-worker
 
@@ -69,6 +72,8 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | `FLOAT_ACCOUNT_INSTITUTION`, `FLOAT_ACCOUNT_NUMBER`, `FLOAT_ACCOUNT_NAME` | Where the off-ramp pays naira | Your VTpass wallet funding account (VTpass dashboard → Fund wallet); institution is Paycrest's code for that bank (Paycrest "Code Standards") |
 | ☐ | `FLOAT_LOW_NGN`, `FLOAT_TARGET_NGN` (optional) | When to refill and to how much | Defaults `200000` and `1000000` |
 | ☐ | `OFFRAMP_MIN_USD` (optional) | Smallest off-ramp | Default `20` |
+| ☐ | `ARC_AUTOPAY` | USDC on Arc: charges on Arc, transfer to Base (D-070) | `true` only after the Arc go-live steps; the worker refuses to start if Coinbase's manager isn't on Arc. The spender needs ~$2 of USDC **on Arc** for gas |
+| ☐ | `ARC_BRIDGE_MIN_USD`, `ARC_BRIDGE_MAX_FEE_BPS` (optional) | Moving charged USDC from Arc to Base | Defaults `20` and `10` (0.1%; Circle charges 0 today) |
 
 ## Dashboards (not variables)
 
@@ -77,6 +82,8 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☑ | Privy → Allowed origins | `https://constant-units.vercel.app` |
 | ☐ | Privy → Smart wallets | On; **Coinbase Smart Wallet**; network **Base** |
 | ☐ | Privy → Smart wallets → gas sponsorship (paymaster) | On for Base, with the policy in GO-LIVE "Gas sponsorship policy" |
+| ☐ | Privy → Smart wallets → networks → custom chain **Arc** (for USDC on Arc) | Chain ID `5042`, RPC `https://rpc.mainnet.arc.io`, bundler and paymaster URLs from Pimlico (`https://api.pimlico.io/v2/5042/rpc?apikey=…`). Confirm with Privy that Coinbase Smart Wallet works on a custom chain |
+| ☐ | Pimlico (pimlico.io) | API key with Arc enabled; sponsorship policy as for Base |
 | ☐ | VTpass → callback URL | `https://<constant-api>/webhooks/vtpass/<VTPASS_WEBHOOK_TOKEN>` |
 | ☐ | Paystack → webhook URL | `https://<constant-api>/webhooks/paystack` |
 | ☐ | Paystack → Dedicated Virtual Accounts | Ask Paystack to enable |
