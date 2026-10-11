@@ -130,7 +130,7 @@ export function Money({ user, plan }: { user: User; plan: Plan }) {
               {STABLES.map((t) => (
                 <li key={t.key} className="ap-row">
                   <span className="ap-token-logo">
-                    <img src={t.symbol === "USDC" ? "/tokens/usdc.svg" : "/tokens/usdt.png"} alt="" width={40} height={40} />
+                    <img src={t.symbol === "USDC" ? "/tokens/usdc.png" : "/tokens/usdt.png"} alt="" width={40} height={40} />
                     <img className="ap-token-net" src={`/tokens/${t.chain}.svg`} alt="" width={18} height={18} />
                   </span>
                   <span className="ap-row-main">

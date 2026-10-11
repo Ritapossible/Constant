@@ -939,7 +939,7 @@
   letter-spacing: 0.02em;
 }
 
-/* Token logos (official marks: Circle for USDC and Arc; Tether's token mark; Base's square). Never recolour. */
+/* Token logos: USDC and USDT as CoinMarketCap shows them; Arc from Circle; Base's square. Never recolour or crop. */
 .ap-token-logo {
   position: relative;
   flex: none;
@@ -950,7 +950,6 @@
   display: block;
   width: 40px;
   height: 40px;
-  border-radius: 50%;
 }
 .ap-token-logo .ap-token-net {
   position: absolute;
