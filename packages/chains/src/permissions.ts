@@ -143,6 +143,7 @@ export interface PermissionChain {
   readonly spender: Address;
   /** True if `signature` is the account's signature over the permission (ERC-1271 and ERC-6492 included). */
   verifySignature(p: SpendPermission, signature: Hex): Promise<boolean>;
+  /** Usable on chain right now: approved and not revoked (by Constant or by the user from their own wallet). */
   isApproved(p: SpendPermission): Promise<boolean>;
   /** Allowance left in the current period, in token units. */
   remainingThisPeriod(p: SpendPermission): Promise<bigint>;
@@ -178,7 +179,9 @@ export class BasePermissionChain implements PermissionChain {
   }
 
   isApproved(p: SpendPermission): Promise<boolean> {
-    return this.client.readContract({ address: SPEND_PERMISSION_MANAGER, abi: SPEND_PERMISSION_MANAGER_ABI, functionName: "isApproved", args: [p] });
+    // isValid, not isApproved: the manager never clears "approved" on a revoke, it sets a separate revoked flag
+    // (found on a Base mainnet fork, 2026-10-11). isValid = approved and not revoked, by anyone.
+    return this.client.readContract({ address: SPEND_PERMISSION_MANAGER, abi: SPEND_PERMISSION_MANAGER_ABI, functionName: "isValid", args: [p] });
   }
 
   async remainingThisPeriod(p: SpendPermission): Promise<bigint> {
@@ -234,14 +237,21 @@ export class BasePermissionChain implements PermissionChain {
   }
 }
 
+const FAKE_DEFAULT_TOKEN = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"; // USDC on Base
+
 /** In-memory Base for tests: approvals, period spend, balances, and transactions you can mine or revert. */
 export class FakePermissionChain implements PermissionChain {
   readonly spender: Address = "0x5000000000000000000000000000000000000005";
   approved = new Set<string>();
   spent = new Map<string, bigint>();
+  /** USDC balances by lower-case account; other tokens by `${token}:${account}` (see balanceKey). */
   balances = new Map<string, bigint>();
+  static balanceKey(token: string, account: string) {
+    const t = token.toLowerCase();
+    return t === FAKE_DEFAULT_TOKEN ? account.toLowerCase() : `${t}:${account.toLowerCase()}`;
+  }
   validSignatures = new Set<string>();
-  txs = new Map<Hex, { kind: "approve" | "spend" | "revoke" | "transfer"; key: string; value: bigint; state: TxState; broadcast: boolean; to?: string }>();
+  txs = new Map<Hex, { kind: "approve" | "spend" | "revoke" | "transfer"; key: string; value: bigint; state: TxState; broadcast: boolean; to?: string; token: string; account?: string }>();
   /** Next status for each new transaction once broadcast; default confirmed. */
   outcome: TxState = "confirmed";
   /** Simulate the process dying while sending: the next broadcast throws before reaching the network. */
@@ -261,18 +271,18 @@ export class FakePermissionChain implements PermissionChain {
     const left = p.allowance - (this.spent.get(this.key(p)) ?? 0n);
     return left > 0n ? left : 0n;
   }
-  async balanceOf(_token: Address, account: Address) {
-    return this.balances.get(account.toLowerCase()) ?? 0n;
+  async balanceOf(token: Address, account: Address) {
+    return this.balances.get(FakePermissionChain.balanceKey(token, account)) ?? 0n;
   }
-  async prepareTransfer(_token: Address, to: Address, amount: bigint) {
-    const prepared = this.tx("transfer", null, amount);
+  async prepareTransfer(token: Address, to: Address, amount: bigint) {
+    const prepared = this.tx("transfer", null, amount, token);
     this.txs.get(prepared.hash)!.to = to.toLowerCase();
     return prepared;
   }
-  private tx(kind: "approve" | "spend" | "revoke" | "transfer", p: SpendPermission | null, value = 0n): PreparedTx {
+  private tx(kind: "approve" | "spend" | "revoke" | "transfer", p: SpendPermission | null, value = 0n, token?: string): PreparedTx {
     this.n += 1;
     const hash = `0x${this.prefix}${this.n.toString(16).padStart(56, "0")}` as Hex;
-    this.txs.set(hash, { kind, key: p ? this.key(p) : "", value, state: "unknown", broadcast: false });
+    this.txs.set(hash, { kind, key: p ? this.key(p) : "", value, state: "unknown", broadcast: false, token: (token ?? p?.token ?? FAKE_DEFAULT_TOKEN).toLowerCase(), ...(p ? { account: p.account } : {}) });
     return { hash, raw: hash, nonce: this.n };
   }
   async prepareApprove(p: SpendPermission) {
@@ -302,21 +312,19 @@ export class FakePermissionChain implements PermissionChain {
     t.state = state;
     if (state === "confirmed") this.apply(t);
   }
-  private apply(t: { kind: string; key: string; value: bigint; to?: string }) {
-    if (t.kind === "transfer") {
-      const from = this.spender.toLowerCase();
-      this.balances.set(from, (this.balances.get(from) ?? 0n) - t.value);
-      this.balances.set(t.to!, (this.balances.get(t.to!) ?? 0n) + t.value);
-      return;
-    }
+  private apply(t: { kind: string; key: string; value: bigint; to?: string; token: string; account?: string }) {
+    const move = (from: string, to: string) => {
+      const f = FakePermissionChain.balanceKey(t.token, from);
+      const k = FakePermissionChain.balanceKey(t.token, to);
+      this.balances.set(f, (this.balances.get(f) ?? 0n) - t.value);
+      this.balances.set(k, (this.balances.get(k) ?? 0n) + t.value);
+    };
+    if (t.kind === "transfer") return move(this.spender, t.to!);
     if (t.kind === "approve") this.approved.add(t.key);
     if (t.kind === "revoke") this.approved.delete(t.key);
     if (t.kind === "spend") {
       this.spent.set(t.key, (this.spent.get(t.key) ?? 0n) + t.value);
-      const account = t.key.split(":")[0]!.toLowerCase();
-      this.balances.set(account, (this.balances.get(account) ?? 0n) - t.value);
-      const sp = this.spender.toLowerCase();
-      this.balances.set(sp, (this.balances.get(sp) ?? 0n) + t.value);
+      move(t.account!, this.spender);
     }
   }
   async status(hash: Hex) {

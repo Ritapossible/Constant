@@ -178,14 +178,17 @@ describe("Paycrest rates", () => {
   it("reads naira per USDC on Base", async () => {
     const { PaycrestRates } = await import("../src/index.js");
     const seen: { url: string; init: RequestInit }[] = [];
-    const r = await new PaycrestRates("https://api.paycrest.io", stubFetch([{ body: { status: "success", message: "ok", data: "1352.34" } }], seen)).usdcToNgn(14.7);
+    const r = await new PaycrestRates("https://api.paycrest.io", stubFetch([{ body: { status: "success", message: "ok", data: "1352.34" } }], seen)).toNgn("USDC", 14.7);
     expect(r.ngnPerUsdc).toBe("1352.34");
     expect(seen[0]!.url).toBe("https://api.paycrest.io/v1/rates/USDC/15/NGN?network=base");
+    await new PaycrestRates("https://api.paycrest.io", stubFetch([{ body: { status: "success", data: "1350.00" } }], seen)).toNgn("USDT", 20);
+    expect(seen[1]!.url).toBe("https://api.paycrest.io/v1/rates/USDT/20/NGN?network=base");
+    await expect(new PaycrestRates("https://x", stubFetch([])).toNgn("DAI" as never, 1)).rejects.toThrow("unsupported");
   });
   it("refuses anything that isn't a plain rate", async () => {
     const { PaycrestRates } = await import("../src/index.js");
-    await expect(new PaycrestRates("https://x", stubFetch([{ body: { status: "success", data: "-1" } }])).usdcToNgn(1)).rejects.toThrow();
-    await expect(new PaycrestRates("https://x", stubFetch([{ status: 500, body: {} }])).usdcToNgn(1)).rejects.toThrow();
+    await expect(new PaycrestRates("https://x", stubFetch([{ body: { status: "success", data: "-1" } }])).toNgn("USDC", 1)).rejects.toThrow();
+    await expect(new PaycrestRates("https://x", stubFetch([{ status: 500, body: {} }])).toNgn("USDC", 1)).rejects.toThrow();
   });
 });
 
@@ -239,7 +242,7 @@ describe("Paycrest off-ramp (D-068)", () => {
     const { PaycrestSender, offrampStatus } = await import("../src/index.js");
     const seen: { url: string; init: RequestInit }[] = [];
     const p = new PaycrestSender("KEY", "SECRET", "https://api.paycrest.io", stubFetch([{ status: 201, body: { status: "success", data: { id: "o1", amount: "100", receiveAddress: "0xabc", senderFee: "0.5", transactionFee: "0.25", validUntil: "2026-11-14T09:00:00Z" } } }], seen));
-    const o = await p.createOrder({ amountMicro: 100_000_000n, rate: "1352.34", reference: "ofr_1", returnAddress: "0xspender", recipient: { institution: "GTBINGLA", accountIdentifier: "0123456789", accountName: "VTPASS", memo: "float" } });
+    const o = await p.createOrder({ token: "USDC", amountMicro: 100_000_000n, rate: "1352.34", reference: "ofr_1", returnAddress: "0xspender", recipient: { institution: "GTBINGLA", accountIdentifier: "0123456789", accountName: "VTPASS", memo: "float" } });
     expect(o.sendMicro).toBe(100_750_000n);
     const h = seen[0]!.init.headers as Record<string, string>;
     expect(h["API-Key"]).toBe("KEY");

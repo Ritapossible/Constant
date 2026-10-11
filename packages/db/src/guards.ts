@@ -27,10 +27,10 @@ export async function setFlag(q: Q, key: string, value: boolean, by: string, rea
   );
 }
 
-/** USDC (micro) charged in the 24 hours before `now`, counting charges already sent but not yet confirmed. */
+/** Stablecoins (micro; USDC and USDT counted as dollars) charged in the 24 hours before `now`, counting charges already sent but not yet confirmed. */
 export async function charged24hMicro(q: Q, now: Date): Promise<bigint> {
   const r = await q.query<{ s: string }>(
-    `SELECT COALESCE(SUM(usdc_micro), 0)::text AS s FROM charges
+    `SELECT COALESCE(SUM(amount_micro), 0)::text AS s FROM charges
      WHERE status IN ('submitted', 'confirmed') AND COALESCE(submitted_at, created_at) > $1::timestamptz - interval '24 hours'`,
     [now],
   );

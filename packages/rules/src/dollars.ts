@@ -93,6 +93,49 @@ export function decideDollarRenewal(i: DollarRenewalInput): DollarRenewalDecisio
   return { kind: "charge", amountMinor: naira.amountMinor, feeMinor: naira.feeMinor, usdcMicro, koboPerUsdc: i.rate.koboPerUsdc };
 }
 
+// ── Several stablecoins on one bill (D-069) ──────────────────────────────────────
+
+/** One token the user has allowed for this bill, with what the chain and the rate say right now. */
+export interface StableSource {
+  key: string;
+  permission: DollarPermissionState | null;
+  rate: { koboPerUsdc: bigint; fetchedAt: Date } | null;
+  /** The token's micro-units in the user's account. */
+  walletMicro: bigint;
+}
+
+export type StablesRenewalDecision =
+  | (Extract<DollarRenewalDecision, { kind: "charge" }> & { source: string })
+  | { kind: "do_not_renew"; reason: DollarSkipReason; usdcMicro?: bigint };
+
+/** When no token can pay, the reason worth telling the user. A stale rate is tried again quietly first. */
+const SKIP_PRIORITY: DollarSkipReason[] = ["rate_stale", "wallet_short", "allowance_used", "permission_expired", "no_permission"];
+
+/**
+ * The same checks as decideDollarRenewal, for each allowed token in the user's order of preference: the first
+ * token that can pay the whole bill pays it. A bill is never split across tokens. Every token is valued at its
+ * own rate, so a weaker one costs the user more of it, never Constant.
+ */
+export function decideStablesRenewal(base: Omit<DollarRenewalInput, "permission" | "rate" | "walletMicro">, sources: StableSource[]): StablesRenewalDecision {
+  if (!sources.length) {
+    const d = decideDollarRenewal({ ...base, permission: null, rate: null, walletMicro: 0n });
+    return d.kind === "do_not_renew" ? d : { kind: "do_not_renew", reason: "no_permission" };
+  }
+  const misses: Extract<DollarRenewalDecision, { kind: "do_not_renew" }>[] = [];
+  for (const s of sources) {
+    const d = decideDollarRenewal({ ...base, permission: s.permission, rate: s.rate, walletMicro: s.walletMicro });
+    if (d.kind === "charge") return { ...d, source: s.key };
+    // A naira reason (paused, price over the limit, not due) is the same for every token.
+    if (!SKIP_PRIORITY.includes(d.reason)) return d;
+    misses.push(d);
+  }
+  for (const reason of SKIP_PRIORITY) {
+    const m = misses.find((x) => x.reason === reason);
+    if (m) return m;
+  }
+  return misses[0]!;
+}
+
 // ── Guards before taking anyone's dollars (from review, 2026-10-10) ─────────────
 
 export type Screening = "clear" | "pending" | "flagged" | "unscreened";

@@ -33,7 +33,9 @@ import {
   DuplicateLine,
   PermissionExists,
   insertPermission,
+  hasApprovedPermission,
   livePermission,
+  livePermissions,
   setLineFunding,
   updatePermission,
   addressesOf,
@@ -71,7 +73,7 @@ import {
   type Secrets,
   type UserRow,
 } from "@constant/db";
-import type { CableProvider, CableVending, Funding, Identity, Payouts, RateSource } from "@constant/partners";
+import type { CableProvider, CableVending, Funding, Identity, Payouts, RateSource, StableSymbol } from "@constant/partners";
 import {
   decideWithdrawal,
   namesMatch,
@@ -160,7 +162,7 @@ function smartcard(v: unknown): string {
   return s;
 }
 
-const USDC_BASE = STABLES.find((t) => t.key === "base-usdc")!;
+const BASE_STABLES = STABLES.filter((t) => t.chain === "base");
 const usd = (micro: bigint) => formatUnits6(micro);
 
 const lineView = (l: LineRow) => ({
@@ -405,8 +407,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       if (!line || line.status === "cancelled") throw new HttpError(404, "not_found", "No such bill");
       if (await hasOpenOrder(d.db, id)) throw new HttpError(409, "in_flight", "A renewal is in progress. Try again in a few minutes.");
       await updateLine(d.db, id, { status: "cancelled", next_run_at: null });
-      const perm = await livePermission(d.db, id);
-      if (perm) await updatePermission(d.db, perm.id, perm.status === "signed" ? { status: "revoked" } : { status: "revoke_pending", tx_hash: null, tx_raw: null });
+      for (const perm of await livePermissions(d.db, id)) await updatePermission(d.db, perm.id, perm.status === "signed" ? { status: "revoked" } : { status: "revoke_pending", tx_hash: null, tx_raw: null });
       return reply.status(204).send();
     });
 
@@ -492,7 +493,8 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       return reply.status(202).send({ id: result.id, status: "requested" });
     });
 
-    // ── Paying a bill from USDC on Base (D-063) ─────────────────────────────
+    // ── Paying a bill from stablecoins on Base: USDC (D-063) and USDT (D-069) ──
+    // One permission per token. The worker charges the first that can pay the whole bill, USDC first.
     const ownLine = async (req: FastifyRequest) => {
       const { id } = req.params as { id: string };
       const line = await getLine(d.db, id, req.user.id);
@@ -500,42 +502,64 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       return line;
     };
     const dollars = () => {
-      if (!d.dollars) throw new HttpError(503, "usdc_off", "Paying from USDC isn't switched on yet.");
+      if (!d.dollars) throw new HttpError(503, "stables_off", "Paying from stablecoins isn't switched on yet.");
       return d.dollars;
     };
-    const currentRate = async () => {
+    const tokenBySymbol = (v: unknown) => {
+      const t = BASE_STABLES.find((x) => x.symbol === (typeof v === "string" ? v.toUpperCase() : ""));
+      if (!t) throw bad("unsupported_token", "Choose USDC or USDT on Base.");
+      return t;
+    };
+    const currentRate = async (symbol: StableSymbol) => {
       try {
-        return parseRate((await dollars().rates.usdcToNgn(20)).ngnPerUsdc);
+        return parseRate((await dollars().rates.toNgn(symbol, 20)).ngnPerUsdc);
       } catch (err) {
         if (err instanceof HttpError) throw err;
         throw new HttpError(503, "rate_unavailable", "We can't get today's dollar rate. Try again in a minute.");
       }
     };
+    /** Stop one permission: at once in Constant, then on chain. The bill goes back to naira when none is left on. */
+    const stopPermission = async (lineId: string, perm: { id: string; status: string }) => {
+      await updatePermission(d.db, perm.id, perm.status === "signed" ? { status: "revoked" } : { status: "revoke_pending", tx_hash: null, tx_raw: null });
+      if (!(await hasApprovedPermission(d.db, lineId))) await setLineFunding(d.db, lineId, "naira");
+    };
 
-    v1.get("/lines/:id/usdc", async (req) => {
+    v1.get("/lines/:id/stables", async (req) => {
       const line = await ownLine(req);
-      const perm = await livePermission(d.db, line.id);
+      const live = await livePermissions(d.db, line.id);
       return {
         available: Boolean(d.dollars),
         funding: line.funding,
-        permission: perm && { status: perm.status, allowanceUsd: usd(BigInt(perm.allowance)), periodDays: Number(perm.period) / 86_400, account: perm.account, until: new Date(Number(perm.end_at) * 1000).toISOString() },
+        tokens: BASE_STABLES.map((t) => {
+          const perm = live.find((p) => p.chain === t.chain && p.token.toLowerCase() === t.address.toLowerCase());
+          return {
+            symbol: t.symbol,
+            network: "Base",
+            token: t.address,
+            permission: perm
+              ? { status: perm.status, allowanceUsd: usd(BigInt(perm.allowance)), periodDays: Number(perm.period) / 86_400, account: perm.account, until: new Date(Number(perm.end_at) * 1000).toISOString() }
+              : null,
+          };
+        }),
       };
     });
 
-    /** What the user is asked to sign: Constant may take up to this much USDC every 30 days for this bill. */
-    v1.post("/lines/:id/usdc/proposal", async (req) => {
+    /** What the user is asked to sign: Constant may take up to this much of one token every 30 days for this bill. */
+    v1.post("/lines/:id/stables/proposal", async (req) => {
       const line = await ownLine(req);
       if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact Constant support.");
       const dd = dollars();
-      const account = evmAddress(json(req).account);
+      const b = json(req);
+      const token = tokenBySymbol(b.symbol ?? "USDC");
+      const account = evmAddress(b.account);
       const mine = (await addressesOf(d.db, req.user.id)).filter((a) => a.kind === "smart").map((a) => a.address.toLowerCase());
       if (!account || !mine.includes(account.toLowerCase())) throw bad("not_your_account", "Use your Constant smart account on Base.");
-      const rate = await currentRate();
+      const rate = await currentRate(token.symbol);
       const start = Math.floor(now().getTime() / 1000) - 60;
       const permission = {
         account,
         spender: dd.chain.spender,
-        token: USDC_BASE.address,
+        token: token.address,
         allowance: permissionAllowance(line.cap_minor, rate),
         period: PERMISSION_PERIOD_SECONDS,
         start,
@@ -547,6 +571,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       return {
         // The app adds this contract as an owner of the user's smart wallet before signing (once per wallet).
         manager: SPEND_PERMISSION_MANAGER,
+        symbol: token.symbol,
         permission: permissionToJson(permission),
         typedData: { domain: td.domain, types: td.types, primaryType: td.primaryType },
         display: { allowanceUsd: usd(permission.allowance), periodDays: 30, capNgnMinor: line.cap_minor.toString(), rateNgnPerUsdc: (Number(rate) / 100).toFixed(2), until: new Date(permission.end * 1000).toISOString() },
@@ -554,7 +579,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     });
 
     /** The signed permission. Every field is checked against what Constant would propose, and the signature on Base. */
-    v1.post("/lines/:id/usdc", async (req, reply) => {
+    v1.post("/lines/:id/stables", async (req, reply) => {
       const line = await ownLine(req);
       if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact Constant support.");
       const dd = dollars();
@@ -567,14 +592,15 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       }
       const signature = typeof b.signature === "string" && /^0x[0-9a-fA-F]+$/.test(b.signature) ? (b.signature as `0x${string}`) : null;
       if (!signature) throw bad("invalid_signature", "Missing signature.");
+      const token = stableFor("base", p.token);
+      if (!token) throw bad("permission_mismatch", "This permission doesn't match what Constant offered (token).");
       const mine = (await addressesOf(d.db, req.user.id)).filter((a) => a.kind === "smart").map((a) => a.address.toLowerCase());
       const t = Math.floor(now().getTime() / 1000);
-      const rate = await currentRate();
+      const rate = await currentRate(token.symbol);
       const maxAllowance = (permissionAllowance(line.cap_minor, rate) * 125n) / 100n; // the rate may move between proposal and signing
       const problems = [
         !mine.includes(p.account.toLowerCase()) && "account",
         p.spender.toLowerCase() !== dd.chain.spender.toLowerCase() && "spender",
-        p.token.toLowerCase() !== USDC_BASE.address.toLowerCase() && "token",
         p.period !== PERMISSION_PERIOD_SECONDS && "period",
         (p.start > t + 300 || p.start < t - 86_400) && "start",
         (p.end <= t || p.end - p.start > PERMISSION_LIFETIME_SECONDS + 86_400) && "end",
@@ -599,20 +625,19 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
           signature,
         });
       } catch (err) {
-        if (err instanceof PermissionExists) throw new HttpError(409, "exists", "This bill already pays from USDC.");
+        if (err instanceof PermissionExists) throw new HttpError(409, "exists", `This bill already pays from ${token.symbol}.`);
         throw err;
       }
-      // The worker registers it on Base; the bill switches to USDC once that is confirmed.
-      return reply.status(202).send({ status: "signed" });
+      // The worker registers it on Base; the bill switches to stablecoins once that is confirmed.
+      return reply.status(202).send({ status: "signed", symbol: token.symbol });
     });
 
-    /** Stop paying this bill from USDC. Effective at once; the on-chain revoke follows (Constant pays the gas). */
-    v1.delete("/lines/:id/usdc", async (req, reply) => {
+    /** Stop paying this bill from one token. Effective at once; the on-chain revoke follows (Constant pays the gas). */
+    v1.delete("/lines/:id/stables/:symbol", async (req, reply) => {
       const line = await ownLine(req);
-      const perm = await livePermission(d.db, line.id);
-      await setLineFunding(d.db, line.id, "naira");
-      // Never registered on chain: nothing to revoke there. Otherwise revoke on chain too.
-      if (perm) await updatePermission(d.db, perm.id, perm.status === "signed" ? { status: "revoked" } : { status: "revoke_pending", tx_hash: null, tx_raw: null });
+      const token = tokenBySymbol((req.params as { symbol: string }).symbol);
+      const perm = await livePermission(d.db, line.id, token.chain, token.address);
+      if (perm) await stopPermission(line.id, perm);
       return reply.status(204).send();
     });
 

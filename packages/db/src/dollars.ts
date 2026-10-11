@@ -7,6 +7,7 @@ export interface PermissionRow {
   id: string;
   user_id: string;
   line_id: string;
+  chain: string;
   account: string;
   spender: string;
   token: string;
@@ -50,16 +51,30 @@ export async function insertPermission(q: Q, p: NewPermission): Promise<Permissi
     );
     return r.rows[0]!;
   } catch (err) {
-    if ((err as { code?: string }).code === "23505") throw new PermissionExists("this bill already has a permission");
+    if ((err as { code?: string }).code === "23505") throw new PermissionExists("this bill already has a permission for this token");
     throw err;
   }
 }
 
-/** The usable or in-progress permission for a line, if any. */
-export async function livePermission(q: Q, lineId: string): Promise<PermissionRow | null> {
+/** The usable or in-progress permissions for a line: at most one per chain and token. */
+export async function livePermissions(q: Q, lineId: string): Promise<PermissionRow[]> {
+  return (await q.query<PermissionRow>("SELECT * FROM spend_permissions WHERE line_id = $1 AND status IN ('signed','approving','approved') ORDER BY created_at", [lineId])).rows;
+}
+
+/** The live permission for one token on a line, if any. */
+export async function livePermission(q: Q, lineId: string, chain: string, token: string): Promise<PermissionRow | null> {
   return (
-    await q.query<PermissionRow>("SELECT * FROM spend_permissions WHERE line_id = $1 AND status IN ('signed','approving','approved') ORDER BY created_at DESC LIMIT 1", [lineId])
+    await q.query<PermissionRow>(
+      "SELECT * FROM spend_permissions WHERE line_id = $1 AND chain = $2 AND lower(token) = lower($3) AND status IN ('signed','approving','approved') LIMIT 1",
+      [lineId, chain, token],
+    )
   ).rows[0] ?? null;
+}
+
+/** True while any permission on the line is approved (so the line can still pay from stablecoins). */
+export async function hasApprovedPermission(q: Q, lineId: string, exceptId?: string): Promise<boolean> {
+  const r = await q.query("SELECT 1 FROM spend_permissions WHERE line_id = $1 AND status = 'approved' AND id <> COALESCE($2::uuid, '00000000-0000-0000-0000-000000000000') LIMIT 1", [lineId, exceptId ?? null]);
+  return (r.rowCount ?? 0) > 0;
 }
 
 export async function getPermission(q: Q, id: string): Promise<PermissionRow | null> {
@@ -93,8 +108,11 @@ export interface ChargeRow {
   id: string;
   order_id: string;
   permission_id: string;
-  usdc_micro: string;
-  kobo_per_usdc: bigint;
+  chain: string;
+  /** The token charged; amounts are in its micro-units (6 decimals). */
+  token: string;
+  amount_micro: string;
+  kobo_per_unit: bigint;
   naira_minor: bigint;
   status: ChargeStatus;
   tx_hash: string | null;
@@ -105,10 +123,13 @@ export interface ChargeRow {
   confirmed_at: Date | null;
 }
 
-export async function insertCharge(tx: Tx, c: { orderId: string; permissionId: string; usdcMicro: bigint; koboPerUsdc: bigint; nairaMinor: bigint }): Promise<ChargeRow> {
+export async function insertCharge(
+  tx: Tx,
+  c: { orderId: string; permissionId: string; chain: string; token: string; amountMicro: bigint; koboPerUnit: bigint; nairaMinor: bigint },
+): Promise<ChargeRow> {
   const r = await tx.query<ChargeRow>(
-    "INSERT INTO charges (order_id, permission_id, usdc_micro, kobo_per_usdc, naira_minor, status) VALUES ($1,$2,$3,$4,$5,'pending') RETURNING *",
-    [c.orderId, c.permissionId, c.usdcMicro.toString(), c.koboPerUsdc, c.nairaMinor],
+    "INSERT INTO charges (order_id, permission_id, chain, token, amount_micro, kobo_per_unit, naira_minor, status) VALUES ($1,$2,$3,$4,$5,$6,$7,'pending') RETURNING *",
+    [c.orderId, c.permissionId, c.chain, c.token, c.amountMicro.toString(), c.koboPerUnit, c.nairaMinor],
   );
   return r.rows[0]!;
 }
@@ -132,6 +153,6 @@ export async function updateCharge(
   await q.query(`UPDATE charges SET ${sets} WHERE id = $1`, [id, ...keys.map((k) => patch[k])]);
 }
 
-export async function setLineFunding(q: Q, lineId: string, funding: "naira" | "usdc_base"): Promise<void> {
+export async function setLineFunding(q: Q, lineId: string, funding: "naira" | "stables"): Promise<void> {
   await q.query("UPDATE lines SET funding = $2, updated_at = now() WHERE id = $1", [lineId, funding]);
 }

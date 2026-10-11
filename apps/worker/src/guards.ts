@@ -2,7 +2,7 @@
  * Review guards that run on their own schedule (D-064):
  * - screening: every address that funded a user, and the user's own smart account, is screened before its
  *   money is used. A match freezes the user and pages a person; an outage leaves it pending (never clear).
- * - sweep: charged USDC leaves the hot spender key for the treasury, so a stolen key holds little.
+ * - sweep: charged USDC and USDT leave the hot spender key for the treasury, so a stolen key holds little.
  */
 import { STABLES } from "@constant/chains";
 import {
@@ -16,12 +16,12 @@ import {
   setDepositScreening,
   sweepInFlight,
 } from "@constant/db";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 import { GIVE_UP_AFTER_MIN, REBROADCAST_AFTER_MIN, type DollarDeps } from "./dollars.js";
 import type { Deps } from "./jobs.js";
 
 const MIN = 60_000;
-const USDC_BASE = STABLES.find((s) => s.key === "base-usdc")!;
+const BASE_TOKENS = STABLES.filter((s) => s.chain === "base");
 
 export async function screenPending(d: Deps, dd: DollarDeps): Promise<{ screened: number; flagged: number }> {
   if (!dd.screener) return { screened: 0, flagged: 0 };
@@ -64,17 +64,25 @@ export async function screenPending(d: Deps, dd: DollarDeps): Promise<{ screened
   return { screened, flagged };
 }
 
-/** One step: settle the sweep in flight, or start one when the spender holds enough USDC. */
-export async function sweepSpender(d: Deps, dd: DollarDeps, refill?: { lowWaterMinor: bigint }): Promise<"none" | "sent" | "confirmed" | "waiting" | "failed" | "kept_for_float"> {
+type SweepResult = "none" | "sent" | "confirmed" | "waiting" | "failed" | "kept_for_float";
+
+/** One step per token (USDC, then USDT): settle the sweep in flight, or start one when the spender holds enough. */
+export async function sweepSpender(d: Deps, dd: DollarDeps, refill?: { lowWaterMinor: bigint }): Promise<SweepResult> {
   if (!dd.treasury) return "none";
-  const now = d.now();
   // With the off-ramp on, the float comes first: don't sweep while it's low or an off-ramp is in flight (D-068).
   if (refill) {
     const busy = await d.db.query("SELECT 1 FROM offramps WHERE status IN ('creating','created','funding','funded') LIMIT 1");
     const float = await d.vending.floatBalance().catch(() => null);
     if (busy.rowCount || float === null || float < refill.lowWaterMinor) return "kept_for_float";
   }
-  const inFlight = await sweepInFlight(d.db, "base", USDC_BASE.address);
+  const results: SweepResult[] = [];
+  for (const t of BASE_TOKENS) results.push(await sweepToken(d, dd, dd.treasury, t.address));
+  return results.find((r) => r !== "none") ?? "none";
+}
+
+async function sweepToken(d: Deps, dd: DollarDeps, treasury: Address, token: Address): Promise<SweepResult> {
+  const now = d.now();
+  const inFlight = await sweepInFlight(d.db, "base", token);
   if (inFlight) {
     const st = await dd.chain.status(inFlight.tx_hash as Hex, dd.confirmations);
     if (st === "confirmed") {
@@ -91,12 +99,12 @@ export async function sweepSpender(d: Deps, dd: DollarDeps, refill?: { lowWaterM
     else if (age > REBROADCAST_AFTER_MIN * MIN && inFlight.tx_raw) await dd.chain.broadcast(inFlight.tx_raw as Hex);
     return "waiting";
   }
-  const balance = await dd.chain.balanceOf(USDC_BASE.address, dd.chain.spender);
+  const balance = await dd.chain.balanceOf(token, dd.chain.spender);
   if (balance < dd.sweepMinMicro) return "none";
-  const prepared = await dd.chain.prepareTransfer(USDC_BASE.address, dd.treasury, balance);
+  const prepared = await dd.chain.prepareTransfer(token, treasury, balance);
   // Saved before sending; the partial unique index allows one sweep in flight.
-  if (!(await insertSweep(d.db, { chain: "base", token: USDC_BASE.address, to: dd.treasury, amount: balance, txHash: prepared.hash, txRaw: prepared.raw }))) return "waiting";
+  if (!(await insertSweep(d.db, { chain: "base", token, to: treasury, amount: balance, txHash: prepared.hash, txRaw: prepared.raw }))) return "waiting";
   await dd.chain.broadcast(prepared.raw);
-  d.log.info("sweep sent", { amount: balance.toString(), txHash: prepared.hash });
+  d.log.info("sweep sent", { token, amount: balance.toString(), txHash: prepared.hash });
   return "sent";
 }

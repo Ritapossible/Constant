@@ -1,19 +1,22 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 /**
- * Paycrest (RAILS): the USDC → NGN rate on Base, used to convert a naira bill into a dollar charge.
- * Public endpoint, checked live 2026-10-10: GET /v1/rates/USDC/{amount}/NGN?network=base →
- * {"status":"success","data":"1352.34"} (naira per USDC). The off-ramp order API comes with the treasury step.
+ * Paycrest (RAILS): the USDC/USDT → NGN rate on Base, used to convert a naira bill into a stablecoin charge.
+ * Public endpoint, checked live 2026-10-11 for both tokens: GET /v1/rates/{USDC|USDT}/{amount}/NGN?network=base →
+ * {"status":"success","data":"1354.42"} (naira per token). GET /v1/tokens?network=base lists both contracts.
  */
 import { fetchJson, type Fetch } from "./http.js";
 
+export type StableSymbol = "USDC" | "USDT";
+
 export interface RateQuote {
-  /** Naira per 1 USDC as the provider wrote it, e.g. "1352.34". Parse with parseRate in packages/rules. */
+  /** Naira per 1 token as the provider wrote it, e.g. "1352.34". Parse with parseRate in packages/rules. */
   ngnPerUsdc: string;
   fetchedAt: Date;
 }
 
 export interface RateSource {
-  usdcToNgn(amountUsdc: number): Promise<RateQuote>;
+  /** Naira per token on Base; `amount` (in tokens) only picks the provider's rate tier. */
+  toNgn(symbol: StableSymbol, amount: number): Promise<RateQuote>;
 }
 
 export class PaycrestRates implements RateSource {
@@ -25,9 +28,10 @@ export class PaycrestRates implements RateSource {
     this.f = f ?? fetch;
   }
 
-  async usdcToNgn(amountUsdc: number): Promise<RateQuote> {
-    const amount = Math.max(1, Math.ceil(amountUsdc));
-    const res = await fetchJson(this.f, `${this.baseUrl}/v1/rates/USDC/${amount}/NGN?network=base`, { method: "GET", timeoutMs: 10_000 });
+  async toNgn(symbol: StableSymbol, amountTokens: number): Promise<RateQuote> {
+    if (symbol !== "USDC" && symbol !== "USDT") throw new Error(`unsupported token ${String(symbol)}`);
+    const amount = Math.max(1, Math.ceil(amountTokens));
+    const res = await fetchJson(this.f, `${this.baseUrl}/v1/rates/${symbol}/${amount}/NGN?network=base`, { method: "GET", timeoutMs: 10_000 });
     const b = res.body as { status?: string; data?: unknown };
     if (res.status !== 200 || b?.status !== "success" || typeof b.data !== "string" || !/^\d+(\.\d+)?$/.test(b.data)) {
       throw new Error(`paycrest rate unavailable (${res.status})`);
@@ -39,9 +43,11 @@ export class PaycrestRates implements RateSource {
 export class FakeRates implements RateSource {
   constructor(public ngnPerUsdc = "1352.34") {}
   fail = false;
-  async usdcToNgn(): Promise<RateQuote> {
+  /** Per-token overrides, e.g. { USDT: "1340.00" }. */
+  bySymbol: Partial<Record<StableSymbol, string>> = {};
+  async toNgn(symbol: StableSymbol): Promise<RateQuote> {
     if (this.fail) throw new Error("rates down");
-    return { ngnPerUsdc: this.ngnPerUsdc, fetchedAt: new Date() };
+    return { ngnPerUsdc: this.bySymbol[symbol] ?? this.ngnPerUsdc, fetchedAt: new Date() };
   }
 }
 
@@ -61,7 +67,7 @@ export interface OfframpRecipient {
 export interface OfframpOrder {
   id: string;
   receiveAddress: string;
-  /** Total USDC to send: amount plus the sender and transaction fees, in micro-units. */
+  /** Total tokens to send: amount plus the sender and transaction fees, in micro-units. */
   sendMicro: bigint;
   validUntil: Date | null;
 }
@@ -69,7 +75,7 @@ export interface OfframpOrder {
 export type OfframpStatus = "pending" | "settled" | "refunded" | "expired";
 
 export interface Offramp {
-  createOrder(o: { amountMicro: bigint; rate: string; reference: string; returnAddress: string; recipient: OfframpRecipient }): Promise<OfframpOrder>;
+  createOrder(o: { token: StableSymbol; amountMicro: bigint; rate: string; reference: string; returnAddress: string; recipient: OfframpRecipient }): Promise<OfframpOrder>;
   orderStatus(id: string): Promise<OfframpStatus>;
   verifyWebhook(rawBody: string, signature: string | undefined): boolean;
   parseWebhook(rawBody: string): { orderId: string; reference: string | null; status: OfframpStatus } | null;
@@ -102,11 +108,11 @@ export class PaycrestSender implements Offramp {
     this.f = f ?? fetch;
   }
 
-  async createOrder(o: { amountMicro: bigint; rate: string; reference: string; returnAddress: string; recipient: OfframpRecipient }): Promise<OfframpOrder> {
+  async createOrder(o: { token: StableSymbol; amountMicro: bigint; rate: string; reference: string; returnAddress: string; recipient: OfframpRecipient }): Promise<OfframpOrder> {
     const res = await fetchJson(this.f, `${this.baseUrl}/v1/sender/orders`, {
       method: "POST",
       headers: { "API-Key": this.apiKey, "content-type": "application/json" },
-      body: JSON.stringify({ amount: Number(microToDecimal(o.amountMicro)), token: "USDC", rate: Number(o.rate), network: "base", recipient: o.recipient, reference: o.reference, returnAddress: o.returnAddress }),
+      body: JSON.stringify({ amount: Number(microToDecimal(o.amountMicro)), token: o.token, rate: Number(o.rate), network: "base", recipient: o.recipient, reference: o.reference, returnAddress: o.returnAddress }),
       timeoutMs: 30_000,
     });
     const d = (res.body as { data?: Record<string, unknown> })?.data;
@@ -141,15 +147,15 @@ export class PaycrestSender implements Offramp {
 }
 
 export class FakeOfframp implements Offramp {
-  orders = new Map<string, { amountMicro: bigint; reference: string; status: OfframpStatus; receiveAddress: string }>();
+  orders = new Map<string, { token: StableSymbol; amountMicro: bigint; reference: string; status: OfframpStatus; receiveAddress: string }>();
   fail = false;
   feeMicro = 500_000n;
   constructor(readonly secret = "pc-secret") {}
-  async createOrder(o: { amountMicro: bigint; reference: string }) {
+  async createOrder(o: { token: StableSymbol; amountMicro: bigint; reference: string }) {
     if (this.fail) throw new Error("paycrest down");
     const id = `ord_${Math.random().toString(36).slice(2, 10)}`;
     const receiveAddress = `0x${(this.orders.size + 1).toString(16).padStart(40, "e")}`;
-    this.orders.set(id, { amountMicro: o.amountMicro, reference: o.reference, status: "pending", receiveAddress });
+    this.orders.set(id, { token: o.token, amountMicro: o.amountMicro, reference: o.reference, status: "pending", receiveAddress });
     return { id, receiveAddress, sendMicro: o.amountMicro + this.feeMicro, validUntil: null };
   }
   async orderStatus(id: string) {

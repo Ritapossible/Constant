@@ -114,7 +114,7 @@ export interface LineRow {
   due_at: Date | null;
   next_run_at: Date | null;
   last_renewed_at: Date | null;
-  funding: "naira" | "usdc_base";
+  funding: "naira" | "stables";
   created_at: Date;
 }
 
@@ -270,7 +270,7 @@ export interface OrderRow {
   next_check_at: Date | null;
   error: string | null;
   receipt_id: string;
-  funding: "naira" | "usdc_base";
+  funding: "naira" | "stables";
   created_at: Date;
   updated_at: Date;
   settled_at: Date | null;
@@ -286,7 +286,7 @@ export interface NewOrder {
   scheduledFor: Date;
   partner: string;
   receiptId: string;
-  funding?: "naira" | "usdc_base";
+  funding?: "naira" | "stables";
 }
 
 /** Inserts the order in `ready`. Returns null if the key exists or the line already has an open order. */

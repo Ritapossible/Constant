@@ -116,3 +116,4 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 75 | Any reconciliation mismatch switches off vending, dollar charges and payouts. | rules · worker |
 | 76 | A withdrawal goes only to a 24-hour-old account in the holder's own name; its amount is held at request and returned once, only on a definite failure. | rules · api · worker |
 | 77 | Withdrawals are off until a person switches `payouts_enabled` on. | api · worker |
+| 78 | A bill is paid from one token only: the first allowed token that can pay all of it, never beyond that token's own permission or balance, valued at that token's own rate. | rules (property) · worker |

@@ -67,4 +67,19 @@ describe("float refill", () => {
     expect(await sweepSpender(d, dd, od)).toBe("sent");
     expect(await chain.balanceOf(USDC, dd.treasury!)).toBe(600_000_000n);
   });
+
+  it("sells USDT when the spender holds more of it, and sends USDT to the order", async () => {
+    const USDT = STABLES.find((s) => s.key === "base-usdt")!.address;
+    chain.balances.set(chain.spender.toLowerCase(), 10_000_000n);
+    chain.balances.set(FakePermissionChain.balanceKey(USDT, chain.spender), 300_000_000n);
+    vending.float = 5_000_000n;
+    expect(await refillFloat(d, dd, od)).toBe("created");
+    const order = [...offramp.orders.values()][0]!;
+    expect(order.token).toBe("USDT");
+    expect((await db.query("SELECT token FROM offramps WHERE status = 'created'")).rows[0].token).toBe(USDT);
+    expect(await refillFloat(d, dd, od)).toBe("funding");
+    expect(await refillFloat(d, dd, od)).toBe("funded");
+    expect(await chain.balanceOf(USDT, chain.spender)).toBe(300_000_000n - (order.amountMicro + offramp.feeMicro));
+    expect(await chain.balanceOf(USDC, chain.spender)).toBe(10_000_000n);
+  });
 });

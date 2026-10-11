@@ -61,7 +61,7 @@ async function setup(opts: { walletMicro?: bigint; allowance?: bigint; status?: 
     period: 2_592_000, start: Math.floor(T0.getTime() / 1000) - 60, end: Math.floor(T0.getTime() / 1000) + 365 * 86_400, salt: BigInt(n), extraData: "0x", signature: "0xsig",
   });
   if ((opts.status ?? "approved") === "approved") await updatePermission(db, perm.id, { status: "approved" });
-  await setLineFunding(db, line.id, "usdc_base");
+  await setLineFunding(db, line.id, "stables");
   // The fake chain keys approvals by checksummed account and salt, like the contract hashes them.
   chain.approved.clear();
   if ((opts.status ?? "approved") === "approved") chain.approved.add(`${(await import("viem")).getAddress(account)}:${BigInt(n)}`);
@@ -87,7 +87,7 @@ describe("dollar autopay", () => {
 
     await processOrders(deps); // charge sent
     expect(vending.calls.renew).toHaveLength(0); // INV-45: no vend before the charge is confirmed
-    expect((await charges(line.id))[0]).toMatchObject({ status: "submitted", usdc_micro: usdc.toString() });
+    expect((await charges(line.id))[0]).toMatchObject({ status: "submitted", amount_micro: usdc.toString() });
 
     await tick(); // confirmed → naira credited
     expect(await ledgerSum(db, user.id)).toBe(PRICE);
@@ -121,6 +121,18 @@ describe("dollar autopay", () => {
     await scanRenewals(deps);
     expect(await orders(line.id)).toHaveLength(0);
     expect(await kinds(user.id)).toEqual(["permission_needed"]);
+  });
+
+  it("revoked by the user from their own wallet: no charge, recorded, the bill goes back to naira", async () => {
+    const { user, line, perm } = await setup();
+    await scanRenewals(deps);
+    chain.approved.clear(); // the user called revoke on the manager themselves
+    await processOrders(deps);
+    expect((await orders(line.id))[0].state).toBe("failed");
+    expect(chain.spent.size).toBe(0);
+    expect((await db.query("SELECT status, error FROM spend_permissions WHERE id = $1", [perm.id])).rows[0]).toMatchObject({ status: "revoked", error: "revoked on chain outside Constant" });
+    expect((await db.query("SELECT funding FROM lines WHERE id = $1", [line.id])).rows[0].funding).toBe("naira");
+    expect(await ledgerSum(db, user.id)).toBe(0n);
   });
 
   it("the balance drops between scan and charge: re-checked on chain, the order fails, no money moves", async () => {
@@ -193,7 +205,7 @@ describe("permission lifecycle on chain", () => {
     expect((await db.query("SELECT status FROM spend_permissions WHERE id = $1", [perm.id])).rows[0].status).toBe("approving");
     await processPermissions(deps, deps.dollars!);
     expect((await db.query("SELECT status FROM spend_permissions WHERE id = $1", [perm.id])).rows[0].status).toBe("approved");
-    expect((await db.query("SELECT funding FROM lines WHERE id = $1", [line.id])).rows[0].funding).toBe("usdc_base");
+    expect((await db.query("SELECT funding FROM lines WHERE id = $1", [line.id])).rows[0].funding).toBe("stables");
     expect(await kinds(user.id)).toContain("permission_on");
 
     await updatePermission(db, perm.id, { status: "revoke_pending", tx_hash: null });
@@ -274,5 +286,94 @@ describe("review guards (D-064)", () => {
     expect(await chain.balanceOf(USDC, chain.spender)).toBe(0n);
     expect(await chain.balanceOf(USDC, treasury)).toBe(charged);
     expect(await sweepSpender(deps, deps.dollars!)).toBe("none");
+  });
+});
+
+describe("USDT on Base (D-069)", () => {
+  const USDT = STABLES.find((s) => s.key === "base-usdt")!.address;
+  const USDT_RATE = 134_000n; // ₦1,340.00 per USDT
+  const salt = () => BigInt(10_000 + (n += 1));
+
+  /** Adds a USDT permission (and balance) to a line set up with USDC. */
+  async function addUsdt(s: Awaited<ReturnType<typeof setup>>, walletMicro: bigint, status: "signed" | "approved" = "approved") {
+    const { getAddress } = await import("viem");
+    const sl = salt();
+    const perm = await insertPermission(db, {
+      userId: s.user.id, lineId: s.line.id, account: s.account, spender: chain.spender, token: USDT, allowance: 20_000_000n,
+      period: 2_592_000, start: Math.floor(T0.getTime() / 1000) - 60, end: Math.floor(T0.getTime() / 1000) + 365 * 86_400, salt: sl, extraData: "0x", signature: "0xsig",
+    });
+    if (status === "approved") {
+      await updatePermission(db, perm.id, { status: "approved" });
+      chain.approved.add(`${getAddress(s.account)}:${sl}`);
+    }
+    chain.balances.set(FakePermissionChain.balanceKey(USDT, getAddress(s.account)), walletMicro);
+    return perm;
+  }
+
+  beforeEach(() => {
+    (deps.dollars!.rates as FakeRates).bySymbol = { USDT: "1340.00" };
+  });
+
+  it("pays from USDT when USDC can't, at USDT's own rate, and renews once", async () => {
+    const s = await setup({ walletMicro: 0n });
+    const perm = await addUsdt(s, 50_000_000n);
+    expect(await scanRenewals(deps)).toBe(1);
+    const usdt = usdcForNaira(PRICE, USDT_RATE);
+    expect((await charges(s.line.id))[0]).toMatchObject({ permission_id: perm.id, token: USDT, amount_micro: usdt.toString(), kobo_per_unit: USDT_RATE, chain: "base" });
+
+    await processOrders(deps);
+    await tick();
+    await tick();
+    expect(vending.calls.renew).toHaveLength(1);
+    expect(await ledgerSum(db, s.user.id)).toBe(0n);
+    expect(await chain.balanceOf(USDT, chain.spender)).toBe(usdt);
+    expect(await chain.balanceOf(USDC, chain.spender)).toBe(0n);
+    const { getAddress } = await import("viem");
+    expect(await chain.balanceOf(USDT, getAddress(s.account))).toBe(50_000_000n - usdt);
+  });
+
+  it("USDC first when both can pay; never splits a bill", async () => {
+    const s = await setup({ walletMicro: 50_000_000n });
+    await addUsdt(s, 50_000_000n);
+    await scanRenewals(deps);
+    const c = await charges(s.line.id);
+    expect(c).toHaveLength(1);
+    expect(c[0].token.toLowerCase()).toBe(USDC.toLowerCase());
+  });
+
+  it("neither token can pay: one notice naming both, nothing charged", async () => {
+    const s = await setup({ walletMicro: 1_000_000n });
+    await addUsdt(s, 2_000_000n);
+    await scanRenewals(deps);
+    expect(await orders(s.line.id)).toHaveLength(0);
+    const notice = (await db.query("SELECT kind, params FROM notices WHERE user_id = $1", [s.user.id])).rows;
+    expect(notice).toHaveLength(1);
+    expect(notice[0]).toMatchObject({ kind: "stables_short", params: { symbol: "USDC or USDT", have: "3.00" } });
+  });
+
+  it("a USDT approval that fails leaves the bill on stablecoins while USDC is on", async () => {
+    const s = await setup();
+    const perm = await addUsdt(s, 0n, "signed");
+    chain.outcome = "reverted";
+    await processPermissions(deps, deps.dollars!);
+    await processPermissions(deps, deps.dollars!);
+    expect((await db.query("SELECT status FROM spend_permissions WHERE id = $1", [perm.id])).rows[0].status).toBe("failed");
+    expect((await db.query("SELECT funding FROM lines WHERE id = $1", [s.line.id])).rows[0].funding).toBe("stables");
+    chain.outcome = "confirmed";
+  });
+
+  it("sweeps USDT as well as USDC", async () => {
+    const treasury = "0x7777777777777777777777777777777777777778";
+    deps.dollars = { ...deps.dollars!, treasury, sweepMinMicro: 1_000_000n };
+    const s = await setup({ walletMicro: 0n });
+    await addUsdt(s, 50_000_000n);
+    await scanRenewals(deps);
+    await processOrders(deps);
+    const charged = await chain.balanceOf(USDT, chain.spender);
+    expect(charged).toBeGreaterThan(0n);
+    expect(await sweepSpender(deps, deps.dollars!)).toBe("sent");
+    expect(await sweepSpender(deps, deps.dollars!)).toBe("confirmed");
+    expect(await chain.balanceOf(USDT, treasury)).toBe(charged);
+    expect(await chain.balanceOf(USDT, chain.spender)).toBe(0n);
   });
 });

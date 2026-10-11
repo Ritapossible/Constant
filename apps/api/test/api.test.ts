@@ -243,7 +243,7 @@ describe("public receipts", () => {
   });
 });
 
-describe("paying a bill from USDC (D-063)", () => {
+describe("paying a bill from stablecoins (D-063, D-069)", () => {
   const SMART = "0x4444444444444444444444444444444444444444";
   let lineId = "";
 
@@ -251,8 +251,8 @@ describe("paying a bill from USDC (D-063)", () => {
     identity.users.set("did:privy:usdc", { did: "did:privy:usdc", email: "u@example.com", phoneE164: null, wallets: [{ address: SMART, kind: "smart" }] });
     const l = await call("POST", "/v1/lines", "did:privy:usdc", { provider: "dstv", smartcard: "7012345678", nickname: "USD TV", capMinor: "2500000" });
     lineId = l.json().id;
-    expect((await call("POST", `/v1/lines/${lineId}/usdc/proposal`, "did:privy:usdc", { account: "0x5555555555555555555555555555555555555555" })).json().error).toBe("not_your_account");
-    const r = await call("POST", `/v1/lines/${lineId}/usdc/proposal`, "did:privy:usdc", { account: SMART });
+    expect((await call("POST", `/v1/lines/${lineId}/stables/proposal`, "did:privy:usdc", { account: "0x5555555555555555555555555555555555555555" })).json().error).toBe("not_your_account");
+    const r = await call("POST", `/v1/lines/${lineId}/stables/proposal`, "did:privy:usdc", { account: SMART });
     expect(r.statusCode).toBe(200);
     const body = r.json();
     expect(body.permission).toMatchObject({ account: SMART, spender: permChain.spender, token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", allowance: "19970000", period: 2_592_000, extraData: "0x" });
@@ -261,28 +261,48 @@ describe("paying a bill from USDC (D-063)", () => {
   });
 
   it("accepts it only with a valid signature and fields that match the offer", async () => {
-    const offer = (await call("POST", `/v1/lines/${lineId}/usdc/proposal`, "did:privy:usdc", { account: SMART })).json().permission;
-    expect((await call("POST", `/v1/lines/${lineId}/usdc`, "did:privy:usdc", { permission: offer, signature: "0xbad" })).json().error).toBe("invalid_signature");
+    const offer = (await call("POST", `/v1/lines/${lineId}/stables/proposal`, "did:privy:usdc", { account: SMART })).json().permission;
+    expect((await call("POST", `/v1/lines/${lineId}/stables`, "did:privy:usdc", { permission: offer, signature: "0xbad" })).json().error).toBe("invalid_signature");
 
     const greedy = { ...offer, allowance: "900000000" };
     permChain.validSignatures.add(`${permChain.key(permissionFromJson(greedy))}:0xgood`);
-    expect((await call("POST", `/v1/lines/${lineId}/usdc`, "did:privy:usdc", { permission: greedy, signature: "0x600d" })).json().error).toBe("permission_mismatch");
+    expect((await call("POST", `/v1/lines/${lineId}/stables`, "did:privy:usdc", { permission: greedy, signature: "0x600d" })).json().error).toBe("permission_mismatch");
 
     const otherSpender = { ...offer, spender: "0x6666666666666666666666666666666666666666" };
-    expect((await call("POST", `/v1/lines/${lineId}/usdc`, "did:privy:usdc", { permission: otherSpender, signature: "0x600d" })).json().message).toContain("spender");
+    expect((await call("POST", `/v1/lines/${lineId}/stables`, "did:privy:usdc", { permission: otherSpender, signature: "0x600d" })).json().message).toContain("spender");
 
     permChain.validSignatures.add(`${permChain.key(permissionFromJson(offer))}:0x600d`);
-    const ok = await call("POST", `/v1/lines/${lineId}/usdc`, "did:privy:usdc", { permission: offer, signature: "0x600d" });
+    const ok = await call("POST", `/v1/lines/${lineId}/stables`, "did:privy:usdc", { permission: offer, signature: "0x600d" });
     expect(ok.statusCode).toBe(202);
-    expect((await call("POST", `/v1/lines/${lineId}/usdc`, "did:privy:usdc", { permission: offer, signature: "0x600d" })).statusCode).toBe(409);
-    const st = (await call("GET", `/v1/lines/${lineId}/usdc`, "did:privy:usdc")).json();
-    expect(st).toMatchObject({ available: true, funding: "naira", permission: { status: "signed", allowanceUsd: "19.97", periodDays: 30 } });
+    expect((await call("POST", `/v1/lines/${lineId}/stables`, "did:privy:usdc", { permission: offer, signature: "0x600d" })).statusCode).toBe(409);
+    const st = (await call("GET", `/v1/lines/${lineId}/stables`, "did:privy:usdc")).json();
+    expect(st).toMatchObject({ available: true, funding: "naira", tokens: [{ symbol: "USDC", permission: { status: "signed", allowanceUsd: "19.97", periodDays: 30 } }, { symbol: "USDT", permission: null }] });
+  });
+
+  it("USDT on Base is a second, separate permission at USDT's own rate", async () => {
+    expect((await call("POST", `/v1/lines/${lineId}/stables/proposal`, "did:privy:usdc", { account: SMART, symbol: "DAI" })).json().error).toBe("unsupported_token");
+    const r = (await call("POST", `/v1/lines/${lineId}/stables/proposal`, "did:privy:usdc", { account: SMART, symbol: "USDT" })).json();
+    expect(r.symbol).toBe("USDT");
+    expect(r.permission.token).toBe("0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2");
+    // A token Constant doesn't accept is refused even with a valid signature.
+    const odd = { ...r.permission, token: "0x1111111111111111111111111111111111111111" };
+    permChain.validSignatures.add(`${permChain.key(permissionFromJson(odd))}:0x600d`);
+    expect((await call("POST", `/v1/lines/${lineId}/stables`, "did:privy:usdc", { permission: odd, signature: "0x600d" })).json().message).toContain("token");
+    permChain.validSignatures.add(`${permChain.key(permissionFromJson(r.permission))}:0x600d`);
+    const ok = await call("POST", `/v1/lines/${lineId}/stables`, "did:privy:usdc", { permission: r.permission, signature: "0x600d" });
+    expect(ok.statusCode).toBe(202);
+    expect(ok.json().symbol).toBe("USDT");
+    const st = (await call("GET", `/v1/lines/${lineId}/stables`, "did:privy:usdc")).json();
+    expect(st.tokens.map((t: { permission: { status: string } | null }) => t.permission?.status)).toEqual(["signed", "signed"]);
   });
 
   it("another user can't touch it; stopping is immediate", async () => {
-    expect((await call("DELETE", `/v1/lines/${lineId}/usdc`, "did:privy:bob")).statusCode).toBe(404);
-    expect((await call("DELETE", `/v1/lines/${lineId}/usdc`, "did:privy:usdc")).statusCode).toBe(204);
-    const st = (await call("GET", `/v1/lines/${lineId}/usdc`, "did:privy:usdc")).json();
-    expect(st).toMatchObject({ funding: "naira", permission: null });
+    expect((await call("DELETE", `/v1/lines/${lineId}/stables/USDC`, "did:privy:bob")).statusCode).toBe(404);
+    expect((await call("DELETE", `/v1/lines/${lineId}/stables/USDC`, "did:privy:usdc")).statusCode).toBe(204);
+    let st = (await call("GET", `/v1/lines/${lineId}/stables`, "did:privy:usdc")).json();
+    expect(st).toMatchObject({ funding: "naira", tokens: [{ symbol: "USDC", permission: null }, { symbol: "USDT", permission: { status: "signed" } }] });
+    expect((await call("DELETE", `/v1/lines/${lineId}/stables/USDT`, "did:privy:usdc")).statusCode).toBe(204);
+    st = (await call("GET", `/v1/lines/${lineId}/stables`, "did:privy:usdc")).json();
+    expect(st.tokens.every((t: { permission: unknown }) => t.permission === null)).toBe(true);
   });
 });

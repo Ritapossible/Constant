@@ -1,6 +1,7 @@
 /**
- * Refilling the naira float (D-068). When the vend partner's balance drops below the low-water mark, charged USDC on
- * the spender is sold through Paycrest on Base, paid straight into the partner's funding account.
+ * Refilling the naira float (D-068). When the vend partner's balance drops below the low-water mark, charged
+ * stablecoins on the spender are sold through Paycrest on Base, paid straight into the partner's funding account.
+ * Each order sells one token: whichever the spender holds most of (USDC or USDT, D-069).
  * Each step is saved before it acts: the order (by reference) before calling Paycrest, the transfer (by hash) before
  * sending it. One off-ramp in flight at a time.
  */
@@ -23,7 +24,7 @@ export interface OfframpDeps {
 }
 
 const MIN = 60_000;
-const USDC_BASE = STABLES.find((s) => s.key === "base-usdc")!;
+const BASE_TOKENS = STABLES.filter((s) => s.chain === "base");
 
 export async function refillFloat(d: Deps, dd: DollarDeps, od: OfframpDeps): Promise<string> {
   const now = d.now();
@@ -38,7 +39,8 @@ export async function refillFloat(d: Deps, dd: DollarDeps, od: OfframpDeps): Pro
         if (age > 10 * MIN) await updateOfframp(d.db, ref, { status: "failed", error: "no answer when creating the order" });
         return "creating";
       case "created": {
-        const prepared = await dd.chain.prepareTransfer(USDC_BASE.address, cur.receive_address as Hex, BigInt(cur.send_micro!));
+        // The token the order was made for, as saved before Paycrest was called.
+        const prepared = await dd.chain.prepareTransfer(cur.token as Hex, cur.receive_address as Hex, BigInt(cur.send_micro!));
         await updateOfframp(d.db, ref, { status: "funding", tx_hash: prepared.hash, tx_raw: prepared.raw });
         await dd.chain.broadcast(prepared.raw);
         return "funding";
@@ -77,11 +79,10 @@ export async function refillFloat(d: Deps, dd: DollarDeps, od: OfframpDeps): Pro
     }
   }
 
-  const [floatMinor, spenderMicro, quote] = await Promise.all([
-    d.vending.floatBalance().catch(() => null),
-    dd.chain.balanceOf(USDC_BASE.address, dd.chain.spender),
-    od.rates.usdcToNgn(100).catch(() => null),
-  ]);
+  const floatMinor = await d.vending.floatBalance().catch(() => null);
+  const held = await Promise.all(BASE_TOKENS.map(async (t) => ({ token: t, micro: await dd.chain.balanceOf(t.address, dd.chain.spender) })));
+  const { token, micro: spenderMicro } = held.reduce((a, b) => (b.micro > a.micro ? b : a));
+  const quote = await od.rates.toNgn(token.symbol, 100).catch(() => null);
   // Paycrest adds its fees on top of the order: leave room for them (1%, at least $1).
   const feeRoom = spenderMicro / 100n > 1_000_000n ? spenderMicro / 100n : 1_000_000n;
   const decision = decideFloatRefill({
@@ -96,16 +97,16 @@ export async function refillFloat(d: Deps, dd: DollarDeps, od: OfframpDeps): Pro
   if (decision.kind === "none") return decision.reason;
 
   const reference = `ofr_${randomUUID().replace(/-/g, "")}`;
-  if (!(await insertOfframp(d.db, { provider: "paycrest", reference, amountMicro: decision.usdcMicro, rate: quote!.ngnPerUsdc }))) return "in_flight";
+  if (!(await insertOfframp(d.db, { provider: "paycrest", reference, token: token.address, amountMicro: decision.usdcMicro, rate: quote!.ngnPerUsdc }))) return "in_flight";
   try {
-    const order = await od.offramp.createOrder({ amountMicro: decision.usdcMicro, rate: quote!.ngnPerUsdc, reference, returnAddress: dd.chain.spender, recipient: od.recipient });
+    const order = await od.offramp.createOrder({ token: token.symbol, amountMicro: decision.usdcMicro, rate: quote!.ngnPerUsdc, reference, returnAddress: dd.chain.spender, recipient: od.recipient });
     // Paycrest adds its fees on top; we must still hold enough to send it all.
     if (order.sendMicro > spenderMicro) {
       await updateOfframp(d.db, { reference }, { status: "failed", provider_order: order.id, error: "fees exceed the spender's balance" });
       return "too_small";
     }
     await updateOfframp(d.db, { reference }, { status: "created", provider_order: order.id, send_micro: order.sendMicro.toString(), receive_address: order.receiveAddress, valid_until: order.validUntil });
-    d.log.info("offramp order created", { reference, amountMicro: decision.usdcMicro.toString() });
+    d.log.info("offramp order created", { reference, token: token.symbol, amountMicro: decision.usdcMicro.toString() });
     return "created";
   } catch (err) {
     await updateOfframp(d.db, { reference }, { status: "failed", error: (err as Error).message.slice(0, 300) });

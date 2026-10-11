@@ -1,4 +1,4 @@
-/** Off-ramp orders (D-068): charged USDC → naira into the vend partner's funding account. One in flight at a time. */
+/** Off-ramp orders (D-068): charged stablecoins → naira into the vend partner's funding account. One in flight at a time. */
 import type { Q } from "./pool.js";
 
 export type OfframpRowStatus = "creating" | "created" | "funding" | "funded" | "settled" | "refunded" | "expired" | "failed";
@@ -8,6 +8,8 @@ export interface OfframpRow {
   provider: string;
   provider_order: string | null;
   reference: string;
+  /** The token sold (USDC or USDT on Base). */
+  token: string;
   amount_micro: string;
   send_micro: string | null;
   rate: string | null;
@@ -26,9 +28,9 @@ export async function offrampInFlight(q: Q): Promise<OfframpRow | null> {
 }
 
 /** Saved before the provider is called. False if another is already in flight. */
-export async function insertOfframp(q: Q, o: { provider: string; reference: string; amountMicro: bigint; rate: string }): Promise<boolean> {
+export async function insertOfframp(q: Q, o: { provider: string; reference: string; token: string; amountMicro: bigint; rate: string }): Promise<boolean> {
   try {
-    await q.query("INSERT INTO offramps (provider, reference, amount_micro, rate, status) VALUES ($1,$2,$3,$4,'creating')", [o.provider, o.reference, o.amountMicro.toString(), o.rate]);
+    await q.query("INSERT INTO offramps (provider, reference, token, amount_micro, rate, status) VALUES ($1,$2,$3,$4,$5,'creating')", [o.provider, o.reference, o.token, o.amountMicro.toString(), o.rate]);
     return true;
   } catch (err) {
     if ((err as { code?: string }).code === "23505") return false;

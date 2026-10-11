@@ -33,6 +33,8 @@ export interface StableParams {
 }
 
 export function renderStables(kind: StableNoticeKind, p: StableParams): Message {
+  // The token(s) the bill pays from, e.g. "USDT" or "USDC or USDT". Older notices carry none: they were USDC.
+  const sym = p.symbol ?? "USDC";
   switch (kind) {
     case "stables_arrived":
       return {
@@ -41,28 +43,28 @@ export function renderStables(kind: StableNoticeKind, p: StableParams): Message 
       };
     case "stables_short":
       return {
-        subject: `Add USDC for ${p.line}`,
-        text: `Constant: ${p.line} is due and needs about ${p.usd} USDC on Base. Your account has ${p.have}. Add USDC and we'll pay it.`,
+        subject: `Add ${sym} for ${p.line}`,
+        text: `Constant: ${p.line} is due and needs about ${p.usd} ${sym} on Base. Your account has ${p.have}. Add ${sym} and we'll pay it.`,
       };
     case "allowance_low":
       return {
         subject: `${p.line} needs a higher limit`,
-        text: `Constant: ${p.line} now needs ${p.usd} USDC, more than you allowed this month. Raise the limit in the app and we'll pay it.`,
+        text: `Constant: ${p.line} now needs ${p.usd} ${sym}, more than you allowed this month. Raise the limit in the app and we'll pay it.`,
       };
     case "permission_needed":
       return {
         subject: `Confirm ${p.line} again`,
-        text: `Constant: we can't charge USDC for ${p.line} until you confirm it again in the app.`,
+        text: `Constant: we can't charge ${sym} for ${p.line} until you confirm it again in the app.`,
       };
     case "permission_on":
       return {
-        subject: `${p.line} now pays from USDC`,
-        text: `Constant: ${p.line} now pays from your USDC on Base, up to ${p.usd} every 30 days. Stop any time in the app.`,
+        subject: `${p.line} now pays from ${sym}`,
+        text: `Constant: ${p.line} now pays from your ${sym} on Base, up to ${p.usd} every 30 days. Stop any time in the app.`,
       };
     case "permission_failed":
       return {
         subject: `${p.line} couldn't be set up`,
-        text: `Constant: we couldn't switch ${p.line} to USDC. Nothing was charged. Try again in the app.`,
+        text: `Constant: we couldn't switch ${p.line} to ${sym}. Nothing was charged. Try again in the app.`,
       };
     case "token_quarantined":
       return {

@@ -76,8 +76,9 @@ Swap `VTPASS_BASE_URL` to `https://vtpass.com/api` with live keys, Paystack live
 
 1. **Privy dashboard → Smart wallets:** turn on, choose **Coinbase Smart Wallet**, network **Base**, and set up gas sponsorship (a paymaster) so users never need ETH. Existing users get their smart wallet on next sign-in; deposits should go to that address (the app shows it).
 2. **Spender key:** create a new key pair just for this (e.g. `cast wallet new`). Put the private key in `SPENDER_PRIVATE_KEY` on **constant-worker** only, and the address in `SPENDER_ADDRESS` on **constant-api**. Send it about $5 of ETH on Base for gas. It receives charged USDC; sweep it regularly until the treasury step is built.
-3. **Test with small amounts:** your own decoder, a $5 USDC balance, a low naira limit. Approve "Pay from USDC" on the bill, wait for "On", make it due (`UPDATE lines SET next_run_at = now() WHERE id = '…'`), and watch: charge → naira credited → renewal → receipt.
-4. **Stop:** "Stop paying from USDC" takes effect at once; the on-chain revoke follows within a minute.
+3. **Fork test first:** `node scripts/fork-base.mjs` against a fresh `anvil --fork-url https://mainnet.base.org --port 8546` (instructions in the script). It charges USDT and USDC through Coinbase's live contracts with Constant's own code. All checks must pass.
+4. **Test with small amounts:** your own decoder, $5 of USDC and $5 of USDT, a low naira limit. Under "Pay from stablecoins", turn on USDC and USDT, wait for "On", make it due (`UPDATE lines SET next_run_at = now() WHERE id = '…'`), and watch: charge → naira credited → renewal → receipt. Empty the USDC to see USDT pay the next one.
+5. **Stop:** "Stop" on a token takes effect at once; the on-chain revoke follows within a minute.
 
 ## Gas sponsorship policy (Privy smart wallets, Base)
 
@@ -92,11 +93,11 @@ Users pay no gas. Sponsor only what the dollar path needs, so the paymaster can'
 One DSTV renewal in the sandbox, end to end, on your phone:
 1. ☐ Sign in; Money shows your Base smart-wallet address. Send it $5 of USDC on Base.
 2. ☐ Deposit appears under Recent deposits and is screened clear (`chain_deposits.screening = 'clear'`).
-3. ☐ Bills → your DSTV (VTpass sandbox `1212121212`) → Pay from USDC → Approve. No ETH needed (sponsored).
+3. ☐ Bills → your DSTV (VTpass sandbox `1212121212`) → Pay from stablecoins → USDC → Turn on → Approve. No ETH needed (sponsored). Repeat for USDT.
 4. ☐ Within a minute the bill shows "On" (`spend_permissions.status = 'approved'`).
 5. ☐ Make it due; the worker charges USDC (confirmed on Basescan), credits the naira, vends in the sandbox.
 6. ☐ Receipt page shows Paid; within an hour, "Checked in your browser" against Stellar testnet.
 7. ☐ The spender's USDC is swept to the treasury.
-8. ☐ Stop paying from USDC; the revoke appears on Basescan; nothing more is charged.
+8. ☐ Stop USDC; the revoke appears on Basescan; the next renewal pays from USDT. Stop USDT; the bill is back on naira.
 
 After this works: the Paycrest off-ramp (USDC in treasury → naira at the bank → VTpass float). Not a third deposit chain.

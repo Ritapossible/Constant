@@ -110,7 +110,7 @@ export async function registerOps(app: FastifyInstance, d: { db: Db; opsToken: s
           if (order.state !== "needs_human") throw new OpsError(409, "not_needs_human", `Order is ${order.state}`);
           const user = await lockUser(tx, order.user_id);
           const line = await lockLine(tx, order.line_id);
-          const charge = order.funding === "usdc_base" ? await chargeForOrder(tx, order.id) : null;
+          const charge = order.funding === "stables" ? await chargeForOrder(tx, order.id) : null;
 
           if (charge && charge.status !== "confirmed") {
             if (typeof b.charged !== "boolean") throw new OpsError(400, "charged_required", "Say whether the USDC charge happened on Base (charged: true/false)");

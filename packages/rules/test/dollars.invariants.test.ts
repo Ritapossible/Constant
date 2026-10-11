@@ -9,10 +9,12 @@ import {
   decideChargeGuard,
   decideFloatRefill,
   decideDollarRenewal,
+  decideStablesRenewal,
   parseRate,
   permissionAllowance,
   usdcForNaira,
   type DollarRenewalInput,
+  type StableSource,
 } from "../src/index.js";
 
 const NOW = new Date("2026-11-14T06:00:00Z");
@@ -171,6 +173,67 @@ describe("INV-73: float refill", () => {
         if (d.kind === "refill") {
           expect(d.usdcMicro <= spender).toBe(true);
           expect(d.usdcMicro <= usdcForNaira(base.targetMinor - float, rate)).toBe(true);
+        }
+      }),
+    );
+  });
+});
+
+describe("INV-78: several stablecoins on one bill (D-069)", () => {
+  const { permission: _p, rate: _r, walletMicro: _w, ...rest } = base();
+  const src = (key: string, over: Partial<StableSource> = {}): StableSource => ({
+    key,
+    permission: { status: "approved", remainingThisPeriod: 20_000_000n, endsAt: NOW.getTime() / 1000 + 86_400 },
+    rate: { koboPerUsdc: RATE, fetchedAt: new Date(NOW.getTime() - 60_000) },
+    walletMicro: 50_000_000n,
+    ...over,
+  });
+
+  it("pays from the first token that can pay the whole bill, in the user's order", () => {
+    expect(decideStablesRenewal(rest, [src("usdc"), src("usdt")])).toMatchObject({ kind: "charge", source: "usdc" });
+    expect(decideStablesRenewal(rest, [src("usdc", { walletMicro: 1n }), src("usdt")])).toMatchObject({ kind: "charge", source: "usdt" });
+    expect(decideStablesRenewal(rest, [src("usdc", { permission: null }), src("usdt")])).toMatchObject({ kind: "charge", source: "usdt" });
+  });
+
+  it("values each token at its own rate", () => {
+    const weak = 130_000n;
+    const d = decideStablesRenewal(rest, [src("usdc", { walletMicro: 0n }), src("usdt", { rate: { koboPerUsdc: weak, fetchedAt: NOW } })]);
+    expect(d).toMatchObject({ kind: "charge", source: "usdt", usdcMicro: usdcForNaira(1_995_000n, weak), koboPerUsdc: weak });
+  });
+
+  it("with no token able to pay, says the most useful reason; a stale rate is retried quietly first", () => {
+    expect(decideStablesRenewal(rest, [])).toEqual({ kind: "do_not_renew", reason: "no_permission" });
+    expect(decideStablesRenewal(rest, [src("usdc", { permission: null }), src("usdt", { walletMicro: 1n })])).toMatchObject({ reason: "wallet_short" });
+    expect(decideStablesRenewal(rest, [src("usdc", { walletMicro: 1n }), src("usdt", { rate: null })])).toMatchObject({ reason: "rate_stale" });
+  });
+
+  it("naira reasons stop every token", () => {
+    expect(decideStablesRenewal({ ...rest, status: "paused" }, [src("usdc"), src("usdt")])).toEqual({ kind: "do_not_renew", reason: "paused" });
+  });
+
+  it("INV-78: never charges a token beyond its own permission or balance, and never splits a bill", () => {
+    const state = fc.record({
+      remaining: fc.bigInt({ min: 0n, max: 40_000_000n }),
+      wallet: fc.bigInt({ min: 0n, max: 40_000_000n }),
+      rate: fc.bigInt({ min: 100_000n, max: 200_000n }),
+      approved: fc.boolean(),
+    });
+    fc.assert(
+      fc.property(fc.array(state, { minLength: 1, maxLength: 3 }), (ss) => {
+        const sources = ss.map((x, i) =>
+          src(`t${i}`, { permission: { status: x.approved ? "approved" : "signed", remainingThisPeriod: x.remaining, endsAt: 2e9 }, walletMicro: x.wallet, rate: { koboPerUsdc: x.rate, fetchedAt: NOW } }),
+        );
+        const d = decideStablesRenewal(rest, sources);
+        if (d.kind !== "charge") return;
+        const i = Number(d.source.slice(1));
+        const x = ss[i]!;
+        expect(x.approved).toBe(true);
+        expect(d.usdcMicro).toBe(usdcForNaira(1_995_000n, x.rate));
+        expect(d.usdcMicro <= x.remaining && d.usdcMicro <= x.wallet).toBe(true);
+        // Every earlier token couldn't pay on its own.
+        for (const y of ss.slice(0, i)) {
+          const need = usdcForNaira(1_995_000n, y.rate);
+          expect(!y.approved || need > y.remaining || need > y.wallet).toBe(true);
         }
       }),
     );

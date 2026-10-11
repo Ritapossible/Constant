@@ -10,7 +10,7 @@ Bills in Nigeria are paid in naira. USDC and USDT never pay IKEDC or DSTV direct
 
 | Network | Live in code | Next |
 |---|---|---|
-| **Base** | Each user's own address, from Privy, server-side. USDC/USDT deposits recorded after 12 confirmations, user told (D-060). Dollar autopay: per-bill spend permission on the user's smart wallet, charge confirmed before vend (D-063). | Paycrest off-ramp to refill the naira float; USDT permissions. |
+| **Base** | Each user's own address, from Privy, server-side. USDC/USDT deposits recorded after 12 confirmations, user told (D-060). Dollar autopay: per-bill spend permission per token (USDC, USDT) on the user's smart wallet, charge confirmed before vend (D-063, D-069). Paycrest off-ramp refills the naira float (D-068). | USDC on Arc autopay. |
 | **Arc** | Same address; USDC deposits recorded (final in under a second). Chain facts verified (D-061). | Treasury on Arc; CCTP from Base (domain 6 → 26). |
 | **Stellar** | Hourly Merkle root of settled receipts as a memo; public receipt page checks it in the browser. Tested on testnet (D-062). | Fund a public-network account; Soroban mandate and CCTP deposits in Phase 3. |
 

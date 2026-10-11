@@ -74,7 +74,7 @@ describe("withdrawals", () => {
 
 describe("Paycrest webhook (D-068)", () => {
   it("a signed final status settles a funded off-ramp; a bad signature changes nothing", async () => {
-    await db.query("INSERT INTO offramps (provider, provider_order, reference, amount_micro, status) VALUES ('paycrest', 'ord_x', 'ofr_x', 100000000, 'funded')");
+    await db.query("INSERT INTO offramps (provider, provider_order, reference, token, amount_micro, status) VALUES ('paycrest', 'ord_x', 'ofr_x', '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', 100000000, 'funded')");
     const body = JSON.stringify({ event: "payment_order.settled", data: { id: "ord_x", reference: "ofr_x", status: "settled" } });
     const bad = await app.inject({ method: "POST", url: "/webhooks/paycrest", headers: { "content-type": "application/json", "x-paycrest-signature": "00" }, payload: body });
     expect(bad.statusCode).toBe(401);

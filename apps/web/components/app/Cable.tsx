@@ -7,7 +7,7 @@ import { Field } from "./Field";
 import { KindIcon } from "./KindIcon";
 import { useServer } from "./Server";
 import { useNotify } from "./Toast";
-import { UsdcAutopay } from "./UsdcAutopay";
+import { StablesAutopay } from "./StablesAutopay";
 
 const PROVIDERS = [
   { id: "dstv", name: "DSTV", digits: "10" },
@@ -261,7 +261,7 @@ export function CableDetail({ line, orders, onClose }: { line: ServerLine; order
         </button>
       </form>
 
-      {line.status !== "frozen" && <UsdcAutopay lineId={line.id} lineName={line.nickname} />}
+      {line.status !== "frozen" && <StablesAutopay lineId={line.id} lineName={line.nickname} />}
 
       {orders.length > 0 && (
         <section aria-label="Renewals">

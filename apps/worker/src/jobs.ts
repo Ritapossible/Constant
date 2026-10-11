@@ -110,7 +110,7 @@ async function renewLine(d: Deps, lineId: string): Promise<boolean> {
   const lookup = await d.vending.lookup(pre.provider as CableProvider, smartcard);
   const quote: RenewalQuote | null =
     lookup.ok && lookup.renewalAmountMinor !== null ? { amountMinor: lookup.renewalAmountMinor, dueAt: lookup.dueAt } : null;
-  if (pre.funding === "usdc_base") return d.dollars ? renewDollarLine(d, d.dollars, pre, quote) : false;
+  if (pre.funding === "stables") return d.dollars ? renewDollarLine(d, d.dollars, pre, quote) : false;
 
   return withTx(d.db, async (tx) => {
     const user = await lockUser(tx, pre.user_id);
@@ -210,7 +210,7 @@ export async function stepOrder(d: Deps, orderId: string): Promise<void> {
       return { call: "requery" as const, order };
     }
     if (order.state !== "ready") return null;
-    if (order.funding === "usdc_base") {
+    if (order.funding === "stables") {
       // Defence in depth: never vend a dollar order whose charge isn't confirmed (INV-45).
       const charge = await tx.query<{ status: string }>("SELECT status FROM charges WHERE order_id = $1", [order.id]);
       if (charge.rows[0]?.status !== "confirmed") return null;
