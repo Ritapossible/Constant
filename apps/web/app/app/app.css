@@ -963,3 +963,294 @@
 .ap-token-logo .ap-token-net[src$="arc.svg"] {
   border-radius: 50%;
 }
+
+/* ── Providers: logos, pickers, the bill form (D-071) ─────────────────────────────── */
+/* Logos are the providers' own (via the vend partner's catalogue), shown unaltered on a white tile. */
+.ap-logo {
+  flex: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.ap-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ap-logo-mono {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 650;
+  box-shadow: none;
+}
+.ap-step-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.ap-picker {
+  display: grid;
+  gap: 14px;
+}
+.ap-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 50px;
+  padding: 0 16px;
+  border-radius: var(--pill);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--muted);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.ap-search:focus-within {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(10, 10, 10, 0.08);
+}
+.ap-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  color: var(--ink);
+}
+.ap-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--pill);
+  background: var(--surface-2);
+  justify-self: start;
+}
+.ap-tab {
+  min-height: 38px;
+  padding: 0 18px;
+  border-radius: var(--pill);
+  font-size: 14px;
+  font-weight: 550;
+  color: var(--muted);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.ap-tab[data-on="true"] {
+  background: var(--ink);
+  color: var(--on-inverse);
+}
+.ap-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.ap-provider-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 10px;
+  min-height: 112px;
+  padding: 16px 8px 14px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  text-align: center;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.25s var(--ease-out);
+}
+.ap-provider-card b {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.ap-provider-card:hover:not(:disabled) {
+  border-color: var(--ink-2);
+}
+.ap-provider-card:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.ap-provider-card[data-on="true"] {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.ap-provider-card:disabled {
+  cursor: not-allowed;
+}
+.ap-provider-card:disabled .ap-logo {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+.ap-provider-card:disabled b {
+  color: var(--muted);
+}
+.ap-provider-card small {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 7px;
+  border-radius: var(--pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.ap-picker-empty {
+  padding: 24px 0;
+  text-align: center;
+}
+.ap-network-list .ap-row-right {
+  color: var(--muted);
+}
+.ap-network-list [aria-checked="true"] .ap-row-right {
+  color: var(--ink);
+}
+.ap-selected {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.ap-selected .ap-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.ap-selected .ap-row-main b {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ap-phone,
+.ap-amount {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 58px;
+  padding: 0 14px 0 8px;
+  border-radius: 16px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.ap-phone:focus-within,
+.ap-amount:focus-within {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(10, 10, 10, 0.08);
+}
+.ap-phone[data-invalid="true"],
+.ap-amount[data-invalid="true"] {
+  border-color: #b42318;
+}
+.ap-phone input,
+.ap-amount input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+.ap-net-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 44px;
+  padding: 0 8px 0 6px;
+  border-radius: 12px;
+  border-right: 1px solid var(--line);
+  color: var(--muted);
+}
+.ap-net-btn:hover {
+  background: var(--surface-2);
+}
+.ap-net-empty {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px dashed var(--line-strong);
+}
+.ap-suggest {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 14px 4px 6px;
+  border-radius: var(--pill);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-size: 13.5px;
+  font-weight: 550;
+}
+.ap-suggest .ap-logo {
+  border-radius: 50%;
+}
+.ap-amount {
+  padding-left: 16px;
+}
+.ap-amount > span {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.ap-amount input {
+  font-family: var(--font-sans);
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ap-quick {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.ap-quick-btn {
+  min-height: 48px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.ap-quick-btn:hover {
+  border-color: var(--line-strong);
+}
+.ap-quick-btn[data-on="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--on-inverse);
+}
+.ap-form-section {
+  display: grid;
+  gap: 14px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.ap-form-section h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+@media (max-width: 360px) {
+  .ap-provider-card {
+    min-height: 104px;
+    padding: 14px 6px 12px;
+  }
+  .ap-provider-card b {
+    font-size: 13px;
+  }
+}

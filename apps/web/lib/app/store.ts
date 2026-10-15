@@ -19,6 +19,8 @@ export type Line = {
   threshold?: number;
   /** Date lines: day of the month it renews (1–28). */
   renewDay?: number;
+  /** Electricity only: prepaid (tokens) or postpaid (a bill). Absent on older lines: prepaid. */
+  meterType?: "prepaid" | "postpaid";
   /** Weekly spending cap, minor units. */
   weeklyCapMinor: string;
   status: "active" | "paused";

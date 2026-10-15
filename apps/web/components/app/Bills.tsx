@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useMemo, useRef, useState, type FormEvent } from "react";
-import { KINDS, PROVIDERS, REF_LABEL, UNIT, isUsageKind, maskRef, validateRef, type Kind } from "@/lib/app/catalog";
+import { KINDS, PROVIDERS, QUICK_AMOUNTS, REF_LABEL, UNIT, isUsageLine, maskRef, networkFor, validateRef, type Kind, type MeterType } from "@/lib/app/catalog";
 import { formatDay, formatMoney, toMinor, type Currency } from "@/lib/app/format";
 import { latest, outlook } from "@/lib/app/insights";
 import { newId, type Line } from "@/lib/app/store";
@@ -10,6 +10,8 @@ import { CableAdd, CableDetail, cableStatus, providerName as cableProviderName }
 import { outlookText } from "./Home";
 import { Field } from "./Field";
 import { KindIcon } from "./KindIcon";
+import { ProviderLogo } from "./ProviderLogo";
+import { NetworkList, ProviderGrid } from "./ProviderPicker";
 import type { Store } from "./Shell";
 import { useServer } from "./Server";
 import { Sheet } from "./Sheet";
@@ -17,6 +19,10 @@ import { useNotify } from "./Toast";
 
 const kindLabel = (k: Kind) => KINDS.find((x) => x.kind === k)?.label ?? k;
 const providerName = (l: Pick<Line, "kind" | "provider">) => PROVIDERS[l.kind].find((p) => p.id === l.provider)?.name ?? l.provider;
+const providerFull = (l: Pick<Line, "kind" | "provider">) => {
+  const p = PROVIDERS[l.kind].find((x) => x.id === l.provider);
+  return p?.full ?? p?.name ?? l.provider;
+};
 const minorToInput = (minor: string) => {
   const v = BigInt(minor);
   const cents = v % 100n;
@@ -97,7 +103,7 @@ export function Bills({ store }: { store: Store }) {
             return (
               <li key={l.id}>
                 <button className="ap-row ap-row-btn" onClick={() => setOpenId(l.id)} aria-label={`${l.nickname}, ${t.right}, ${t.sub}. Open details`}>
-                  <KindIcon kind={l.kind} />
+                  <ProviderLogo kind={l.kind} id={l.provider} />
                   <span className="ap-row-main">
                     <b>
                       {l.nickname}
@@ -154,7 +160,7 @@ function ServerRow({ line, onOpen }: { line: ServerLine; onOpen: () => void }) {
   return (
     <li>
       <button className="ap-row ap-row-btn" onClick={onOpen} aria-label={`${line.nickname}, ${t.right}, ${t.sub}. Open details`}>
-        <KindIcon kind="tv" />
+        <ProviderLogo kind="tv" id={line.provider} />
         <span className="ap-row-main">
           <b>
             {line.nickname}
@@ -196,6 +202,8 @@ function AddBill({ onSave, serverTv, onServerSaved }: { onSave: (l: Line) => voi
 
 /* ── Form (add and edit) ─────────────────────────────────── */
 
+const MOBILE = (k: Kind): k is "airtime" | "data" => k === "airtime" || k === "data";
+
 function BillForm({
   kind,
   initial,
@@ -208,12 +216,22 @@ function BillForm({
   onSave: (l: Line) => void;
 }) {
   const providers = PROVIDERS[kind];
-  const usage = isUsageKind(kind);
+  const mobile = MOBILE(kind);
   const currency: Currency = initial?.currency ?? (kind === "subscription" ? "USD" : "NGN");
   const sym = currency === "NGN" ? "₦" : "$";
   const formRef = useRef<HTMLFormElement>(null);
+  const quick = currency === "NGN" ? QUICK_AMOUNTS[kind] : undefined;
+  const uid = useId();
+  const phoneId = `${uid}-phone`;
+  const amountId = `${uid}-amount`;
 
-  const [provider, setProvider] = useState(initial?.provider ?? providers.find((p) => p.available)?.id ?? "");
+  // Mobile bills start at the number (the network follows from it); the rest start by choosing the provider.
+  const [step, setStep] = useState<"provider" | "details">(initial || mobile ? "details" : "provider");
+  const [picking, setPicking] = useState(false);
+  const [provider, setProvider] = useState(initial?.provider ?? (mobile ? "" : ""));
+  const [pickedByHand, setPickedByHand] = useState(Boolean(initial));
+  const [meterType, setMeterType] = useState<MeterType>(initial?.meterType ?? "prepaid");
+  const usage = isUsageLine({ kind, meterType });
   const [ref, setRef] = useState(initial?.ref ?? "");
   const [nickname, setNickname] = useState(initial?.nickname ?? "");
   const [amount, setAmount] = useState(initial ? minorToInput(initial.amountMinor) : "");
@@ -225,6 +243,10 @@ function BillForm({
   const [cap, setCap] = useState(initial && initial.weeklyCapMinor !== initial.amountMinor ? minorToInput(initial.weeklyCapMinor) : "");
   const [tried, setTried] = useState(false);
 
+  const detected = mobile ? networkFor(ref) : null;
+  // Follow the number until the person picks a network themselves (ported numbers keep their old prefix).
+  const effectiveProvider = mobile && !pickedByHand ? (detected ?? provider) : provider;
+
   const amountMinor = toMinor(amount);
   const capMinor = cap ? toMinor(cap) : amountMinor;
   const thresholdNum = Number(threshold);
@@ -232,6 +254,7 @@ function BillForm({
   const day = Number(renewDay);
 
   const errors = {
+    provider: !effectiveProvider ? (mobile ? "Choose the network" : "Choose a provider") : null,
     ref: validateRef(kind, ref),
     amount: amountMinor === null || amountMinor <= 0n ? "Enter an amount, e.g. 5000" : null,
     cap:
@@ -244,9 +267,10 @@ function BillForm({
     current: current && (!Number.isFinite(currentNum) || (currentNum ?? 0) < 0) ? "Enter a number" : null,
     day: !usage && (!Number.isInteger(day) || day < 1 || day > 28) ? "Pick a day from 1 to 28" : null,
   };
-  const ok = Object.values(errors).every((e) => !e) && provider;
+  const ok = Object.values(errors).every((e) => !e);
   const show = (e: string | null) => (tried ? e : null);
-  const pName = providers.find((p) => p.id === provider)?.name ?? "";
+  const chosen = providers.find((p) => p.id === effectiveProvider);
+  const pName = chosen?.name ?? "";
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -261,13 +285,14 @@ function BillForm({
     onSave({
       id: initial?.id ?? newId(),
       kind,
-      provider,
+      provider: effectiveProvider,
       ref: ref.trim(),
       nickname: nickname.trim() || `${pName} ${kindLabel(kind).toLowerCase()}`.trim(),
       currency,
       amountMinor: amountMinor.toString(),
       threshold: usage ? thresholdNum : undefined,
       renewDay: usage ? undefined : day,
+      ...(kind === "electricity" ? { meterType } : {}),
       weeklyCapMinor: (capMinor ?? amountMinor).toString(),
       status: initial?.status ?? "active",
       readings: usage && currentNum !== null ? [...readings, { at: now, value: currentNum }] : readings,
@@ -275,47 +300,198 @@ function BillForm({
     });
   }
 
+  // ── Choosing the provider (electricity, TV, subscriptions) ──
+  if (step === "provider") {
+    return (
+      <div className="ap-form">
+        {onBack && (
+          <button type="button" className="ap-back" onClick={onBack}>
+            <span aria-hidden="true">←</span> {kindLabel(kind)}
+          </button>
+        )}
+        <h3 className="ap-step-title">{kind === "electricity" ? "Select your distributor" : kind === "tv" ? "Select your provider" : "Select the service"}</h3>
+        <ProviderGrid
+          kind={kind}
+          value={provider}
+          onPick={(id) => {
+            setProvider(id);
+            setStep("details");
+          }}
+          {...(kind === "electricity" ? { meterType, onMeterType: setMeterType } : {})}
+        />
+      </div>
+    );
+  }
+
+  // ── Choosing the network (airtime, data) ──
+  if (picking && mobile) {
+    return (
+      <div className="ap-form">
+        <button type="button" className="ap-back" onClick={() => setPicking(false)}>
+          <span aria-hidden="true">←</span> Back
+        </button>
+        <h3 className="ap-step-title">Select network</h3>
+        <NetworkList
+          kind={kind}
+          value={effectiveProvider}
+          onPick={(id) => {
+            setProvider(id);
+            setPickedByHand(true);
+            setPicking(false);
+          }}
+        />
+      </div>
+    );
+  }
+
+  const suggest = mobile && detected && pickedByHand && detected !== effectiveProvider ? providers.find((p) => p.id === detected) : null;
+
   return (
     <form className="ap-form" onSubmit={submit} noValidate ref={formRef}>
-      {onBack && (
+      {onBack && !initial && (
         <button type="button" className="ap-back" onClick={onBack}>
           <span aria-hidden="true">←</span> {kindLabel(kind)}
         </button>
       )}
+      {initial && onBack && (
+        <button type="button" className="ap-back" onClick={onBack}>
+          <span aria-hidden="true">←</span> Back
+        </button>
+      )}
 
-      <fieldset className="ap-field">
-        <legend>Provider</legend>
-        <div className="ap-chips" role="radiogroup" aria-label="Provider">
-          {providers.map((p) => (
+      {!mobile && chosen && (
+        <div className="ap-selected">
+          <ProviderLogo kind={kind} id={chosen.id} size={44} />
+          <span className="ap-row-main">
+            <b>{chosen.full ?? chosen.name}</b>
+            <small>{kind === "electricity" ? (meterType === "prepaid" ? "Prepaid meter" : "Postpaid meter") : kindLabel(kind)}</small>
+          </span>
+          <button type="button" className="ap-link" onClick={() => setStep("provider")}>
+            Change
+          </button>
+        </div>
+      )}
+
+      {mobile ? (
+        <div className="ap-field">
+          <label htmlFor={phoneId}>Phone number</label>
+          <div className="ap-phone" data-invalid={Boolean(show(errors.ref) || show(errors.provider))}>
             <button
               type="button"
-              key={p.id}
-              role="radio"
-              aria-checked={provider === p.id}
-              className="ap-chip-btn"
-              data-on={provider === p.id}
-              disabled={!p.available}
-              onClick={() => setProvider(p.id)}
+              className="ap-net-btn"
+              onClick={() => setPicking(true)}
+              aria-label={chosen ? `Network: ${chosen.name}. Change` : "Choose the network"}
             >
-              {p.name}
-              {!p.available && <small>soon</small>}
+              {chosen ? <ProviderLogo kind={kind} id={chosen.id} size={32} /> : <span className="ap-net-empty" aria-hidden="true" />}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
             </button>
-          ))}
+            <input
+              id={phoneId}
+              inputMode="tel"
+              autoComplete="tel"
+              value={ref}
+              onChange={(e) => setRef(e.target.value)}
+              placeholder="0803 123 4567"
+              aria-invalid={Boolean(show(errors.ref))}
+              aria-describedby={`${phoneId}-msg`}
+            />
+          </div>
+          <span id={`${phoneId}-msg`} className={show(errors.ref) || show(errors.provider) ? "ap-err" : "ap-hint"}>
+            {show(errors.ref) ?? show(errors.provider) ?? (chosen ? `${chosen.name}${pickedByHand ? "" : ", from the number"}. Tap the logo if you moved networks.` : "We'll find the network from the number.")}
+          </span>
+          {suggest && (
+            <button
+              type="button"
+              className="ap-suggest"
+              onClick={() => {
+                setProvider(suggest.id);
+                setPickedByHand(false);
+              }}
+            >
+              <ProviderLogo kind={kind} id={suggest.id} size={22} />
+              This number looks like {suggest.name}. Use {suggest.name}
+            </button>
+          )}
         </div>
-      </fieldset>
+      ) : (
+        <Field label={REF_LABEL[kind]} error={show(errors.ref)}>
+          {(a) => (
+            <input
+              {...a}
+              inputMode={kind === "subscription" ? "email" : "numeric"}
+              autoComplete={kind === "subscription" ? "email" : "off"}
+              value={ref}
+              onChange={(e) => setRef(e.target.value)}
+              placeholder={kind === "subscription" ? "you@example.com" : kind === "electricity" ? "45012345678" : "7012345678"}
+            />
+          )}
+        </Field>
+      )}
 
-      <Field label={REF_LABEL[kind]} error={show(errors.ref)}>
-        {(a) => (
+      <div className="ap-field">
+        <label htmlFor={amountId}>{usage ? "Each top-up" : kind === "electricity" ? "Each payment" : "Each renewal"}</label>
+        <div className="ap-amount" data-invalid={Boolean(show(errors.amount))}>
+          <span aria-hidden="true">{sym}</span>
           <input
-            {...a}
-            inputMode={kind === "subscription" ? "email" : "numeric"}
-            autoComplete={kind === "subscription" ? "email" : kind === "data" || kind === "airtime" ? "tel" : "off"}
-            value={ref}
-            onChange={(e) => setRef(e.target.value)}
-            placeholder={kind === "subscription" ? "you@example.com" : kind === "electricity" ? "45012345678" : kind === "tv" ? "7012345678" : "0803 123 4567"}
+            id={amountId}
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder={currency === "NGN" ? "0" : "0.00"}
+            aria-invalid={Boolean(show(errors.amount))}
+            aria-describedby={show(errors.amount) ? `${amountId}-msg` : undefined}
           />
+        </div>
+        {show(errors.amount) && (
+          <span id={`${amountId}-msg`} className="ap-err">
+            {show(errors.amount)}
+          </span>
         )}
-      </Field>
+        {quick && (
+          <div className="ap-quick" role="group" aria-label="Quick amounts">
+            {quick.map((n) => (
+              <button type="button" key={n} className="ap-quick-btn" data-on={toMinor(amount) === BigInt(n) * 100n} onClick={() => setAmount(String(n))}>
+                {formatMoney(BigInt(n) * 100n, "NGN")}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <section className="ap-form-section" aria-label={usage ? "When to top up" : kind === "electricity" ? "When it's paid" : "When it renews"}>
+        <h4>{usage ? "When to top up" : kind === "electricity" ? "When it's paid" : "When it renews"}</h4>
+        <div className="ap-grid-2">
+          {usage ? (
+            <Field label={`Top up at (${UNIT[kind]})`} error={show(errors.threshold)}>
+              {(a) => <input {...a} inputMode="decimal" value={threshold} onChange={(e) => setThreshold(e.target.value)} />}
+            </Field>
+          ) : (
+            <Field label={kind === "electricity" ? "Pay on day" : "Renews on day"} error={show(errors.day)} hint="1 to 28">
+              {(a) => <input {...a} inputMode="numeric" value={renewDay} onChange={(e) => setRenewDay(e.target.value)} />}
+            </Field>
+          )}
+          {usage ? (
+            <Field label={`${initial ? "New reading" : "Left now"} (${UNIT[kind]})`} error={show(errors.current)} hint="Optional">
+              {(a) => <input {...a} inputMode="decimal" value={current} onChange={(e) => setCurrent(e.target.value)} />}
+            </Field>
+          ) : (
+            <Field label={`Most per ${kind === "electricity" ? "payment" : "renewal"} (${sym})`} error={show(errors.cap)} hint="Optional">
+              {(a) => <input {...a} inputMode="decimal" value={cap} onChange={(e) => setCap(e.target.value)} />}
+            </Field>
+          )}
+        </div>
+        {usage && (
+          <Field
+            label={`Weekly cap (${sym}, optional)`}
+            error={show(errors.cap)}
+            hint="Constant never spends more than this in a week. Defaults to one top-up."
+          >
+            {(a) => <input {...a} inputMode="decimal" value={cap} onChange={(e) => setCap(e.target.value)} />}
+          </Field>
+        )}
+      </section>
 
       <Field label="Name (optional)" hint="So you can tell bills apart">
         {(a) => (
@@ -324,44 +500,11 @@ function BillForm({
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             placeholder={
-              kind === "electricity" ? "Home meter" : kind === "tv" ? "Living room DSTV" : kind === "subscription" ? "ChatGPT Plus" : kind === "airtime" ? "My airtime" : "My data"
+              kind === "electricity" ? "Home meter" : kind === "tv" ? "Living room DStv" : kind === "subscription" ? "ChatGPT Plus" : kind === "airtime" ? "My airtime" : "My data"
             }
             maxLength={40}
           />
         )}
-      </Field>
-
-      <div className="ap-grid-2">
-        <Field label={`${usage ? "Each top-up" : "Each renewal"} (${sym})`} error={show(errors.amount)}>
-          {(a) => <input {...a} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={currency === "NGN" ? "5,000" : "20"} />}
-        </Field>
-        {usage ? (
-          <Field label={`Top up at (${UNIT[kind]})`} error={show(errors.threshold)}>
-            {(a) => <input {...a} inputMode="decimal" value={threshold} onChange={(e) => setThreshold(e.target.value)} />}
-          </Field>
-        ) : (
-          <Field label="Renews on day" error={show(errors.day)} hint="1 to 28">
-            {(a) => <input {...a} inputMode="numeric" value={renewDay} onChange={(e) => setRenewDay(e.target.value)} />}
-          </Field>
-        )}
-      </div>
-
-      {usage && (
-        <Field
-          label={`${initial ? "New reading" : "What's left now"} (${UNIT[kind]}, optional)`}
-          error={show(errors.current)}
-          hint={kind === "electricity" ? "Read it from the keypad inside your home" : "From your network's balance check"}
-        >
-          {(a) => <input {...a} inputMode="decimal" value={current} onChange={(e) => setCurrent(e.target.value)} />}
-        </Field>
-      )}
-
-      <Field
-        label={usage ? `Weekly cap (${sym}, optional)` : `Most per renewal (${sym}, optional)`}
-        error={show(errors.cap)}
-        hint={usage ? "Constant never spends more than this in a week. Defaults to one payment." : "If the price goes above this, Constant asks you first. Defaults to one payment."}
-      >
-        {(a) => <input {...a} inputMode="decimal" value={cap} onChange={(e) => setCap(e.target.value)} />}
       </Field>
 
       {tried && !ok && (
@@ -375,7 +518,7 @@ function BillForm({
       </button>
       {!initial && (
         <p className="ap-fine">
-          Nothing is paid now. When payments open, Constant checks the {REF_LABEL[kind].toLowerCase()} and shows you the name before the first payment.
+          Nothing is paid now. Before the first payment, Constant checks the {REF_LABEL[kind].toLowerCase()} and shows you the name on it.
         </p>
       )}
     </form>
@@ -386,7 +529,7 @@ function BillForm({
 
 function BillDetail({ line, onChange, onDelete }: { line: Line; onChange: (l: Line) => void; onDelete: () => void }) {
   const notify = useNotify();
-  const usage = isUsageKind(line.kind);
+  const usage = isUsageLine(line);
   const [editing, setEditing] = useState(false);
   const [reading, setReading] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -414,7 +557,7 @@ function BillDetail({ line, onChange, onDelete }: { line: Line; onChange: (l: Li
   return (
     <div className="ap-detail">
       <div className="ap-detail-top">
-        <KindIcon kind={line.kind} />
+        <ProviderLogo kind={line.kind} id={line.provider} size={44} />
         <div>
           <b className="mono">{t.right}</b>
           <small>{t.sub}</small>
@@ -424,8 +567,14 @@ function BillDetail({ line, onChange, onDelete }: { line: Line; onChange: (l: Li
       <dl className="ap-dl">
         <div>
           <dt>Provider</dt>
-          <dd>{providerName(line)}</dd>
+          <dd>{providerFull(line)}</dd>
         </div>
+        {line.kind === "electricity" && (
+          <div>
+            <dt>Meter</dt>
+            <dd>{line.meterType === "postpaid" ? "Postpaid" : "Prepaid"}</dd>
+          </div>
+        )}
         <div>
           <dt>{REF_LABEL[line.kind]}</dt>
           <dd>{maskRef(line.kind, line.ref)}</dd>

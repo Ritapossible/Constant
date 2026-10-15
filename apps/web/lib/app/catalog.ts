@@ -2,7 +2,16 @@
 
 export type Kind = "data" | "airtime" | "electricity" | "tv" | "subscription";
 
-export type Provider = { id: string; name: string; available: boolean };
+export type Provider = {
+  id: string;
+  /** Short name for tiles and lists, e.g. "Ikeja". */
+  name: string;
+  /** Full name, e.g. "Ikeja Electric (IKEDC)". */
+  full?: string;
+  /** Has a logo at /providers/{id}.jpg (from the vend partner's catalogue, VTpass). */
+  logo?: true;
+  available: boolean;
+};
 
 export const KINDS: { kind: Kind; label: string; hint: string }[] = [
   { kind: "data", label: "Mobile data", hint: "Tops up at your line" },
@@ -13,33 +22,35 @@ export const KINDS: { kind: Kind; label: string; hint: string }[] = [
 ];
 
 const NETWORKS: Provider[] = [
-  { id: "mtn", name: "MTN", available: true },
-  { id: "airtel", name: "Airtel", available: true },
-  { id: "glo", name: "Glo", available: true },
-  { id: "9mobile", name: "9mobile", available: true },
+  { id: "mtn", name: "MTN", logo: true, available: true },
+  { id: "airtel", name: "Airtel", logo: true, available: true },
+  { id: "glo", name: "Glo", logo: true, available: true },
+  // 9mobile trades as T2 since 2025; the id stays so saved bills keep working.
+  { id: "9mobile", name: "T2", full: "T2 (formerly 9mobile)", logo: true, available: true },
 ];
 
 export const PROVIDERS: Record<Kind, Provider[]> = {
   data: NETWORKS,
   airtime: NETWORKS,
   electricity: [
-    { id: "ikedc", name: "IKEDC", available: true },
-    { id: "ekedc", name: "EKEDC", available: true },
-    { id: "eedc", name: "EEDC", available: true },
-    { id: "aedc", name: "AEDC", available: true },
-    { id: "ibedc", name: "IBEDC", available: false },
-    { id: "phed", name: "PHED", available: false },
-    { id: "bedc", name: "BEDC", available: false },
-    { id: "kedco", name: "KEDCO", available: false },
-    { id: "kaedco", name: "KAEDCO", available: false },
-    { id: "jed", name: "JED", available: false },
-    { id: "yedc", name: "YEDC", available: false },
-    { id: "aba", name: "Aba Power", available: false },
+    { id: "ikedc", name: "Ikeja", full: "Ikeja Electric (IKEDC)", logo: true, available: true },
+    { id: "ekedc", name: "Eko", full: "Eko Electricity (EKEDC)", logo: true, available: true },
+    { id: "aedc", name: "Abuja", full: "Abuja Electricity (AEDC)", logo: true, available: true },
+    { id: "eedc", name: "Enugu", full: "Enugu Electricity (EEDC)", logo: true, available: true },
+    { id: "ibedc", name: "Ibadan", full: "Ibadan Electricity (IBEDC)", logo: true, available: false },
+    { id: "phed", name: "Port Harcourt", full: "Port Harcourt Electricity (PHED)", logo: true, available: false },
+    { id: "bedc", name: "Benin", full: "Benin Electricity (BEDC)", logo: true, available: false },
+    { id: "kedco", name: "Kano", full: "Kano Electricity (KEDCO)", logo: true, available: false },
+    { id: "kaedco", name: "Kaduna", full: "Kaduna Electric (KAEDCO)", logo: true, available: false },
+    { id: "jed", name: "Jos", full: "Jos Electricity (JED)", logo: true, available: false },
+    { id: "yedc", name: "Yola", full: "Yola Electricity (YEDC)", logo: true, available: false },
+    // Aba Power trades as APL Electric.
+    { id: "aba", name: "Aba", full: "APL Electric (Aba Power)", logo: true, available: false },
   ],
   tv: [
-    { id: "dstv", name: "DSTV", available: true },
-    { id: "gotv", name: "GOtv", available: true },
-    { id: "startimes", name: "StarTimes", available: true },
+    { id: "dstv", name: "DStv", logo: true, available: true },
+    { id: "gotv", name: "GOtv", logo: true, available: true },
+    { id: "startimes", name: "StarTimes", logo: true, available: true },
   ],
   subscription: [
     { id: "chatgpt", name: "ChatGPT", available: true },
@@ -53,6 +64,11 @@ export const PROVIDERS: Record<Kind, Provider[]> = {
 /** How each kind is triggered: a usage line (reading at or below the line) or a date. */
 export function isUsageKind(k: Kind): boolean {
   return k === "data" || k === "airtime" || k === "electricity";
+}
+
+/** A bill tops up on usage, except a postpaid meter, which is a monthly bill paid on a day. */
+export function isUsageLine(l: { kind: Kind; meterType?: "prepaid" | "postpaid" }): boolean {
+  return isUsageKind(l.kind) && !(l.kind === "electricity" && l.meterType === "postpaid");
 }
 
 export const UNIT: Record<Kind, string> = {
@@ -89,3 +105,36 @@ export function maskRef(kind: Kind, ref: string): string {
   }
   return `•••• ${ref.replace(/\D/g, "").slice(-4)}`;
 }
+
+/** Where a provider's logo is, if it has one. */
+export const logoOf = (p: Pick<Provider, "id" | "logo"> | undefined) => (p?.logo ? `/providers/${p.id}.jpg` : null);
+
+export const findProvider = (kind: Kind, id: string) => PROVIDERS[kind].find((p) => p.id === id);
+
+/**
+ * The network a Nigerian number was issued on, from its prefix (NCC allocations). Only a suggestion: a ported
+ * number keeps its prefix, so the person can always change it.
+ */
+const PREFIXES: Record<string, string[]> = {
+  mtn: ["0703", "0704", "0706", "0707", "0803", "0806", "0810", "0813", "0814", "0816", "0903", "0906", "0913", "0916"],
+  airtel: ["0701", "0708", "0802", "0808", "0812", "0901", "0902", "0904", "0907", "0911", "0912"],
+  glo: ["0705", "0805", "0807", "0811", "0815", "0905", "0915"],
+  "9mobile": ["0809", "0817", "0818", "0908", "0909"],
+};
+export function networkFor(raw: string): string | null {
+  let v = raw.replace(/[\s-]/g, "");
+  if (v.startsWith("+234")) v = "0" + v.slice(4);
+  else if (v.startsWith("234")) v = "0" + v.slice(3);
+  if (v.length < 4) return null;
+  const p = v.slice(0, 4);
+  return Object.keys(PREFIXES).find((k) => PREFIXES[k]!.includes(p)) ?? null;
+}
+
+/** Quick picks for "each top-up", in naira. */
+export const QUICK_AMOUNTS: Partial<Record<Kind, number[]>> = {
+  airtime: [100, 200, 500, 1000, 2000, 5000],
+  data: [500, 1000, 2000, 3500, 5000, 10000],
+  electricity: [2000, 5000, 10000, 15000, 20000, 50000],
+};
+
+export type MeterType = "prepaid" | "postpaid";

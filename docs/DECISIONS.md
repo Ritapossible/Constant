@@ -353,3 +353,10 @@ When the VTpass balance drops below `FLOAT_LOW_NGN`, charged USDC on the spender
 - **Switch:** `ARC_AUTOPAY` (API and worker) and `NEXT_PUBLIC_ARC_AUTOPAY` (app), off by default. The worker refuses to start with it on if the manager isn't on Arc. Needs Privy smart wallets on Arc as a custom chain with Pimlico's bundler and paymaster.
 - **Reconciliation** checks each charge on its own chain (it checked everything on Base before, which would have flagged every Arc charge).
 - **Proof run:** `scripts/arc/proof-testnet.mjs` on Arc testnet and Base Sepolia. Run locally on 2026-10-11 against a chain with Arc testnet's id, a stand-in token and Coinbase's wallet code copied from Arc mainnet: every permission check passed. The real testnet run (Arc's native USDC, CCTP) waits for faucet funds.
+
+### D-071 Choosing a provider: logos, the number first, a distributor grid
+- **Mobile (airtime, data):** the phone number comes first; the network is read from its prefix (NCC allocations) and shown as its logo, which the person can tap to change, because ported numbers keep their old prefix. If they pick a network that disagrees with the prefix, the app offers the detected one once, without overriding them.
+- **Electricity, TV, subscriptions:** a grid of provider tiles with search. Electricity has Prepaid/Postpaid tabs; a postpaid meter is a monthly bill paid on a day, not a top-up at a kWh level. DisCos not yet enabled show as "Soon" (D-038's waves).
+- **Amounts:** a large amount field with quick picks (₦100–₦5,000 airtime, ₦500–₦10,000 data, ₦2,000–₦50,000 electricity).
+- **Logos:** the providers' own, from VTpass's service catalogue (the partner that vends them), unaltered, on white tiles; current names (T2, formerly 9mobile; APL Electric for Aba). Bills show the provider's logo in lists and details.
+- **Not copied from other apps:** cashback badges. Constant charges a flat fee and doesn't sell on discounts.

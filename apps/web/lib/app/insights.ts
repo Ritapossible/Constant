@@ -13,7 +13,7 @@ import {
   zonedInstant,
   type UsageStats,
 } from "@constant/rules";
-import { isUsageKind } from "./catalog";
+import { isUsageLine } from "./catalog";
 import type { Line, Reading } from "./store";
 
 const TZ = "Africa/Lagos";
@@ -56,7 +56,7 @@ export type Outlook =
   | { kind: "steady"; remaining: number };
 
 export function outlook(line: Line, now: Date): Outlook {
-  if (!isUsageKind(line.kind)) return { kind: "renewal", date: nextRenewal(line.renewDay ?? 1, now) };
+  if (!isUsageLine(line)) return { kind: "renewal", date: nextRenewal(line.renewDay ?? 1, now) };
   const last = latest(line.readings);
   if (!last) return { kind: "needs_reading" };
   const stats: UsageStats | null = usageStats(dailyRates(line.readings));
@@ -78,7 +78,7 @@ export function notices(lines: readonly Line[], now: Date): Notice[] {
   for (const line of lines) {
     if (line.status !== "active") continue;
     const name = line.nickname;
-    if (!isUsageKind(line.kind)) {
+    if (!isUsageLine(line)) {
       const date = nextRenewal(line.renewDay ?? 1, now);
       const days = Math.ceil((date.getTime() - now.getTime()) / DAY);
       if (days <= 3) out.push({ lineId: line.id, tone: "info", title: `${name} renews in ${days <= 1 ? "a day" : `${days} days`}`, body: "Make sure its pot covers it." });

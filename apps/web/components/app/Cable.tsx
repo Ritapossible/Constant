@@ -4,13 +4,14 @@ import { useState, type FormEvent } from "react";
 import type { Lookup, ServerLine, ServerOrder } from "@/lib/app/api";
 import { formatDay, formatMoney, toMinor } from "@/lib/app/format";
 import { Field } from "./Field";
-import { KindIcon } from "./KindIcon";
+import { ProviderLogo } from "./ProviderLogo";
+import { ProviderGrid } from "./ProviderPicker";
 import { useServer } from "./Server";
 import { useNotify } from "./Toast";
 import { StablesAutopay } from "./StablesAutopay";
 
 const PROVIDERS = [
-  { id: "dstv", name: "DSTV", digits: "10" },
+  { id: "dstv", name: "DStv", digits: "10" },
   { id: "gotv", name: "GOtv", digits: "10" },
   { id: "startimes", name: "StarTimes", digits: "11" },
 ] as const;
@@ -95,13 +96,7 @@ export function CableAdd({ onBack, onDone }: { onBack: () => void; onDone: (l: S
         </button>
         <fieldset className="ap-field">
           <legend>Provider</legend>
-          <div className="ap-chips" role="radiogroup" aria-label="Provider">
-            {PROVIDERS.map((p) => (
-              <button type="button" key={p.id} role="radio" aria-checked={provider === p.id} className="ap-chip-btn" data-on={provider === p.id} onClick={() => setProvider(p.id)}>
-                {p.name}
-              </button>
-            ))}
-          </div>
+          <ProviderGrid kind="tv" value={provider} onPick={(id) => setProvider(id as ProviderId)} />
         </fieldset>
         <Field label={provider === "dstv" ? "Smartcard number" : "IUC number"} error={error} hint="On a sticker under the decoder, or press Info on the remote">
           {(a) => <input {...a} inputMode="numeric" autoComplete="off" value={card} onChange={(e) => setCard(e.target.value)} placeholder="7012345678" />}
@@ -119,7 +114,7 @@ export function CableAdd({ onBack, onDone }: { onBack: () => void; onDone: (l: S
         <span aria-hidden="true">←</span> Change number
       </button>
       <div className="ap-confirm" role="status">
-        <KindIcon kind="tv" />
+        <ProviderLogo kind="tv" id={provider} size={44} />
         <div>
           <b>{found.customerName}</b>
           <small>
@@ -206,7 +201,7 @@ export function CableDetail({ line, orders, onClose }: { line: ServerLine; order
   return (
     <div className="ap-detail">
       <div className="ap-detail-top">
-        <KindIcon kind="tv" />
+        <ProviderLogo kind="tv" id={line.provider} size={44} />
         <div>
           <b className="mono">{t.right}</b>
           <small>{t.sub}</small>

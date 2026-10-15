@@ -2,12 +2,12 @@
 
 import type { User } from "@privy-io/react-auth";
 import { useMemo } from "react";
-import { UNIT, isUsageKind } from "@/lib/app/catalog";
+import { UNIT, isUsageLine } from "@/lib/app/catalog";
 import { formatDay, formatMoney } from "@/lib/app/format";
 import { notices, outlook, type Outlook } from "@/lib/app/insights";
 import type { Line } from "@/lib/app/store";
 import { cableStatus } from "./Cable";
-import { KindIcon } from "./KindIcon";
+import { ProviderLogo } from "./ProviderLogo";
 import { useServer } from "./Server";
 import { displayName, signInMethods, type GoTo, type Store } from "./Shell";
 
@@ -127,7 +127,7 @@ export function Home({ user, store, goTo }: { user: User; store: Store; goTo: Go
                 const t = cableStatus(l);
                 return (
                   <li key={l.id} className="ap-row">
-                    <KindIcon kind="tv" />
+                    <ProviderLogo kind="tv" id={l.provider} />
                     <span className="ap-row-main">
                       <b>{l.nickname}</b>
                       <small>{t.sub}</small>
@@ -140,7 +140,7 @@ export function Home({ user, store, goTo }: { user: User; store: Store; goTo: Go
               const t = outlookText(l, o);
               return (
                 <li key={l.id} className="ap-row">
-                  <KindIcon kind={l.kind} />
+                  <ProviderLogo kind={l.kind} id={l.provider} />
                   <span className="ap-row-main">
                     <b>{l.nickname}</b>
                     <small>{t.sub}</small>
@@ -153,7 +153,7 @@ export function Home({ user, store, goTo }: { user: User; store: Store; goTo: Go
         )}
       </section>
 
-      {store.plan.lines.some((l) => isUsageKind(l.kind)) && (
+      {store.plan.lines.some((l) => isUsageLine(l)) && (
         <p className="ap-fine">Forecasts come from your own readings and only show a date once there is enough history.</p>
       )}
     </div>
@@ -175,7 +175,7 @@ function Checklist({ user, store, goTo }: { user: User; store: Store; goTo: GoTo
   const lines = store.plan.lines;
   const serverCount = server.me?.lines.length ?? 0;
   const hasBill = lines.length > 0 || serverCount > 0;
-  const usage = lines.filter((l) => isUsageKind(l.kind));
+  const usage = lines.filter((l) => isUsageLine(l));
   const steps: { done: boolean; locked?: boolean; label: string; sub: string; to: "bills" | "account" }[] = [
     { done: hasBill, label: "Add your first bill", sub: "Data, light, cable or a subscription", to: "bills" },
   ];
