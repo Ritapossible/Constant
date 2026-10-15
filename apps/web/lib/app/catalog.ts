@@ -8,8 +8,11 @@ export type Provider = {
   name: string;
   /** Full name, e.g. "Ikeja Electric (IKEDC)". */
   full?: string;
-  /** Has a logo at /providers/{id}.jpg (from the vend partner's catalogue, VTpass). */
-  logo?: true;
+  /**
+   * Has a logo at /providers/{id}.{ext}: `true` is a .jpg from the vend partner's catalogue (VTpass); a string is
+   * the extension of one taken from the provider's own website.
+   */
+  logo?: true | "png" | "svg";
   available: boolean;
 };
 
@@ -53,11 +56,13 @@ export const PROVIDERS: Record<Kind, Provider[]> = {
     { id: "startimes", name: "StarTimes", logo: true, available: true },
   ],
   subscription: [
-    { id: "chatgpt", name: "ChatGPT", available: true },
-    { id: "claude", name: "Claude", available: true },
-    { id: "gemini", name: "Gemini", available: true },
-    { id: "spotify", name: "Spotify", available: true },
-    { id: "netflix", name: "Netflix", available: true },
+    // Logos from each service's own site, unaltered: status.openai.com (chatgpt.com blocks automated requests),
+    // claude.ai, gemini.google.com, Spotify's web-player manifest, and the "N" vector from netflix.com on black.
+    { id: "chatgpt", name: "ChatGPT", full: "ChatGPT (OpenAI)", logo: "png", available: true },
+    { id: "claude", name: "Claude", full: "Claude (Anthropic)", logo: "png", available: true },
+    { id: "gemini", name: "Gemini", full: "Gemini (Google)", logo: "png", available: true },
+    { id: "spotify", name: "Spotify", logo: "png", available: true },
+    { id: "netflix", name: "Netflix", logo: "svg", available: true },
   ],
 };
 
@@ -107,7 +112,7 @@ export function maskRef(kind: Kind, ref: string): string {
 }
 
 /** Where a provider's logo is, if it has one. */
-export const logoOf = (p: Pick<Provider, "id" | "logo"> | undefined) => (p?.logo ? `/providers/${p.id}.jpg` : null);
+export const logoOf = (p: Pick<Provider, "id" | "logo"> | undefined) => (p?.logo ? `/providers/${p.id}.${p.logo === true ? "jpg" : p.logo}` : null);
 
 export const findProvider = (kind: Kind, id: string) => PROVIDERS[kind].find((p) => p.id === id);
 

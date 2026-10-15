@@ -202,6 +202,15 @@ function AddBill({ onSave, serverTv, onServerSaved }: { onSave: (l: Line) => voi
 
 /* ── Form (add and edit) ─────────────────────────────────── */
 
+/** An example plan name for each subscription, as the name placeholder. */
+const PLAN_HINT: Record<string, string> = {
+  chatgpt: "ChatGPT Plus",
+  claude: "Claude Pro",
+  gemini: "Google AI Pro",
+  spotify: "Spotify Premium",
+  netflix: "Netflix Standard",
+};
+
 const MOBILE = (k: Kind): k is "airtime" | "data" => k === "airtime" || k === "data";
 
 function BillForm({
@@ -494,7 +503,15 @@ function BillForm({
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             placeholder={
-              kind === "electricity" ? "Home meter" : kind === "tv" ? "Living room DStv" : kind === "subscription" ? "ChatGPT Plus" : kind === "airtime" ? "My airtime" : "My data"
+              kind === "electricity"
+                ? "Home meter"
+                : kind === "tv"
+                  ? `Living room ${pName || "TV"}`
+                  : kind === "subscription"
+                    ? (PLAN_HINT[effectiveProvider] ?? "My subscription")
+                    : kind === "airtime"
+                      ? "My airtime"
+                      : "My data"
             }
             maxLength={40}
           />

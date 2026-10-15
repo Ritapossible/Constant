@@ -359,4 +359,5 @@ When the VTpass balance drops below `FLOAT_LOW_NGN`, charged USDC on the spender
 - **Electricity, TV, subscriptions:** a grid of provider tiles with search. Electricity has Prepaid/Postpaid tabs; a postpaid meter is a monthly bill paid on a day, not a top-up at a kWh level. DisCos not yet enabled show as "Soon" (D-038's waves).
 - **Amounts:** a large amount field with quick picks (₦100–₦5,000 airtime, ₦500–₦10,000 data, ₦2,000–₦50,000 electricity).
 - **Logos:** the providers' own, from VTpass's service catalogue (the partner that vends them), unaltered, on white tiles; current names (T2, formerly 9mobile; APL Electric for Aba). Bills show the provider's logo in lists and details.
+- **Subscriptions:** logos taken from each service's own website, unaltered: ChatGPT from status.openai.com (chatgpt.com refuses automated requests), Claude from claude.ai, Gemini from gemini.google.com, Spotify from its web player's app manifest, Netflix's "N" vector from netflix.com set on black like its app icon. Re-check them when a brand changes.
 - **Not copied from other apps:** cashback badges. Constant charges a flat fee and doesn't sell on discounts.
