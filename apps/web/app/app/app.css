@@ -1104,12 +1104,6 @@
   padding: 24px 0;
   text-align: center;
 }
-.ap-network-list .ap-row-right {
-  color: var(--muted);
-}
-.ap-network-list [aria-checked="true"] .ap-row-right {
-  color: var(--ink);
-}
 .ap-selected {
   display: flex;
   align-items: center;
@@ -1162,24 +1156,50 @@
   letter-spacing: 0.01em;
   color: var(--ink);
 }
-.ap-net-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 44px;
-  padding: 0 8px 0 6px;
-  border-radius: 12px;
-  border-right: 1px solid var(--line);
-  color: var(--muted);
+.ap-phone {
+  padding-left: 14px;
 }
-.ap-net-btn:hover {
-  background: var(--surface-2);
+.ap-net-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
-.ap-net-empty {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  border: 1px dashed var(--line-strong);
+.ap-net-tile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 12px 4px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s var(--ease-out);
+}
+.ap-net-tile:hover:not(:disabled) {
+  border-color: var(--ink-2);
+}
+.ap-net-tile:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.ap-net-tile[data-on="true"] {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.ap-net-row[data-invalid] .ap-net-tile {
+  border-color: #b42318;
+}
+.ap-net-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--on-inverse);
 }
 .ap-suggest {
   justify-self: start;
@@ -1253,4 +1273,16 @@
   .ap-provider-card b {
     font-size: 13px;
   }
+}
+/* The phone and amount inputs sit inside a styled box: no second border of their own. */
+.ap-field .ap-phone input,
+.ap-field .ap-phone input:focus,
+.ap-field .ap-amount input,
+.ap-field .ap-amount input:focus {
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
 }

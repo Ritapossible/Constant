@@ -82,32 +82,34 @@ export function ProviderGrid({
   );
 }
 
-/** Choosing a mobile network: a list with logos, like a phone's own picker. */
-export function NetworkList({ kind, value, onPick }: { kind: "airtime" | "data"; value?: string; onPick: (id: string) => void }) {
+/**
+ * The network, always in view under the phone number: four logo tiles, one tap. It is picked for the person from
+ * the number's prefix; they tap another one if they moved networks.
+ */
+export function NetworkPicker({ kind, value, onPick, invalid }: { kind: "airtime" | "data"; value?: string; onPick: (id: string) => void; invalid?: boolean }) {
   return (
-    <ul className="ap-list ap-network-list" role="radiogroup" aria-label="Network">
+    <div className="ap-net-row" role="radiogroup" aria-label="Network" data-invalid={invalid || undefined}>
       {PROVIDERS[kind].map((p) => (
-        <li key={p.id}>
-          <button type="button" role="radio" aria-checked={value === p.id} className="ap-row ap-row-btn" disabled={!p.available} onClick={() => onPick(p.id)}>
-            <ProviderLogo kind={kind} id={p.id} size={40} />
-            <span className="ap-row-main">
-              <b>{p.name}</b>
-              {p.full && <small>{p.full}</small>}
-            </span>
-            <span className="ap-row-right" aria-hidden="true">
-              {value === p.id ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m5 12 5 5 9-10" />
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m9 6 6 6-6 6" />
-                </svg>
-              )}
-            </span>
-          </button>
-        </li>
+        <button
+          key={p.id}
+          type="button"
+          role="radio"
+          aria-checked={value === p.id}
+          aria-label={p.full ?? p.name}
+          className="ap-net-tile"
+          data-on={value === p.id}
+          disabled={!p.available}
+          onClick={() => onPick(p.id)}
+        >
+          <ProviderLogo kind={kind} id={p.id} size={40} />
+          <span>{p.name}</span>
+          {value === p.id && (
+            <svg className="ap-net-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m5 12 5 5 9-10" />
+            </svg>
+          )}
+        </button>
       ))}
-    </ul>
+    </div>
   );
 }

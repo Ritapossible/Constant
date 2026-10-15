@@ -11,7 +11,7 @@ import { outlookText } from "./Home";
 import { Field } from "./Field";
 import { KindIcon } from "./KindIcon";
 import { ProviderLogo } from "./ProviderLogo";
-import { NetworkList, ProviderGrid } from "./ProviderPicker";
+import { NetworkPicker, ProviderGrid } from "./ProviderPicker";
 import type { Store } from "./Shell";
 import { useServer } from "./Server";
 import { Sheet } from "./Sheet";
@@ -227,7 +227,6 @@ function BillForm({
 
   // Mobile bills start at the number (the network follows from it); the rest start by choosing the provider.
   const [step, setStep] = useState<"provider" | "details">(initial || mobile ? "details" : "provider");
-  const [picking, setPicking] = useState(false);
   const [provider, setProvider] = useState(initial?.provider ?? (mobile ? "" : ""));
   const [pickedByHand, setPickedByHand] = useState(Boolean(initial));
   const [meterType, setMeterType] = useState<MeterType>(initial?.meterType ?? "prepaid");
@@ -323,27 +322,6 @@ function BillForm({
     );
   }
 
-  // ── Choosing the network (airtime, data) ──
-  if (picking && mobile) {
-    return (
-      <div className="ap-form">
-        <button type="button" className="ap-back" onClick={() => setPicking(false)}>
-          <span aria-hidden="true">←</span> Back
-        </button>
-        <h3 className="ap-step-title">Select network</h3>
-        <NetworkList
-          kind={kind}
-          value={effectiveProvider}
-          onPick={(id) => {
-            setProvider(id);
-            setPickedByHand(true);
-            setPicking(false);
-          }}
-        />
-      </div>
-    );
-  }
-
   const suggest = mobile && detected && pickedByHand && detected !== effectiveProvider ? providers.find((p) => p.id === detected) : null;
 
   return (
@@ -373,48 +351,64 @@ function BillForm({
       )}
 
       {mobile ? (
-        <div className="ap-field">
-          <label htmlFor={phoneId}>Phone number</label>
-          <div className="ap-phone" data-invalid={Boolean(show(errors.ref) || show(errors.provider))}>
-            <button
-              type="button"
-              className="ap-net-btn"
-              onClick={() => setPicking(true)}
-              aria-label={chosen ? `Network: ${chosen.name}. Change` : "Choose the network"}
-            >
-              {chosen ? <ProviderLogo kind={kind} id={chosen.id} size={32} /> : <span className="ap-net-empty" aria-hidden="true" />}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <input
-              id={phoneId}
-              inputMode="tel"
-              autoComplete="tel"
-              value={ref}
-              onChange={(e) => setRef(e.target.value)}
-              placeholder="0803 123 4567"
-              aria-invalid={Boolean(show(errors.ref))}
-              aria-describedby={`${phoneId}-msg`}
-            />
+        <>
+          <div className="ap-field">
+            <label htmlFor={phoneId}>Phone number</label>
+            <div className="ap-phone" data-invalid={Boolean(show(errors.ref))}>
+              {chosen && <ProviderLogo kind={kind} id={chosen.id} size={32} />}
+              <input
+                id={phoneId}
+                inputMode="tel"
+                autoComplete="tel"
+                value={ref}
+                onChange={(e) => setRef(e.target.value)}
+                placeholder="0803 123 4567"
+                aria-invalid={Boolean(show(errors.ref))}
+                aria-describedby={show(errors.ref) ? `${phoneId}-msg` : undefined}
+              />
+            </div>
+            {show(errors.ref) && (
+              <span id={`${phoneId}-msg`} className="ap-err">
+                {show(errors.ref)}
+              </span>
+            )}
           </div>
-          <span id={`${phoneId}-msg`} className={show(errors.ref) || show(errors.provider) ? "ap-err" : "ap-hint"}>
-            {show(errors.ref) ?? show(errors.provider) ?? (chosen ? `${chosen.name}${pickedByHand ? "" : ", from the number"}. Tap the logo if you moved networks.` : "We'll find the network from the number.")}
-          </span>
-          {suggest && (
-            <button
-              type="button"
-              className="ap-suggest"
-              onClick={() => {
-                setProvider(suggest.id);
-                setPickedByHand(false);
+
+          <fieldset className="ap-field">
+            <legend>Network</legend>
+            <NetworkPicker
+              kind={kind}
+              value={effectiveProvider}
+              invalid={Boolean(show(errors.provider))}
+              onPick={(id) => {
+                setProvider(id);
+                // Picking the network the number already shows is not an override.
+                setPickedByHand(id !== detected);
               }}
-            >
-              <ProviderLogo kind={kind} id={suggest.id} size={22} />
-              This number looks like {suggest.name}. Use {suggest.name}
-            </button>
-          )}
-        </div>
+            />
+            <span className={show(errors.provider) ? "ap-err" : "ap-hint"} role={show(errors.provider) ? "alert" : undefined}>
+              {show(errors.provider) ??
+                (chosen && !pickedByHand && detected
+                  ? `Picked from your number. Moved to another network? Tap yours.`
+                  : chosen
+                    ? `${chosen.name} selected.`
+                    : "Picked for you as you type the number, or tap your network.")}
+            </span>
+            {suggest && (
+              <button
+                type="button"
+                className="ap-suggest"
+                onClick={() => {
+                  setProvider(suggest.id);
+                  setPickedByHand(false);
+                }}
+              >
+                <ProviderLogo kind={kind} id={suggest.id} size={22} />
+                This number looks like {suggest.name}. Use {suggest.name}
+              </button>
+            )}
+          </fieldset>
+        </>
       ) : (
         <Field label={REF_LABEL[kind]} error={show(errors.ref)}>
           {(a) => (
