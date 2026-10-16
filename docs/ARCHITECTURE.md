@@ -225,13 +225,14 @@ flowchart LR
   W <--> DB[(Postgres)]
 ```
 
-**Contract (`contracts/qie/ConstantMandate.sol`, written for this event, Solidity 0.8.24, OpenZeppelin 5)**
+**Contract (`contracts/qie/src/ConstantMandate.sol`, written for this event, Solidity 0.8.24, OpenZeppelin 5.4; how to test and deploy: `contracts/qie/README.md`)**
 
 - **Immutable:** the stablecoin (the official address from `contracts/qie/addresses.json`) and the treasury. No proxy, no upgrade path.
 - **Balances per user.** `deposit(amount)` pulls the stablecoin with SafeERC20 and credits the *measured* balance change (a fee-on-transfer token can't over-credit). `withdraw(amount)` returns unused balance to the user at any time, paused or not.
 - **Lines per user.** `openLine(lineId, spender, allowance, period)`: `lineId` is a `bytes32` (Constant's line id, hashed); `spender` is Constant's server address, pinned in the app like on Base (D-064); `allowance` per `period` in fixed windows from the line's start. `revoke(lineId)` ends it for good, at once.
-- **`charge(user, lineId, amount, orderId)`:** only that line's spender; only while not revoked and not paused; only up to what is left of this period's allowance and the user's balance; `orderId` (`bytes32` of Constant's order key) can be charged once, ever, so a retried transaction can never charge twice. Sends the stablecoin to the treasury.
-- **Owner** (Ownable2Step): may pause and unpause *charges*. No function moves a user's balance anywhere but back to the user or, through a valid charge, to the treasury.
+- **`charge(user, lineId, amount, orderId)`:** only that line's spender; only while not revoked and not paused; only up to what is left of this period's allowance and the user's balance; `orderId` (`bytes32` of Constant's order key) can be charged once, ever, per spender, so a retried transaction can never charge twice (per spender, so nobody can block Constant's orders by using its ids first on a line of their own). Sends the stablecoin to the treasury.
+- **Line ids** are used once per user, even after a revoke, so a revoked line can't be reopened with its spending reset; to change a cap, revoke and open a new id. Periods are 1 to 366 days.
+- **Owner** (Ownable2Step, renouncing disabled so a paused contract can't be left ownerless): may pause and unpause *charges*. No function moves a user's balance anywhere but back to the user or, through a valid charge, to the treasury.
 - **Events:** `Deposited`, `LineOpened`, `Charged`, `Withdrawn`, `Revoked`, plus pause events. The metrics and reconciliation read these.
 - **Tests (Foundry):** unit tests for every rule above, fuzzing of amounts and periods, and invariants (token held ≥ sum of balances; total charged per line and period ≤ allowance; an owner or a stranger can't reduce a balance).
 

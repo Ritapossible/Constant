@@ -1,0 +1,41 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+libs = ["lib"]
+solc_version = "0.8.24"
+evm_version = "paris"
+optimizer = true
+optimizer_runs = 10_000
+bytecode_hash = "ipfs"
+remappings = [
+  "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+  "forge-std/=lib/forge-std/src/",
+]
+fs_permissions = [{ access = "read", path = "./addresses.json" }]
+
+[fuzz]
+runs = 1_000
+
+[invariant]
+runs = 256
+depth = 64
+fail_on_revert = false
+
+[profile.ci.fuzz]
+runs = 5_000
+
+[profile.ci.invariant]
+runs = 512
+depth = 128
+
+[rpc_endpoints]
+qie_testnet = "https://rpc2testnet.qie.digital/"
+qie = "https://rpc1mainnet.qie.digital/"
+
+[fmt]
+line_length = 120
+
+[lint]
+# token() and treasury() are the public ABI the app and worker read; SCREAMING_CASE getters would be worse there.
+exclude_lints = ["screaming-snake-case-immutable"]

@@ -35,3 +35,22 @@ jobs:
       - run: pnpm --filter @constant/web build
       - name: No secrets or banned user-facing words in source
         run: ./scripts/guard.sh
+
+  # ConstantMandate (QIE, D-072): format, build, then unit, fuzz and invariant tests with the CI profile.
+  contracts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts/qie
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+      - run: forge fmt --check
+      - run: forge build --sizes
+      - run: forge test -vv
+        env:
+          FOUNDRY_PROFILE: ci

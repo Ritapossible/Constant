@@ -1,0 +1,26 @@
+{
+  "1983": {
+    "network": "QIE testnet",
+    "stablecoin": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "symbol": "tUSD",
+      "decimals": 6,
+      "source": "TestStable, deployed by script/Deploy.s.sol (testnet only, worthless)"
+    },
+    "mandate": "0x0000000000000000000000000000000000000000",
+    "spender": "0x0000000000000000000000000000000000000000",
+    "deployTx": ""
+  },
+  "1990": {
+    "network": "QIE mainnet",
+    "stablecoin": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "symbol": "",
+      "decimals": 0,
+      "source": "Unconfirmed. Fill only with the address the QIE team gives, and its proof (HACKATHON.md)."
+    },
+    "mandate": "0x0000000000000000000000000000000000000000",
+    "spender": "0x0000000000000000000000000000000000000000",
+    "deployTx": ""
+  }
+}

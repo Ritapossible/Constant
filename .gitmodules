@@ -1,0 +1,6 @@
+[submodule "contracts/qie/lib/forge-std"]
+	path = contracts/qie/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "contracts/qie/lib/openzeppelin-contracts"]
+	path = contracts/qie/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts

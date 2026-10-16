@@ -1,0 +1,6 @@
+out/
+cache/
+# Local and dry runs; the testnet broadcast (1983) is kept as the record of the deployment.
+broadcast/*/31337/
+broadcast/*/1990/dry-run/
+broadcast/*/1983/dry-run/

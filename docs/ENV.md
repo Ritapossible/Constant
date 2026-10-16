@@ -85,6 +85,9 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | Worker | `QIE_DAILY_LIMIT_USD` (optional) | Default `100`, until the stablecoin's route to naira exists |
 | ☐ | Vercel | `NEXT_PUBLIC_QIE` | `true` to show "Add dollars on QIE" |
 | ☐ | Deployer (your computer, never Render) | `QIE_DEPLOYER_KEY` | A key with a little QIE for gas, used once to deploy |
+| ☐ | Deployer | `QIE_TREASURY`, `QIE_OWNER` | Where charges go, and who may pause charges (a wallet you control; a multisig for mainnet) |
+| ☐ | Deployer, testnet only | `QIE_STABLECOIN` (optional) | Unset deploys `TestStable`; never used on mainnet, which reads `contracts/qie/addresses.json` |
+| ☐ | Proof run | `QIE_RPC`, `QIE_MANDATE` | Testnet RPC (`https://rpc2testnet.qie.digital/`) and the mandate address; see `scripts/qie/proof-testnet.mjs` |
 
 ## Dashboards (not variables)
 
