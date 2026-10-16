@@ -372,7 +372,7 @@ When the VTpass balance drops below `FLOAT_LOW_NGN`, charged USDC on the spender
 
 ### D-073 The landing page shows what Constant is built with, as logos
 - **Two moving strips.** Under the hero, "Built with": the infrastructure the code actually integrates (Paystack, VTpass, Paycrest, Circle, Privy, Coinbase, Base, Arc, Stellar, Termii, Resend). In "You stay in control", the bills it pays, now as provider logos (the same files as the app, D-071).
-- **Honest labels.** "Built with", never "partners" or "trusted by": none of these companies endorse Constant. A service appears only once the code uses it. QIE is shown now with a "Soon" tag (logo from qie.digital's own site icon) because D-072 is being built; the tag goes the day the mainnet contract is verified. Remove a logo if a company asks.
+- **Honest labels.** "Built with", never "partners" or "trusted by": none of these companies endorse Constant. A service appears only once the code uses it. QIE is listed (logo from qie.digital's own site icon) from 2026-10-16, the day before its integration (D-072) starts, at the founder's call. Remove a logo if a company asks.
 - **Sources.** Each logo is the icon the company publishes on its own site, unaltered; Paystack's site blocks automated requests, so its mark is the image Paystack uses for its own social cards (its S3 asset bucket). Base and Arc reuse the marks already in `/tokens`.
 - **People photos:** see D-074.
 
