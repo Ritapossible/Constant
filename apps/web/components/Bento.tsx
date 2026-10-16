@@ -3,7 +3,7 @@
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
 import { useEffect, useState } from "react";
 import { Reveal, useInViewOnce } from "./Reveal";
-import { IconBank, IconBolt, IconChat, IconData, IconGlobe, IconMail, IconSend, IconSms, IconSpark, IconTv } from "./icons";
+import { IconBank, IconBolt, IconChat, IconData, IconMail, IconSend, IconSms, IconSpark, IconTv } from "./icons";
 
 export function Bento() {
   return (
@@ -284,8 +284,10 @@ function FundCard() {
         </div>
         <div className="sub">
           <span className="sub-name">
-            <span className="sub-badge">
-              <IconGlobe size={14} />
+            <span className="sub-tokens">
+              {/* Circle's and Tether's own marks, the same files as the app. */}
+              <img src="/tokens/usdc.png" alt="" width={28} height={28} loading="lazy" decoding="async" />
+              <img src="/tokens/usdt.png" alt="" width={28} height={28} loading="lazy" decoding="async" />
             </span>
             Stablecoins
           </span>

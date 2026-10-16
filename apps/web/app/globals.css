@@ -72,10 +72,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
-}
-/* Decorative layers (the arc, the orbit, the strips) must never make phones zoom out. */
-html {
+  /* Decorative layers (the arc, the orbit, the strips) must never widen the page. "clip", not "hidden": hidden
+     would make body a scroll container and break the pinned "How it works" stepper (position: sticky). */
   overflow-x: clip;
 }
 
@@ -1076,6 +1074,20 @@ button {
   place-items: center;
   font-size: 12px;
   font-weight: 700;
+}
+/* USDC and USDT side by side, the second overlapping the first like a wallet's token stack. */
+.sub-tokens {
+  flex: none;
+  display: flex;
+}
+.sub-tokens img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--surface-2);
+}
+.sub-tokens img + img {
+  margin-left: -8px;
 }
 /* A service's own logo, on white like in the app. */
 .sub-logo {
