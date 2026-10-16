@@ -154,9 +154,9 @@ function CableCard() {
 /* Subscriptions, including AI tools. */
 function SubsCard() {
   const subs = [
-    { n: "ChatGPT Plus", b: "G", d: "3rd" },
-    { n: "Claude Pro", b: "C", d: "9th" },
-    { n: "Gemini", b: "✦", d: "21st" },
+    { n: "ChatGPT Plus", logo: "chatgpt", d: "3rd" },
+    { n: "Claude Pro", logo: "claude", d: "9th" },
+    { n: "Gemini", logo: "gemini", d: "21st" },
   ];
   return (
     <article className="card span-2">
@@ -170,7 +170,10 @@ function SubsCard() {
         {subs.map((s) => (
           <div className="sub" key={s.n}>
             <span className="sub-name">
-              <span className="sub-badge">{s.b}</span>
+              <span className="sub-logo">
+                {/* The services' own marks, the same files as the app (D-071). */}
+                <img src={`/providers/${s.logo}.png`} alt="" width={28} height={28} loading="lazy" decoding="async" />
+              </span>
               {s.n}
             </span>
             <span className="sub-meta">renews {s.d}</span>

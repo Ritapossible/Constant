@@ -74,6 +74,10 @@ body {
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
 }
+/* Decorative layers (the arc, the orbit, the strips) must never make phones zoom out. */
+html {
+  overflow-x: clip;
+}
 
 img,
 svg {
@@ -1073,6 +1077,21 @@ button {
   font-size: 12px;
   font-weight: 700;
 }
+/* A service's own logo, on white like in the app. */
+.sub-logo {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.sub-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .sub-meta {
   font-size: 12.5px;
   color: var(--muted);
@@ -1753,8 +1772,14 @@ button {
   font-size: 13.5px;
   color: var(--muted);
 }
+.footer-word span {
+  font-weight: 400;
+}
 .footer-word {
-  font-size: clamp(64px, 19vw, 260px);
+  /* Sized so "ConstantUnits" fits the container at every width; it must never widen the page. */
+  font-size: clamp(36px, 12.4vw, 180px);
+  white-space: nowrap;
+  overflow: hidden;
   font-weight: 650;
   letter-spacing: -0.06em;
   line-height: 0.8;

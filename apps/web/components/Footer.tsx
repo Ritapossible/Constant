@@ -35,7 +35,7 @@ export function Footer({ base = "" }: { base?: string }) {
           </div>
         </div>
         <div className="footer-word" aria-hidden="true">
-          ConstantUnits
+          Constant<span>Units</span>
         </div>
       </div>
     </footer>
