@@ -12,6 +12,7 @@ Bills in Nigeria are paid in naira. USDC and USDT never pay IKEDC or DSTV direct
 |---|---|---|
 | **Base** | Each user's own address, from Privy, server-side. USDC/USDT deposits recorded after 12 confirmations, user told (D-060). Dollar autopay: per-bill spend permission per token (USDC, USDT) on the user's smart wallet, charge confirmed before vend (D-063, D-069). Paycrest off-ramp refills the naira float (D-068). | USDC on Arc autopay. |
 | **Arc** | Same address; USDC deposits recorded (final in under a second). Chain facts verified (D-061). Autopay from USDC on Arc built (D-070): Coinbase's manager at the same address as Base, charged USDC moved to Base with CCTP. Off until the Arc proof run. | The Arc proof run on testnet, then the mainnet deploy. Treasury on Arc. |
+| **QIE** (chain 1990) | Planned for the QIE Hackathon (D-072): users deposit QIE's stablecoin into `ConstantMandate` and open a capped line per bill; Constant charges within the cap, once per order. | Everything: the official stablecoin address, the contract, its route to naira. HACKATHON.md. |
 | **Stellar** | Hourly Merkle root of settled receipts as a memo; public receipt page checks it in the browser. Tested on testnet (D-062). | Fund a public-network account; Soroban mandate and CCTP deposits in Phase 3. |
 
 ## Two ways to fund, one experience

@@ -210,3 +210,37 @@ The design above was written for electricity sites on a calendar. The prepaid au
 - **Cable** (D-041): a `tv` line stores the decoder number (encrypted), plan code and expiry; the schedule scan renews the day before expiry.
 
 The vend path, ledger, idempotency, one-open-order rule, reconciliation and kill switch are unchanged. Data and airtime vends have no token to store: they settle on the partner's confirmation that the SIM was credited.
+
+## QIE: a capped mandate on chain 1990 (D-072)
+
+For the QIE Hackathon (HACKATHON.md), and kept afterwards if it earns users. QIE is one more way to fund a bill; nothing existing changes.
+
+```mermaid
+flowchart LR
+  U[User wallet<br/>QIE Wallet, EIP-1193] -->|deposit, openLine, withdraw, revoke| M[ConstantMandate<br/>chain 1990]
+  W[apps/worker] -->|charge lineId, amount, orderId<br/>spender key| M
+  M -->|Charged: stablecoin| T[Treasury<br/>fixed at deploy]
+  W --> R[[packages/rules<br/>decides first]]
+  W -->|then vend| V[VTpass]
+  W <--> DB[(Postgres)]
+```
+
+**Contract (`contracts/qie/ConstantMandate.sol`, written for this event, Solidity 0.8.24, OpenZeppelin 5)**
+
+- **Immutable:** the stablecoin (the official address from `contracts/qie/addresses.json`) and the treasury. No proxy, no upgrade path.
+- **Balances per user.** `deposit(amount)` pulls the stablecoin with SafeERC20 and credits the *measured* balance change (a fee-on-transfer token can't over-credit). `withdraw(amount)` returns unused balance to the user at any time, paused or not.
+- **Lines per user.** `openLine(lineId, spender, allowance, period)`: `lineId` is a `bytes32` (Constant's line id, hashed); `spender` is Constant's server address, pinned in the app like on Base (D-064); `allowance` per `period` in fixed windows from the line's start. `revoke(lineId)` ends it for good, at once.
+- **`charge(user, lineId, amount, orderId)`:** only that line's spender; only while not revoked and not paused; only up to what is left of this period's allowance and the user's balance; `orderId` (`bytes32` of Constant's order key) can be charged once, ever, so a retried transaction can never charge twice. Sends the stablecoin to the treasury.
+- **Owner** (Ownable2Step): may pause and unpause *charges*. No function moves a user's balance anywhere but back to the user or, through a valid charge, to the treasury.
+- **Events:** `Deposited`, `LineOpened`, `Charged`, `Withdrawn`, `Revoked`, plus pause events. The metrics and reconciliation read these.
+- **Tests (Foundry):** unit tests for every rule above, fuzzing of amounts and periods, and invariants (token held ≥ sum of balances; total charged per line and period ≤ allowance; an owner or a stranger can't reduce a balance).
+
+**Server**
+
+- `packages/chains`: a QIE client (chain 1990, RPC failover, stablecoin and mandate addresses from `addresses.json`): `lineState`, `balanceOf`, `prepareCharge`, `broadcast`, `status`, and a `Charged` event reader.
+- Permissions gain a kind: a QIE line is a row with `chain = 'qie'` and `kind = 'mandate'` beside the spend permissions; `decideStablesRenewal` treats it as one more source (after Base and Arc), with the same naira rules, rate freshness, cap and balance checks (INV-78).
+- The charge follows the dollar path exactly (D-063): rules approve → charge row saved → transaction signed, its hash saved, then sent → confirmed on chain → the order's naira credited to the user → vend. If the vend fails, the naira stays in the user's balance (refundable); an unclear vend goes to `needs_human`. Never a second charge: the order key is the `orderId`, enforced by the contract and by `charges.order_id` being unique.
+- Guards as on Base (D-064): screening of depositors, a **separate, low daily limit** for QIE until the stablecoin's route to naira exists (HACKATHON open question 3), the float check before any charge, reconciliation of each charge on chain 1990 (D-070's lesson).
+- `apps/web`: "Add dollars on QIE": `wallet_addEthereumChain` 1990, deposit, open the line with the cap shown; the app pins the mandate, stablecoin and spender addresses at build time.
+
+**Off by default:** `QIE_MANDATE=true` on the API and worker, `NEXT_PUBLIC_QIE=true` on the web, and only with `addresses.json` present.

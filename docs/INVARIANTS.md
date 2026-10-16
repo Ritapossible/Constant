@@ -118,3 +118,8 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 77 | Withdrawals are off until a person switches `payouts_enabled` on. | api · worker |
 | 78 | A bill is paid from one token only: the first allowed token that can pay all of it, never beyond that token's own permission or balance, valued at that token's own rate. | rules (property) · worker |
 | 79 | Constant never holds a user's money on Arc: a bill is charged from the user's own account under their signed permission, and only Constant's own charged balance is bridged, to its own address. Each charge is reconciled on its own chain. | worker · api |
+| 80 | ConstantMandate: only a line's spender can charge it, never above what is left of its period allowance or the user's balance, never after revoke or while paused. | contract (unit, fuzz) |
+| 81 | ConstantMandate: an order id is charged at most once, ever. | contract · worker |
+| 82 | ConstantMandate: a user can always withdraw their unused balance, paused or not; no owner or third party can move it anywhere but back to them or, by a valid charge, to the fixed treasury. | contract (invariant) |
+| 83 | ConstantMandate: the stablecoin held is always at least the sum of user balances. | contract (invariant) |
+| 84 | A QIE charge is sent only after the rules approved the bill and its hash is saved; nothing is vended before it is confirmed; a failed vend leaves the credited naira refundable. | worker |

@@ -75,6 +75,17 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | `ARC_AUTOPAY` | USDC on Arc: charges on Arc, transfer to Base (D-070) | `true` only after the Arc go-live steps; the worker refuses to start if Coinbase's manager isn't on Arc. The spender needs ~$2 of USDC **on Arc** for gas |
 | ☐ | `ARC_BRIDGE_MIN_USD`, `ARC_BRIDGE_MAX_FEE_BPS` (optional) | Moving charged USDC from Arc to Base | Defaults `20` and `10` (0.1%; Circle charges 0 today) |
 
+## QIE (planned, D-072; not needed until the mandate is deployed)
+
+| ☐ | Where | Variable | Value |
+|---|---|---|---|
+| ☐ | API + worker | `QIE_MANDATE` | `true` only after the mainnet deploy |
+| ☐ | API + worker | `QIE_RPC_URL` (optional) | Default `https://rpc1mainnet.qie.digital/` |
+| ☐ | Worker | the spender key | The same spender as Base (`SPENDER_PRIVATE_KEY`); needs a little QIE for gas |
+| ☐ | Worker | `QIE_DAILY_LIMIT_USD` (optional) | Default `100`, until the stablecoin's route to naira exists |
+| ☐ | Vercel | `NEXT_PUBLIC_QIE` | `true` to show "Add dollars on QIE" |
+| ☐ | Deployer (your computer, never Render) | `QIE_DEPLOYER_KEY` | A key with a little QIE for gas, used once to deploy |
+
 ## Dashboards (not variables)
 
 | ☐ | Where | Setting |
