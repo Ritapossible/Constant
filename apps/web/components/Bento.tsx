@@ -263,7 +263,12 @@ function ChannelsCard() {
   );
 }
 
-/* Funding: naira or dollars. */
+/* Funding: naira, or stablecoins on each network ConstantUnits charges on (D-069, D-070). */
+const NETWORKS = [
+  { name: "Base", logo: "/tokens/base.svg", tokens: ["USDC", "USDT"] },
+  { name: "Arc", logo: "/tokens/arc.svg", tokens: ["USDC"] },
+];
+
 function FundCard() {
   return (
     <article className="card span-3">
@@ -282,17 +287,23 @@ function FundCard() {
           </span>
           <span className="sub-meta">₦ · instant</span>
         </div>
-        <div className="sub">
-          <span className="sub-name">
-            <span className="sub-tokens">
-              {/* Circle's and Tether's own marks, the same files as the app. */}
-              <img src="/tokens/usdc.png" alt="" width={28} height={28} loading="lazy" decoding="async" />
-              <img src="/tokens/usdt.png" alt="" width={28} height={28} loading="lazy" decoding="async" />
+        {NETWORKS.map((n) => (
+          <div className="sub" key={n.name}>
+            <span className="sub-name">
+              {/* Base's and Arc's own marks, the same files as the app. */}
+              <img className="sub-net" src={n.logo} alt="" width={28} height={28} loading="lazy" decoding="async" />
+              {n.name}
             </span>
-            Stablecoins
-          </span>
-          <span className="sub-meta">USDC · USDT</span>
-        </div>
+            <span className="sub-meta sub-tokens">
+              <span>
+                {n.tokens.map((t) => (
+                  <img key={t} src={`/tokens/${t.toLowerCase()}.png`} alt="" width={20} height={20} loading="lazy" decoding="async" />
+                ))}
+              </span>
+              {n.tokens.join(" · ")}
+            </span>
+          </div>
+        ))}
       </div>
     </article>
   );
