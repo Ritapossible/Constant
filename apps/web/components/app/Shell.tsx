@@ -27,7 +27,7 @@ export function displayName(user: User, name?: string): string {
   return name?.trim() || user.google?.name?.split(" ")[0] || user.email?.address?.split("@")[0] || "there";
 }
 
-/** Ways to sign in, not counting the wallet Constant created for the user. */
+/** Ways to sign in, not counting the wallet ConstantUnits created for the user. */
 export function signInMethods(user: User): number {
   return user.linkedAccounts.filter((a) => !(a.type === "wallet" && a.walletClientType === "privy") && a.type !== "smart_wallet").length;
 }
@@ -73,9 +73,9 @@ export function Shell({ user }: { user: User }) {
     <ServerProvider>
     <div className="ap">
       <aside className="ap-side" aria-label="App navigation">
-        <a href="/" className="ap-brand" aria-label="Constant home">
+        <a href="/" className="ap-brand" aria-label="ConstantUnits home">
           <LogoMark />
-          <span>Constant</span>
+          <span>ConstantUnits</span>
         </a>
         <nav className="ap-nav">
           {TABS.map((t) => (
@@ -90,9 +90,9 @@ export function Shell({ user }: { user: User }) {
 
       <main className="ap-main" id="main" ref={main} tabIndex={-1} aria-label={TABS.find((t) => t.id === tab)?.label}>
         <div className="ap-mobile-top">
-          <a href="/" className="ap-brand" aria-label="Constant home">
+          <a href="/" className="ap-brand" aria-label="ConstantUnits home">
             <LogoMark />
-            <span>Constant</span>
+            <span>ConstantUnits</span>
           </a>
           <PreviewBadge />
         </div>

@@ -30,12 +30,12 @@ export function Footer({ base = "" }: { base?: string }) {
             </nav>
           </div>
           <div className="footer-bottom">
-            <span>© {new Date().getFullYear()} Constant. All rights reserved.</span>
+            <span>© {new Date().getFullYear()} ConstantUnits. All rights reserved.</span>
             <span>Early access. Money is only ever held by a licensed partner.</span>
           </div>
         </div>
         <div className="footer-word" aria-hidden="true">
-          Constant
+          ConstantUnits
         </div>
       </div>
     </footer>

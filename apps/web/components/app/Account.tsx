@@ -103,7 +103,7 @@ export function Account({ user, store }: { user: User; store: Store }) {
           <>
             <p className="ap-muted">
               {wallet.smart
-                ? "Your Constant account on Base, created for you. It holds your stablecoins; only you can move them, and bills you approve can take only what you allowed."
+                ? "Your ConstantUnits account on Base, created for you. It holds your stablecoins; only you can move them, and bills you approve can take only what you allowed."
                 : wallet.embedded
                 ? "Created for you when you signed in. It holds your stablecoins, and only you can move them."
                 : "The wallet you signed in with. Stablecoins you send to it stay in your control."}
@@ -133,7 +133,7 @@ export function Account({ user, store }: { user: User; store: Store }) {
                 {confirmExport ? (
                   <div className="ap-warn" role="alert">
                     <p style={{ margin: "0 0 10px" }}>
-                      <b>Your private key controls all the money in this wallet.</b> Anyone who sees it can take your funds. Constant will
+                      <b>Your private key controls all the money in this wallet.</b> Anyone who sees it can take your funds. ConstantUnits will
                       never ask for it. Only export it to move this wallet into another app you trust.
                     </p>
                     <div className="ap-actions">
@@ -160,7 +160,7 @@ export function Account({ user, store }: { user: User; store: Store }) {
                     Export private key
                   </button>
                 )}
-                <p className="ap-fine">The key is shown in a secure window from our wallet provider. Constant never sees it.</p>
+                <p className="ap-fine">The key is shown in a secure window from our wallet provider. ConstantUnits never sees it.</p>
               </details>
             )}
           </>
@@ -243,7 +243,7 @@ function Profile({ user, store }: { user: User; store: Store }) {
   return (
     <section className="ap-card" aria-labelledby="profile-title">
       <h2 id="profile-title">Your name</h2>
-      <p className="ap-muted">What Constant calls you in the app and in messages.</p>
+      <p className="ap-muted">What ConstantUnits calls you in the app and in messages.</p>
       <form
         className="ap-name-form"
         onSubmit={(e) => {

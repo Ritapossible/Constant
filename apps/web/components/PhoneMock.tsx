@@ -9,7 +9,7 @@ type Toast = { icon: ReactNode; title: string; sub: string };
 
 const TOASTS: Toast[] = [
   { icon: <IconData size={16} />, title: "Data topped up · 1.5 GB", sub: "MTN · from your Data pot" },
-  { icon: <IconTv size={16} />, title: "DSTV renewed", sub: "Covered until 15 Dec" },
+  { icon: <IconTv size={16} />, title: "DStv renewed", sub: "Covered until 15 Dec" },
   { icon: <IconSend size={16} />, title: "Light token sent on Telegram", sub: "Meter •••• 6781 · ₦10,000" },
   { icon: <IconBell size={16} />, title: "Heads-up", sub: "Light likely low by Thursday" },
 ];
@@ -52,7 +52,7 @@ export function PhoneMock() {
         </div>
       </div>
 
-      <div className="phone" role="img" aria-label="Constant app showing money set aside and what it covers">
+      <div className="phone" role="img" aria-label="ConstantUnits app showing money set aside and what it covers">
         <div className="phone-notch" />
         <div className="toast-stack" aria-hidden="true">
           <AnimatePresence mode="popLayout">
@@ -89,7 +89,7 @@ export function PhoneMock() {
           <div className="lines">
             <Line icon={<IconData size={14} />} name="Data · MTN" right={dataFull ? "1.8 GB" : "310 MB"} sub={dataFull ? "about 4h of calls" : "topping up at 300 MB"} value={dataFull ? 0.88 : 0.16} />
             <Line icon={<IconBolt size={14} />} name="Light" right="about Thu" sub="spare token ready" value={0.46} />
-            <Line icon={<IconTv size={14} />} name="DSTV" right="15 Dec" sub="renews the day before" value={1} />
+            <Line icon={<IconTv size={14} />} name="DStv" right="15 Dec" sub="renews the day before" value={1} />
             <Line icon={<IconSpark size={14} />} name="ChatGPT Plus" right="3 Jan" sub="renews monthly" value={1} />
           </div>
           <div className="line" style={{ marginTop: "auto", gridTemplateColumns: "1fr auto", display: "grid", alignItems: "center" }}>

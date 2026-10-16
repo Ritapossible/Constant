@@ -8,7 +8,7 @@ import { IconBell, IconBolt, IconData, IconTv } from "./icons";
 const NOTES = [
   { icon: <IconData size={16} />, title: "70% chance your data runs out before tomorrow evening", sub: "Autopilot will top up at 300 MB." },
   { icon: <IconBolt size={16} />, title: "Light likely low by Thursday", sub: "Spare token is ready on Telegram." },
-  { icon: <IconTv size={16} />, title: "DSTV renewal on 15 Dec is ₦2,300 short", sub: "Add money any time before then." },
+  { icon: <IconTv size={16} />, title: "DStv renewal on 15 Dec is ₦2,300 short", sub: "Add money any time before then." },
 ];
 
 export function Reminders() {
@@ -29,12 +29,12 @@ export function Reminders() {
       <div className="container remind-grid">
         <Reveal className="remind-copy">
           <span className="eyebrow" style={{ width: "fit-content" }}>
-            <span className="eyebrow-dot" /> Running-low reminders
+            Running-low reminders
           </span>
           <h2 id="remind-title" className="h2">
             Know <span className="serif">before</span> it runs low.
           </h2>
-          <p className="lead">Constant learns how fast you use data and light, and tells you when running out is likely. Not after.</p>
+          <p className="lead">ConstantUnits learns how fast you use data and light, and tells you when running out is likely. Not after.</p>
           <ul className="remind-points">
             <li>
               <IconBell size={18} />

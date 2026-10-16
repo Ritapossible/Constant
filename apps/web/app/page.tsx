@@ -7,6 +7,7 @@ import { Faq } from "@/components/Faq";
 import { Footer } from "@/components/Footer";
 import { Hero } from "@/components/Hero";
 import { Nav } from "@/components/Nav";
+import { People } from "@/components/People";
 import { Reminders } from "@/components/Reminders";
 import { Steps } from "@/components/Steps";
 
@@ -17,6 +18,7 @@ export default function Home() {
       <main id="main">
         <Hero />
         <BuiltWith />
+        <People />
         <Compare />
         <Bento />
         <Reminders />

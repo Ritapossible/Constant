@@ -2,7 +2,7 @@ import { Reveal } from "./Reveal";
 import { Scramble } from "./Scramble";
 import { IconArrow } from "./icons";
 
-const WORDS = ["data", "light", "DSTV", "airtime", "ChatGPT"];
+const WORDS = ["data", "light", "DStv", "airtime", "ChatGPT"];
 
 export function Cta() {
   return (
@@ -13,7 +13,7 @@ export function Cta() {
             <div className="cta-orbit-spin" />
           </div>
           <span className="status">
-            <span className="eyebrow-dot" /> Preview open
+            Preview open
           </span>
           <h2 id="early-title" className="cta-title">
             Never run out of <Scramble words={WORDS} /> again.

@@ -21,7 +21,7 @@ export type StableToken = {
 };
 
 /**
- * The only tokens Constant accepts (RAILS.md, INV-46). USDT is Base only: there is no USDT on Arc.
+ * The only tokens ConstantUnits accepts (RAILS.md, INV-46). USDT is Base only: there is no USDT on Arc.
  * Base USDT is the contract Paycrest lists for off-ramp.
  */
 export const STABLES: StableToken[] = [

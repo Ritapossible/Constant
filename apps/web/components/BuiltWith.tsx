@@ -1,7 +1,7 @@
 /**
- * The infrastructure Constant is built on, as a moving strip. Only services the code actually integrates
+ * The infrastructure ConstantUnits is built on, as a moving strip. Only services the code actually integrates
  * (packages/partners, packages/chains, the app); logos from each company's own website, unaltered (D-073).
- * "Built with", never "partners": none of these endorse Constant.
+ * "Built with", never "partners": none of these endorse ConstantUnits.
  */
 const BRANDS = [
   { name: "Paystack", logo: "/brands/paystack.png" },

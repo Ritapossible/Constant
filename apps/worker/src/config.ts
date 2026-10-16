@@ -27,7 +27,7 @@ export function fromEnv(env: NodeJS.ProcessEnv = process.env): { db: Db; vending
       ? new FakeMessaging()
       : new HttpMessaging({
           ...(env.RESEND_API_KEY ? { resend: { apiKey: env.RESEND_API_KEY, from: need(env, "EMAIL_FROM") } } : {}),
-          ...(env.TERMII_API_KEY ? { termii: { apiKey: env.TERMII_API_KEY, senderId: env.TERMII_SENDER_ID ?? "Constant", ...(env.TERMII_BASE_URL ? { baseUrl: env.TERMII_BASE_URL } : {}) } } : {}),
+          ...(env.TERMII_API_KEY ? { termii: { apiKey: env.TERMII_API_KEY, senderId: env.TERMII_SENDER_ID ?? "ConstUnits", ...(env.TERMII_BASE_URL ? { baseUrl: env.TERMII_BASE_URL } : {}) } } : {}),
         });
   // Withdrawals go out through Paystack transfers when its key is set (still gated by payouts_enabled).
   const payouts = env.PAYSTACK_SECRET_KEY ? new Paystack({ secretKey: env.PAYSTACK_SECRET_KEY, preferredBank: env.PAYSTACK_PREFERRED_BANK ?? "wema-bank" }) : undefined;
@@ -103,7 +103,7 @@ export function offrampFromEnv(env: NodeJS.ProcessEnv = process.env): OfframpDep
   return {
     offramp: new PaycrestSender(env.PAYCREST_API_KEY, need2("PAYCREST_API_SECRET"), env.PAYCREST_BASE_URL ?? "https://api.paycrest.io"),
     rates: new PaycrestRates(env.PAYCREST_BASE_URL ?? "https://api.paycrest.io"),
-    recipient: { institution: need2("FLOAT_ACCOUNT_INSTITUTION"), accountIdentifier: need2("FLOAT_ACCOUNT_NUMBER"), accountName: need2("FLOAT_ACCOUNT_NAME"), memo: "Constant float" },
+    recipient: { institution: need2("FLOAT_ACCOUNT_INSTITUTION"), accountIdentifier: need2("FLOAT_ACCOUNT_NUMBER"), accountName: need2("FLOAT_ACCOUNT_NAME"), memo: "ConstantUnits float" },
     lowWaterMinor: naira(env.FLOAT_LOW_NGN ?? "200000"),
     targetMinor: naira(env.FLOAT_TARGET_NGN ?? "1000000"),
     minOrderMicro: BigInt(Math.round(Number(env.OFFRAMP_MIN_USD ?? "20") * 100)) * 10_000n,

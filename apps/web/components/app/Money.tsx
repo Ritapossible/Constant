@@ -90,7 +90,7 @@ export function Money({ user, plan }: { user: User; plan: Plan }) {
             <h2 id="bank-title">Bank transfer (naira)</h2>
             <span className="ap-chip">Opening soon</span>
           </div>
-          <p className="ap-muted">You will get your own account number. Transfers from any Nigerian bank app land in your Constant pots.</p>
+          <p className="ap-muted">You will get your own account number. Transfers from any Nigerian bank app land in your ConstantUnits pots.</p>
         </section>
       )}
 

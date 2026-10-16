@@ -3,8 +3,8 @@ import { Footer } from "@/components/Footer";
 import { Logo } from "@/components/Logo";
 
 export const metadata: Metadata = {
-  title: "Privacy | Constant",
-  description: "What Constant collects, why, and how to have it deleted.",
+  title: "Privacy | ConstantUnits",
+  description: "What ConstantUnits collects, why, and how to have it deleted.",
   alternates: { canonical: "/privacy" },
 };
 
@@ -14,7 +14,7 @@ export default function Privacy() {
   return (
     <>
       <header className="container" style={{ paddingTop: 28 }}>
-        <a href="/" aria-label="Constant home">
+        <a href="/" aria-label="ConstantUnits home">
           <Logo />
         </a>
       </header>
@@ -26,7 +26,7 @@ export default function Privacy() {
           <h2>What we collect</h2>
           <p>
             When you sign in, our sign-in provider (Privy) gives us the details of the method you chose: your email
-            address, phone number, Google name and email, or wallet address. Constant also creates a wallet address for
+            address, phone number, Google name and email, or wallet address. ConstantUnits also creates a wallet address for
             you, for stablecoins; only you control it. We do not use tracking cookies or sell data.
           </p>
           <p>
@@ -39,7 +39,7 @@ export default function Privacy() {
 
           <h2>Your money</h2>
           <p>
-            Constant does not hold money yet. When payments launch, money set aside in Constant will be held by a
+            ConstantUnits does not hold money yet. When payments launch, money set aside in ConstantUnits will be held by a
             licensed payment partner, never in a personal account. We will name the partner here before anyone can add
             money.
           </p>

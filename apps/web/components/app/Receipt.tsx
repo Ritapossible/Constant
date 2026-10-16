@@ -58,9 +58,9 @@ export function Receipt({ id }: { id: string }) {
   return (
     <main className="ap-main" style={{ maxWidth: 520, paddingBottom: 48 }}>
       <div className="ap-page">
-        <a href="/" className="ap-brand" aria-label="Constant home">
+        <a href="/" className="ap-brand" aria-label="ConstantUnits home">
           <LogoMark />
-          <span>Constant</span>
+          <span>ConstantUnits</span>
         </a>
         {error ? (
           <div className="ap-card" role="alert">
@@ -105,8 +105,8 @@ export function Receipt({ id }: { id: string }) {
                 <>
                   <p className="ap-muted">
                     {verified
-                      ? "✓ Checked in your browser: this receipt is part of a record Constant published on a public ledger. Nobody, including Constant, can change it afterwards."
-                      : "This receipt doesn't match the published record. Contact Constant support."}
+                      ? "✓ Checked in your browser: this receipt is part of a record ConstantUnits published on a public ledger. Nobody, including ConstantUnits, can change it afterwards."
+                      : "This receipt doesn't match the published record. Contact ConstantUnits support."}
                   </p>
                   <p className="ap-fine">
                     Recorded {r.record.recordedAt ? fmt(r.record.recordedAt) : ""} ·{" "}

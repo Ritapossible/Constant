@@ -6,6 +6,6 @@ export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ??
   (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
 
-export const SITE_TITLE = "Constant | Autopay for Data, Electricity, DSTV & Subscriptions";
+export const SITE_TITLE = "ConstantUnits | Autopay for Data, Electricity, DStv & Subscriptions";
 export const SITE_DESCRIPTION =
-  "Autopay for data, airtime, electricity tokens, DSTV, GOtv and subscriptions. Set money aside once; Constant pays on time and warns you before anything runs low.";
+  "Autopay for data, airtime, electricity tokens, DStv, GOtv and subscriptions. Set money aside once; ConstantUnits pays on time and warns you before anything runs low.";

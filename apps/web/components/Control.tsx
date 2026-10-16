@@ -2,7 +2,7 @@ import { Reveal } from "./Reveal";
 import { IconGauge, IconPause, IconReceipt, IconShield } from "./icons";
 
 const ITEMS = [
-  { icon: <IconGauge />, title: "Caps you set", text: "A weekly limit per bill. Constant never spends past it." },
+  { icon: <IconGauge />, title: "Caps you set", text: "A weekly limit per bill. ConstantUnits never spends past it." },
   { icon: <IconPause />, title: "Pause or cancel", text: "One tap in the app, or send STOP." },
   { icon: <IconShield />, title: "Never on a guess", text: "It buys on a real reading or a renewal date. Nothing else." },
   { icon: <IconReceipt />, title: "A receipt for everything", text: "Every naira in and out, on the channel you chose." },

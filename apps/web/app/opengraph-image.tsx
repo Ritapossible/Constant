@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Constant | Autopay for data, electricity, DSTV and subscriptions";
+export const alt = "ConstantUnits | Autopay for data, electricity, DStv and subscriptions";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -26,13 +26,13 @@ export default function OpengraphImage() {
             <path d="M22.5 10.6A8.5 8.5 0 1 0 22.5 21.4" fill="none" stroke="#0a0a0a" strokeWidth="2.4" strokeLinecap="round" />
               <path d="M13.5 16H25.5" stroke="#0a0a0a" strokeWidth="2.4" strokeLinecap="round" />
           </svg>
-          Constant
+          ConstantUnits
         </div>
         <div style={{ display: "flex", flexDirection: "column", fontSize: 96, fontWeight: 700, letterSpacing: -4, lineHeight: 1 }}>
           <span>Set it once.</span>
           <span style={{ color: "#a3a3a0" }}>Never run out.</span>
         </div>
-        <div style={{ fontSize: 28, color: "#a3a3a0" }}>Autopay for data · electricity · DSTV · subscriptions</div>
+        <div style={{ fontSize: 28, color: "#a3a3a0" }}>Autopay for data · electricity · DStv · subscriptions</div>
       </div>
     ),
     size,

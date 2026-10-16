@@ -22,7 +22,7 @@ export function Providers({ children }: { children: ReactNode }) {
           theme: "light",
           accentColor: "#0a0a0a",
           logo: "/icon.svg",
-          landingHeader: "Your Constant account",
+          landingHeader: "Your ConstantUnits account",
           showWalletLoginFirst: false,
           walletChainType: "ethereum-only",
         },

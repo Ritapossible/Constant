@@ -130,7 +130,7 @@ describe("dollar autopay", () => {
     await processOrders(deps);
     expect((await orders(line.id))[0].state).toBe("failed");
     expect(chain.spent.size).toBe(0);
-    expect((await db.query("SELECT status, error FROM spend_permissions WHERE id = $1", [perm.id])).rows[0]).toMatchObject({ status: "revoked", error: "revoked on chain outside Constant" });
+    expect((await db.query("SELECT status, error FROM spend_permissions WHERE id = $1", [perm.id])).rows[0]).toMatchObject({ status: "revoked", error: "revoked on chain outside ConstantUnits" });
     expect((await db.query("SELECT funding FROM lines WHERE id = $1", [line.id])).rows[0].funding).toBe("naira");
     expect(await ledgerSum(db, user.id)).toBe(0n);
   });

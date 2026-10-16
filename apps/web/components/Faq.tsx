@@ -6,7 +6,7 @@ import { Reveal } from "./Reveal";
 
 const QA = [
   {
-    q: "What is Constant?",
+    q: "What is ConstantUnits?",
     a: "An account that pays the things you keep re-buying (data, airtime, electricity, cable TV and subscriptions) automatically, from money you set aside.",
   },
   {
@@ -15,11 +15,11 @@ const QA = [
   },
   {
     q: "Do I still type in my electricity token?",
-    a: "For most meters, yes. Constant sends the token the moment it's bought, on WhatsApp, Telegram, SMS or email, and can keep a spare one ready.",
+    a: "For most meters, yes. ConstantUnits sends the token the moment it's bought, on WhatsApp, Telegram, SMS or email, and can keep a spare one ready.",
   },
   {
     q: "How does it know I'm running low?",
-    a: "Data: the Constant app measures what your phone uses and checks your balance with your network. Light: from the units you bought and a quick meter reading when needed. Cable and subscriptions: their renewal dates.",
+    a: "Data: the ConstantUnits app measures what your phone uses and checks your balance with your network. Light: from the units you bought and a quick meter reading when needed. Cable and subscriptions: their renewal dates.",
   },
   {
     q: "Can it spend more than I want?",

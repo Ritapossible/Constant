@@ -7,7 +7,7 @@ export async function notifyOps(d: Deps, opsEmail: string | undefined): Promise<
   const alerts = await takeUnnotifiedAlerts(d.db);
   if (alerts.length === 0) return 0;
   const pages = alerts.filter((a) => a.severity === "page");
-  const subject = pages.length ? `PAGE: ${[...new Set(pages.map((a) => a.kind))].join(", ")}` : `Constant: ${alerts.length} warning(s)`;
+  const subject = pages.length ? `PAGE: ${[...new Set(pages.map((a) => a.kind))].join(", ")}` : `ConstantUnits: ${alerts.length} warning(s)`;
   const text = alerts
     .map((a) => `#${a.id} ${a.severity.toUpperCase()} ${a.kind} at ${a.created_at.toISOString()}\n${JSON.stringify(a.detail)}`)
     .join("\n\n");

@@ -23,7 +23,7 @@ export function SignIn() {
     <div className="ap-signin">
       <div className="ap-signin-bg" aria-hidden="true" />
       <header className="ap-signin-top">
-        <a href="/" aria-label="Constant home">
+        <a href="/" aria-label="ConstantUnits home">
           <Logo />
         </a>
       </header>
@@ -34,7 +34,7 @@ export function SignIn() {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         aria-labelledby="signin-title"
       >
-        <p className="ap-kicker">Your Constant account</p>
+        <p className="ap-kicker">Your ConstantUnits account</p>
         <h1 id="signin-title">
           Set it once. <span className="serif">Never run out.</span>
         </h1>

@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./app.css";
 
 export const metadata: Metadata = {
-  title: "App | Constant",
-  description: "Your Constant account: bills, reminders and money.",
+  title: "App | ConstantUnits",
+  description: "Your ConstantUnits account: bills, reminders and money.",
   robots: { index: false, follow: false },
 };
 

@@ -46,7 +46,7 @@ export function Nav() {
       </AnimatePresence>
       <header className={`nav-wrap ${open ? "menu-open" : ""}`}>
         <nav className="nav" data-scrolled={scrolled} aria-label="Main">
-          <a href="#top" aria-label="Constant home" onClick={() => setOpen(false)}>
+          <a href="#top" aria-label="ConstantUnits home" onClick={() => setOpen(false)}>
             <Logo />
           </a>
           <div className="nav-links">

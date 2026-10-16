@@ -7,7 +7,7 @@ import { IconCheck, IconX } from "./icons";
 const ROWS: [string, string][] = [
   ["Data dies in the middle of a call", "Tops up before it runs out"],
   ["Light goes off at night", "A spare token is already on your phone"],
-  ["DSTV cuts on match day", "Renewed the day before"],
+  ["DStv cuts on match day", "Renewed the day before"],
   ["The money got spent on something else", "Set aside, one pot per bill"],
   ["You find out when it's too late", "Warned days before it runs low"],
 ];
@@ -29,12 +29,12 @@ export function Compare() {
       <div className="container" ref={ref}>
         <h2 id="compare-title" className="compare-intro">
           Running out is normal here. <br />
-          <span className="dim">Switch on Constant</span>
+          <span className="dim">Switch on ConstantUnits</span>
           <button
             type="button"
             role="switch"
             aria-checked={on}
-            aria-label="Show life with Constant"
+            aria-label="Show life with ConstantUnits"
             className="switch"
             onClick={() => {
               setTouched(true);
@@ -47,7 +47,7 @@ export function Compare() {
         </h2>
         <div className="compare" data-on={on}>
           <div className="compare-col them">
-            <h3>Without Constant</h3>
+            <h3>Without ConstantUnits</h3>
             <ul>
               {ROWS.map(([a], i) => (
                 <li key={i}>
@@ -59,7 +59,7 @@ export function Compare() {
           </div>
           <div className="compare-col us">
             <h3>
-              With Constant
+              With ConstantUnits
               <span className="mono" style={{ fontSize: 12, opacity: 0.7 }}>
                 {on ? "ON" : "OFF"}
               </span>

@@ -301,7 +301,7 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
       await withTx(d.db, async (tx) => {
         const locked = await lockPermission(tx, perm.id);
         if (locked.status !== "approved") return;
-        await updatePermission(tx, perm.id, { status: "revoked", error: "revoked on chain outside Constant" });
+        await updatePermission(tx, perm.id, { status: "revoked", error: "revoked on chain outside ConstantUnits" });
         if (!(await hasApprovedPermission(tx, perm.line_id, perm.id))) await setLineFunding(tx, perm.line_id, "naira");
       });
     }

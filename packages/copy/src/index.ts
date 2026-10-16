@@ -54,42 +54,42 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
     case "renewed":
       return {
         subject: `${who} renewed`,
-        text: `Constant: ${who} renewed for ${amt}.${p.dueAt ? ` Next renewal ${day(p.dueAt)}.` : ""}`,
+        text: `ConstantUnits: ${who} renewed for ${amt}.${p.dueAt ? ` Next renewal ${day(p.dueAt)}.` : ""}`,
       };
     case "renewal_failed":
       return {
         subject: `${who} was not renewed`,
-        text: `Constant: we couldn't renew ${who}. No money was taken. We'll try again, or open the app to check the decoder.`,
+        text: `ConstantUnits: we couldn't renew ${who}. No money was taken. We'll try again, or open the app to check the decoder.`,
       };
     case "insufficient":
       return {
         subject: `Add money to renew ${who}`,
-        text: `Constant: ${who} renews ${p.dueAt ? day(p.dueAt) : "soon"} for ${amt}. You are ${p.shortMinor ? naira(BigInt(p.shortMinor)) : "a little"} short. Add money and we'll renew it.`,
+        text: `ConstantUnits: ${who} renews ${p.dueAt ? day(p.dueAt) : "soon"} for ${amt}. You are ${p.shortMinor ? naira(BigInt(p.shortMinor)) : "a little"} short. Add money and we'll renew it.`,
       };
     case "above_cap":
       return {
         subject: `${who} costs more now`,
-        text: `Constant: ${who} now costs ${amt}, above your limit of ${p.capMinor ? naira(BigInt(p.capMinor)) : "your limit"}. We won't pay it until you raise the limit in the app.`,
+        text: `ConstantUnits: ${who} now costs ${amt}, above your limit of ${p.capMinor ? naira(BigInt(p.capMinor)) : "your limit"}. We won't pay it until you raise the limit in the app.`,
       };
     case "funded":
       return {
         subject: `${amt} added`,
-        text: `Constant: ${amt} added to your account.${p.balanceMinor ? ` Balance ${naira(BigInt(p.balanceMinor))}.` : ""}`,
+        text: `ConstantUnits: ${amt} added to your account.${p.balanceMinor ? ` Balance ${naira(BigInt(p.balanceMinor))}.` : ""}`,
       };
     case "withdrawal_sent":
       return {
         subject: `${amt} is on its way`,
-        text: `Constant: ${amt} sent to your ${p.bank ?? "bank"} account ••${p.last4 ?? ""}. It usually arrives within minutes.`,
+        text: `ConstantUnits: ${amt} sent to your ${p.bank ?? "bank"} account ••${p.last4 ?? ""}. It usually arrives within minutes.`,
       };
     case "withdrawal_failed":
       return {
         subject: `Withdrawal didn't go through`,
-        text: `Constant: we couldn't send ${amt} to your bank. It's back in your Constant balance. Check your bank details in the app.`,
+        text: `ConstantUnits: we couldn't send ${amt} to your bank. It's back in your ConstantUnits balance. Check your bank details in the app.`,
       };
     case "needs_attention":
       return {
         subject: `We're checking ${who}`,
-        text: `Constant: a payment for ${who} needs a person to confirm it. We've paused this bill and will message you soon. Your money is safe.`,
+        text: `ConstantUnits: a payment for ${who} needs a person to confirm it. We've paused this bill and will message you soon. Your money is safe.`,
       };
     default:
       return renderStables(kind, p as StableParams);

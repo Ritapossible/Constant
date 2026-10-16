@@ -53,7 +53,7 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | `VTPASS_*` (4 values) | Paying bills, float check | Same as the API |
 | ☐ | `VEND_FALLBACK_PHONE` | VTpass needs a phone | A Constant number |
 | ☐ | `RESEND_API_KEY`, `EMAIL_FROM` | Email to users | Resend API key; `Constant <hello@your-domain>` |
-| ☐ | `TERMII_API_KEY`, `TERMII_SENDER_ID` (optional) | SMS to users | Termii; sender ID `Constant` once approved |
+| ☐ | `TERMII_API_KEY`, `TERMII_SENDER_ID` (optional) | SMS to users | Termii; sender ID `ConstUnits` (11 characters max) once approved |
 | ☐ | `CHAINS` | Deposit indexing | `base,arc` |
 | ☐ | `BASE_RPC_URL`, `ARC_RPC_URL` | Deposits, charges | Paid Base RPC; Arc default |
 | ☐ | `DEPOSITS_ALL_TOKENS` (optional) | Warn about unsupported tokens | `true` only with a paid RPC |

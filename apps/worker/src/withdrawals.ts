@@ -57,11 +57,11 @@ async function stepWithdrawal(d: Deps, payouts: Payouts, id: string) {
 
   let out: TransferOutcome;
   if (w.call === "transfer") {
-    out = await payouts.transfer({ reference: w.reference, recipientCode: w.recipient_code, amountMinor: w.amount_minor, reason: "Constant withdrawal" }).catch((err: Error) => ({ kind: "unknown" as const, detail: err.message }));
+    out = await payouts.transfer({ reference: w.reference, recipientCode: w.recipient_code, amountMinor: w.amount_minor, reason: "ConstantUnits withdrawal" }).catch((err: Error) => ({ kind: "unknown" as const, detail: err.message }));
   } else {
     out = await payouts.verifyTransfer(w.reference);
     // Never reached the provider: send the same reference again (it can't pay twice).
-    if (out.kind === "not_found" && w.checks >= 2) out = await payouts.transfer({ reference: w.reference, recipientCode: w.recipient_code, amountMinor: w.amount_minor, reason: "Constant withdrawal" }).catch((err: Error) => ({ kind: "unknown" as const, detail: err.message }));
+    if (out.kind === "not_found" && w.checks >= 2) out = await payouts.transfer({ reference: w.reference, recipientCode: w.recipient_code, amountMinor: w.amount_minor, reason: "ConstantUnits withdrawal" }).catch((err: Error) => ({ kind: "unknown" as const, detail: err.message }));
   }
   await apply(d, w, out);
 }

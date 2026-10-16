@@ -35,7 +35,7 @@ type Proposal = {
  * about by the server.
  */
 const SPEND_PERMISSION_MANAGER = "0xf85210B21cC50302F477BA56686d2019dC9b67Ad";
-/** USDC on Arc, from Constant's build (D-070). Off unless this build says so, whatever the server offers. */
+/** USDC on Arc, from ConstantUnits's build (D-070). Off unless this build says so, whatever the server offers. */
 const ARC_ON = process.env.NEXT_PUBLIC_ARC_AUTOPAY === "true";
 /** The only tokens and chains the app will ever sign a permission for (D-069, D-070), pinned for the same reason. */
 const PINNED: Record<Key, { network: Network; chainId: number; token: string; symbol: Symbol }> = {
@@ -45,7 +45,7 @@ const PINNED: Record<Key, { network: Network; chainId: number; token: string; sy
 };
 const LOGO: Record<Symbol, string> = { USDC: "/tokens/usdc.png", USDT: "/tokens/usdt.png" };
 /**
- * Constant's spender, pinned at build time (from review): even a compromised API can't get a user to sign a
+ * ConstantUnits's spender, pinned at build time (from review): even a compromised API can't get a user to sign a
  * permission for someone else's address. The same address on Base and Arc. Unset: the option is hidden.
  */
 const PINNED_SPENDER = process.env.NEXT_PUBLIC_SPENDER_ADDRESS ?? "";
@@ -59,7 +59,7 @@ const readers = {
 
 /**
  * Pay this bill from stablecoins: USDC and USDT on Base (D-063, D-069), USDC on Arc (D-070). For each one, the
- * user signs one capped permission: Constant may take up to $X of it every 30 days for this bill, from their own
+ * user signs one capped permission: ConstantUnits may take up to $X of it every 30 days for this bill, from their own
  * smart account. When the bill is due, the first that can pay all of it pays: Base USDC, Base USDT, then Arc USDC.
  * A dollar screen, so token and network names are shown (D-053).
  */
@@ -125,7 +125,7 @@ export function StablesAutopay({ lineId, lineName }: { lineId: string; lineName:
       !PINNED_SPENDER ||
       !same(pm.spender, PINNED_SPENDER)
     ) {
-      setError("This request doesn't look right, so nothing was approved. Please contact Constant support.");
+      setError("This request doesn't look right, so nothing was approved. Please contact ConstantUnits support.");
       return;
     }
     const name = `${pin.symbol} on ${pin.network === "arc" ? "Arc" : "Base"}`;
@@ -142,11 +142,11 @@ export function StablesAutopay({ lineId, lineName }: { lineId: string; lineName:
           calls: [{ to: account, data: encodeFunctionData({ abi: WALLET_ABI, functionName: "addOwnerAddress", args: [proposal.manager] }), value: 0n }],
         });
       }
-      // 2. Sign the permission exactly as Constant proposed it.
+      // 2. Sign the permission exactly as ConstantUnits proposed it.
       setStep({ key, kind: "signing" });
       const message = { ...pm, allowance: BigInt(pm.allowance), salt: BigInt(pm.salt) };
       const signature = await client.signTypedData({ domain: proposal.typedData.domain, types: proposal.typedData.types, primaryType: "SpendPermission", message } as never);
-      // 3. Hand it to Constant, which checks it and registers it on that chain.
+      // 3. Hand it to ConstantUnits, which checks it and registers it on that chain.
       setStep({ key, kind: "saving" });
       await call(`/v1/lines/${lineId}/stables`, { method: "POST", body: { permission: pm, signature, network: pin.network } });
       setProposal(null);
@@ -227,7 +227,7 @@ export function StablesAutopay({ lineId, lineName }: { lineId: string; lineName:
       {proposal && (
         <>
           <div className="ap-warn" role="note">
-            Constant can take up to{" "}
+            ConstantUnits can take up to{" "}
             <b>
               ${proposal.display.allowanceUsd} {proposal.symbol} every {proposal.display.periodDays} days
             </b>{" "}
@@ -244,7 +244,7 @@ export function StablesAutopay({ lineId, lineName }: { lineId: string; lineName:
           </div>
         </>
       )}
-      {!account && <p className="ap-muted">Your Constant account is being set up. Check back in a moment.</p>}
+      {!account && <p className="ap-muted">Your ConstantUnits account is being set up. Check back in a moment.</p>}
       {error && (
         <p className="ap-err" role="alert">
           {error}

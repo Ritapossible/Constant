@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import "../../app/app.css";
 
 export const metadata: Metadata = {
-  title: "Receipt | Constant",
+  title: "Receipt | ConstantUnits",
   robots: { index: false, follow: false },
 };
 

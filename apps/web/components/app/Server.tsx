@@ -40,7 +40,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
           ...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
         });
       } catch {
-        throw new ApiError(0, "offline", "Can't reach Constant. Check your connection.");
+        throw new ApiError(0, "offline", "Can't reach ConstantUnits. Check your connection.");
       }
       if (res.status === 204) return undefined as T;
       const body = await res.json().catch(() => ({}));

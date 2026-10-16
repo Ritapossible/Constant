@@ -20,7 +20,7 @@ export function Hero() {
       <div className="container hero-grid">
         <div className="hero-copy">
           <span className="eyebrow fade-in">
-            <span className="eyebrow-dot" /> Autopay for utilities
+            Autopay for utilities
           </span>
           <h1 className="h1">
             <Words text="Set it once." />
@@ -30,7 +30,7 @@ export function Hero() {
             </span>
           </h1>
           <p className="lead fade-in" style={{ ["--d" as string]: "420ms" }}>
-            Constant pays your data, light, cable and subscriptions from money you set aside, and warns you before
+            ConstantUnits pays your data, light, cable and subscriptions from money you set aside, and warns you before
             anything runs low.
           </p>
           <div className="hero-actions fade-in" style={{ ["--d" as string]: "540ms" }}>

@@ -90,7 +90,7 @@ export function notices(lines: readonly Line[], now: Date): Notice[] {
       continue;
     }
     if (line.threshold !== undefined && last.value <= line.threshold) {
-      out.push({ lineId: line.id, tone: "act", title: `${name} is at your line`, body: "This is when Constant tops it up." });
+      out.push({ lineId: line.id, tone: "act", title: `${name} is at your line`, body: "This is when ConstantUnits tops it up." });
       continue;
     }
     const d = decideLowReminder({

@@ -443,7 +443,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       const accountNumber = typeof b.accountNumber === "string" && /^\d{10}$/.test(b.accountNumber) ? b.accountNumber : null;
       if (!bankCode || !accountNumber) throw bad("invalid", "Choose your bank and enter the 10-digit account number");
       const holder = await getFundingAccount(d.db, req.user.id);
-      if (!holder) throw bad("no_holder", "Get your Constant account number first, so we know the name to match");
+      if (!holder) throw bad("no_holder", "Get your ConstantUnits account number first, so we know the name to match");
       const bankName = await p.resolveAccount(bankCode, accountNumber);
       if (!bankName) throw bad("not_found", "That account number wasn't found at this bank");
       if (!namesMatch(holder.account_name, bankName)) throw bad("name_mismatch", `This account is in the name ${bankName}. Withdrawals go only to an account in your own name.`);
@@ -462,7 +462,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
 
     v1.post("/withdrawals", async (req, reply) => {
       payouts();
-      if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact Constant support.");
+      if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact ConstantUnits support.");
       const amount = minor(json(req).amountMinor, "amountMinor");
       const account = await getPayoutAccount(d.db, req.user.id);
       const result = await withTx(d.db, async (tx) => {
@@ -555,14 +555,14 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     /** What the user is asked to sign: Constant may take up to this much of one token every 30 days for this bill. */
     v1.post("/lines/:id/stables/proposal", async (req) => {
       const line = await ownLine(req);
-      if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact Constant support.");
+      if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact ConstantUnits support.");
       const b = json(req);
       const token = tokenBySymbol(b.symbol ?? "USDC", b.network ?? "base");
       const verifier = verifierFor(token.chain)!;
       const account = evmAddress(b.account);
       const mine = (await addressesOf(d.db, req.user.id)).filter((a) => a.kind === "smart").map((a) => a.address.toLowerCase());
       // The same smart-account address on every chain (same factory, same owner).
-      if (!account || !mine.includes(account.toLowerCase())) throw bad("not_your_account", "Use your Constant smart account.");
+      if (!account || !mine.includes(account.toLowerCase())) throw bad("not_your_account", "Use your ConstantUnits smart account.");
       const rate = await currentRate(token.symbol);
       const start = Math.floor(now().getTime() / 1000) - 60;
       const permission = {
@@ -591,7 +591,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     /** The signed permission. Every field is checked against what Constant would propose, and the signature on Base. */
     v1.post("/lines/:id/stables", async (req, reply) => {
       const line = await ownLine(req);
-      if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact Constant support.");
+      if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact ConstantUnits support.");
       dollars();
       const b = json(req);
       let p;
@@ -604,7 +604,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       if (!signature) throw bad("invalid_signature", "Missing signature.");
       const network = typeof b.network === "string" ? b.network.toLowerCase() : "base";
       const token = network === "base" || network === "arc" ? stableFor(network, p.token) : null;
-      if (!token || !offered().includes(token)) throw bad("permission_mismatch", "This permission doesn't match what Constant offered (token).");
+      if (!token || !offered().includes(token)) throw bad("permission_mismatch", "This permission doesn't match what ConstantUnits offered (token).");
       const verifier = verifierFor(token.chain)!;
       const mine = (await addressesOf(d.db, req.user.id)).filter((a) => a.kind === "smart").map((a) => a.address.toLowerCase());
       const t = Math.floor(now().getTime() / 1000);
@@ -619,7 +619,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         (p.allowance <= 0n || p.allowance > maxAllowance) && "allowance",
         p.extraData !== "0x" && "extraData",
       ].filter(Boolean);
-      if (problems.length) throw bad("permission_mismatch", `This permission doesn't match what Constant offered (${problems.join(", ")}).`);
+      if (problems.length) throw bad("permission_mismatch", `This permission doesn't match what ConstantUnits offered (${problems.join(", ")}).`);
       if (!(await verifier.verifySignature(p, signature))) throw bad("invalid_signature", "The signature doesn't match your account.");
       try {
         await insertPermission(d.db, {

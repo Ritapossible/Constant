@@ -61,7 +61,7 @@ export function Bills({ store }: { store: Store }) {
       <header className="ap-page-head ap-page-head-row">
         <div>
           <p className="ap-kicker">Bills</p>
-          <h1>What Constant keeps paid</h1>
+          <h1>What ConstantUnits keeps paid</h1>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>
           Add a bill
@@ -489,7 +489,7 @@ function BillForm({
           <Field
             label={`Weekly cap (${sym}, optional)`}
             error={show(errors.cap)}
-            hint="Constant never spends more than this in a week. Defaults to one top-up."
+            hint="ConstantUnits never spends more than this in a week. Defaults to one top-up."
           >
             {(a) => <input {...a} inputMode="decimal" value={cap} onChange={(e) => setCap(e.target.value)} />}
           </Field>
@@ -529,7 +529,7 @@ function BillForm({
       </button>
       {!initial && (
         <p className="ap-fine">
-          Nothing is paid now. Before the first payment, Constant checks the {REF_LABEL[kind].toLowerCase()} and shows you the name on it.
+          Nothing is paid now. Before the first payment, ConstantUnits checks the {REF_LABEL[kind].toLowerCase()} and shows you the name on it.
         </p>
       )}
     </form>

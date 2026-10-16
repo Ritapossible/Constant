@@ -15,7 +15,9 @@ export function Logo() {
   return (
     <span className="logo">
       <LogoMark />
-      Constant
+      <span>
+        Constant<span className="logo-units">Units</span>
+      </span>
     </span>
   );
 }

@@ -29,7 +29,7 @@ export function Bento() {
   );
 }
 
-/* Data: the bar drains to your line, then Constant refills it. */
+/* Data: the bar drains to your line, then ConstantUnits refills it. */
 function DataCard() {
   const [ref, inView] = useInViewOnce<HTMLDivElement>(0.4);
   const level = useMotionValue(0.9);
@@ -132,7 +132,7 @@ function CableCard() {
         <span className="card-tag">
           <IconTv size={14} style={{ display: "inline", verticalAlign: -2 }} /> Cable TV
         </span>
-        <h3 className="h3">DSTV, GOtv, StarTimes. Renewed the day before.</h3>
+        <h3 className="h3">DStv, GOtv, StarTimes. Renewed the day before.</h3>
       </div>
       <div className="card-visual" aria-hidden="true">
         <div className="cal">
@@ -186,7 +186,7 @@ function PotsCard() {
   const [ref, inView] = useInViewOnce<HTMLDivElement>(0.4);
   const pots = [
     { n: "Light", v: 0.72, a: "₦20,000" },
-    { n: "DSTV", v: 0.55, a: "₦15,700" },
+    { n: "DStv", v: 0.55, a: "₦15,700" },
     { n: "Data", v: 0.38, a: "₦9,000" },
     { n: "ChatGPT", v: 0.2, a: "$20 / mo" },
   ];

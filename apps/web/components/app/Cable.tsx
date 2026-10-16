@@ -158,7 +158,7 @@ export function CableAdd({ onBack, onDone }: { onBack: () => void; onDone: (l: S
       <button className="btn btn-primary" type="submit" disabled={busy}>
         {busy ? "Saving…" : "Renew this automatically"}
       </button>
-      <p className="ap-fine">Nothing is paid now. Constant renews the day before your plan ends, from your naira balance, and tells you when it's done.</p>
+      <p className="ap-fine">Nothing is paid now. ConstantUnits renews the day before your plan ends, from your naira balance, and tells you when it's done.</p>
     </form>
   );
 }
