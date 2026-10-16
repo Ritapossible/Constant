@@ -3,6 +3,7 @@ import { BuiltWith } from "@/components/BuiltWith";
 import { Compare } from "@/components/Compare";
 import { Control } from "@/components/Control";
 import { Cta } from "@/components/Cta";
+import { Fair } from "@/components/Fair";
 import { Faq } from "@/components/Faq";
 import { Footer } from "@/components/Footer";
 import { Hero } from "@/components/Hero";
@@ -24,6 +25,7 @@ export default function Home() {
         <Reminders />
         <Steps />
         <Control />
+        <Fair />
         <Faq />
         <Cta />
       </main>

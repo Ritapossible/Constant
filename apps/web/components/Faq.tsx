@@ -1,5 +1,6 @@
 "use client";
 
+import { feeForKind } from "@constant/rules";
 import { AnimatePresence, motion } from "motion/react";
 import { useId, useState } from "react";
 import { Reveal } from "./Reveal";
@@ -26,8 +27,16 @@ const QA = [
     a: "No. You set the amount and a weekly cap for each bill. Change, pause or cancel any time.",
   },
   {
+    q: "What does it cost?",
+    a: `No subscription. Data, airtime and TV have no fee; electricity is ₦${(feeForKind("electricity") / 100n).toLocaleString("en-NG")} per token delivered. Nothing is charged for a bill that isn't delivered. Full details on the pricing page.`,
+  },
+  {
     q: "How do I add money?",
-    a: "A bank transfer in naira, or stablecoins from anywhere: USDC or USDT on Base, or USDC on Arc.",
+    a: "A bank transfer to your own ConstantUnits account number, which is free; a card, USSD or QR payment, with Paystack's fee at cost; or stablecoins from anywhere: USDC or USDT on Base, or USDC on Arc.",
+  },
+  {
+    q: "What happens to money I don't use?",
+    a: "It stays in its pot until that bill needs it, or until you move it. It doesn't expire.",
   },
 ];
 

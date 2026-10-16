@@ -147,3 +147,12 @@ describe("secrets", () => {
     expect(a).not.toBe(receiptId());
   });
 });
+
+describe("pricing (D-075)", () => {
+  it("the fees table charges exactly what the published prices say", async () => {
+    const { KIND_PRICES } = await import("@constant/rules");
+    const rows = (await db.query<{ kind: string; fee_minor: string }>("SELECT kind, fee_minor::text FROM fees WHERE market_code = 'NG' ORDER BY kind")).rows;
+    const published = [...KIND_PRICES].map((k) => ({ kind: k.kind, fee_minor: k.feeMinor.toString() })).sort((a, b) => a.kind.localeCompare(b.kind));
+    expect(rows).toEqual(published);
+  });
+});

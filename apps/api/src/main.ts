@@ -25,7 +25,13 @@ const app = await buildApp({
   ...(() => {
     const paystack = fake ? new FakeFunding() : new Paystack({ secretKey: need("PAYSTACK_SECRET_KEY"), preferredBank: env.PAYSTACK_PREFERRED_BANK ?? "wema-bank" });
     // Withdrawals use the same Paystack account; still off until payouts_enabled is switched on (D-050).
-    return { funding: paystack, payouts: paystack };
+    // Card, USSD and QR top-ups (D-075) too, when CARD_TOPUPS=true; Paystack sends the user back to the app.
+    const web = need("WEB_ORIGINS").split(",")[0]!.trim();
+    return {
+      funding: paystack,
+      payouts: paystack,
+      ...(env.CARD_TOPUPS === "true" ? { checkout: { provider: paystack, callbackUrl: env.TOPUP_CALLBACK_URL ?? `${web}/app` } } : {}),
+    };
   })(),
   secrets: new Secrets(keysFromEnv(env)),
   webOrigins: need("WEB_ORIGINS").split(",").map((s) => s.trim()),

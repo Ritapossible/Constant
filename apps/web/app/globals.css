@@ -1927,6 +1927,54 @@ button {
   flex: none;
 }
 
+/* Pricing on the home page (D-075): four numbers, each with what it means. */
+.fair {
+  display: grid;
+  gap: 14px;
+}
+.fair-item {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 26px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.fair-big {
+  font-size: clamp(36px, 5vw, 48px);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+.fair-item .h3 {
+  font-size: 18px;
+}
+.fair-item p {
+  margin: 0;
+  color: var(--muted);
+}
+.fair-more {
+  margin: 24px 0 0;
+  text-align: center;
+}
+.fair-more a {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+@media (min-width: 720px) {
+  .fair {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1040px) {
+  .fair {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
 /* People: real photos, one story each (D-074). Two wide, two tall, in alternating rows on desktop. */
 .people {
   display: grid;
@@ -2012,4 +2060,64 @@ button {
 .prose a {
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+.prose .lede {
+  font-size: 19px;
+  color: var(--muted);
+}
+.prose ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  color: var(--ink-2);
+  font-size: 17px;
+}
+.prose li + li {
+  margin-top: 6px;
+}
+
+/* Pricing (D-075): rows that stack on phones. */
+.price-table {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+  margin: 8px 0 18px;
+}
+.price-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px 16px;
+  padding: 14px 18px;
+  font-size: 15.5px;
+}
+.price-row + .price-row {
+  border-top: 1px solid var(--line);
+}
+.price-head {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.price-name {
+  font-weight: 600;
+}
+.price-fee {
+  font-family: var(--font-mono);
+}
+.price-basis {
+  color: var(--muted);
+}
+.price-table[aria-label="Fee per bill"] .price-row {
+  grid-template-columns: 140px 170px 1fr;
+}
+@media (max-width: 640px) {
+  .price-table[aria-label="Fee per bill"] .price-row {
+    grid-template-columns: 1fr auto;
+  }
+  .price-table[aria-label="Fee per bill"] .price-basis {
+    grid-column: 1 / -1;
+  }
 }

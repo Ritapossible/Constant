@@ -36,6 +36,7 @@ beforeAll(async () => {
     now: () => NOW,
     logger: false,
     dollars: { chain: permChain, arc: arcChain, rates: new FakeRates("1352.34") },
+    checkout: { provider: funding, callbackUrl: "https://constant-units.vercel.app/app" },
   });
 });
 afterAll(async () => {
@@ -322,5 +323,106 @@ describe("paying a bill from stablecoins (D-063, D-069)", () => {
     expect((await call("DELETE", `/v1/lines/${lineId}/stables/USDT`, "did:privy:usdc")).statusCode).toBe(204);
     st = (await call("GET", `/v1/lines/${lineId}/stables`, "did:privy:usdc")).json();
     expect(st.tokens.every((t: { permission: unknown }) => t.permission === null)).toBe(true);
+  });
+});
+
+describe("card, USSD and QR top-ups (D-075)", () => {
+  const who = "did:privy:topper";
+  const balance = async (did = who) => BigInt((await call("GET", "/v1/me", did)).json().balance.ledgerMinor);
+  const lastReference = () => [...funding.checkouts.keys()].at(-1)!;
+  const webhook = (data: Record<string, unknown>) => {
+    const body = JSON.stringify({ event: "charge.success", data: { status: "success", channel: "card", currency: "NGN", ...data } });
+    return app.inject({ method: "POST", url: "/webhooks/paystack", headers: { "content-type": "application/json", "x-paystack-signature": funding.sign(body) }, payload: body });
+  };
+
+  it("refuses amounts outside ₦1,000 to ₦500,000, and numbers that aren't strings", async () => {
+    for (const amountMinor of ["99999", "50000001", 100000, "1e6", "-100000"]) {
+      const r = await call("POST", "/v1/topups", "did:privy:typo", { amountMinor });
+      expect(r.statusCode).toBe(400);
+      expect(r.json().error).toBe("invalid_amount");
+    }
+  });
+
+  it("quotes Paystack's fee at cost, saves the top-up, then opens checkout", async () => {
+    const r = await call("POST", "/v1/topups", who, { amountMinor: "1000000" });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ status: "pending", creditMinor: "1000000", feeMinor: "25381", totalMinor: "1025381" });
+    expect(r.json().authorizationUrl).toMatch(/^https:\/\/checkout\.example\/cu_top_[0-9a-f]{32}$/);
+    expect(funding.checkouts.get(lastReference())!.totalMinor).toBe(1_025_381n);
+  });
+
+  it("credits exactly the amount asked for, once, from the signed webhook; the app sees it", async () => {
+    const before = await balance();
+    const created = await call("POST", "/v1/topups", who, { amountMinor: "500000" });
+    const ref = lastReference();
+    expect((await call("GET", `/v1/topups/${created.json().id}`, who)).json().status).toBe("pending");
+    const total = created.json().totalMinor;
+    const r1 = await webhook({ id: 777001, reference: ref, amount: Number(total), fees: 17_614 });
+    expect(r1.json()).toEqual({ ok: true, result: "credited" });
+    expect(await balance()).toBe(before + 500_000n);
+    // Replayed webhook and a later verify: no second credit.
+    expect((await webhook({ id: 777001, reference: ref, amount: Number(total) })).json().result).toBe("duplicate");
+    funding.settle(ref, { status: "success", eventId: "777001" });
+    const view = await call("GET", `/v1/topups/${created.json().id}`, who);
+    expect(view.json()).toMatchObject({ status: "credited", authorizationUrl: null });
+    expect(await balance()).toBe(before + 500_000n);
+  });
+
+  it("credits from the verify call when the webhook is late, and the late webhook then does nothing", async () => {
+    const before = await balance();
+    const created = await call("POST", "/v1/topups", who, { amountMinor: "200000" });
+    const ref = lastReference();
+    funding.settle(ref, { status: "success", eventId: "777002" });
+    expect((await call("GET", `/v1/topups/${created.json().id}`, who)).json().status).toBe("credited");
+    expect(await balance()).toBe(before + 200_000n);
+    expect((await webhook({ id: 777002, reference: ref, amount: Number(created.json().totalMinor) })).json().result).toBe("duplicate");
+    expect(await balance()).toBe(before + 200_000n);
+  });
+
+  it("never credits a payment below the quoted total, or in another currency; a person is paged", async () => {
+    const before = await balance();
+    const a = await call("POST", "/v1/topups", who, { amountMinor: "300000" });
+    expect((await webhook({ id: 777003, reference: lastReference(), amount: 300_000 })).json().result).toBe("mismatch");
+    const b = await call("POST", "/v1/topups", who, { amountMinor: "300000" });
+    expect((await webhook({ id: 777004, reference: lastReference(), amount: Number(b.json().totalMinor), currency: "USD" })).json().result).toBe("mismatch");
+    expect(await balance()).toBe(before);
+    expect((await call("GET", `/v1/topups/${a.json().id}`, who)).json().status).toBe("mismatch");
+    const alerts = await db.query("SELECT kind FROM ops_alerts WHERE kind = 'topup_mismatch'");
+    expect(alerts.rowCount).toBe(2);
+  });
+
+  it("marks a declined or abandoned checkout failed, without touching the balance", async () => {
+    const u = "did:privy:topper2";
+    const before = await balance(u);
+    const created = await call("POST", "/v1/topups", u, { amountMinor: "150000" });
+    funding.settle(lastReference(), { status: "failed", eventId: null });
+    expect((await call("GET", `/v1/topups/${created.json().id}`, u)).json().status).toBe("failed");
+    expect(await balance(u)).toBe(before);
+  });
+
+  it("limits how fast one person can open checkouts", async () => {
+    const u = "did:privy:hasty";
+    const codes: number[] = [];
+    for (let i = 0; i < 11; i++) codes.push((await call("POST", "/v1/topups", u, { amountMinor: "100000" })).statusCode);
+    expect(codes.filter((c) => c === 429).length).toBeGreaterThan(0);
+  });
+
+  it("ignores a checkout reference that isn't ours, and leaves bank-transfer credits to the old path", async () => {
+    const r = await webhook({ id: 777005, reference: "someone_else_ref", amount: 100_000 });
+    expect(r.json()).toEqual({ ok: true, ignored: true });
+  });
+
+  it("shows a top-up only to its owner", async () => {
+    const created = await call("POST", "/v1/topups", "did:privy:topper3", { amountMinor: "100000" });
+    expect((await call("GET", `/v1/topups/${created.json().id}`, "did:privy:stranger")).statusCode).toBe(404);
+  });
+
+  it("says so when Paystack can't open a checkout, and keeps the record", async () => {
+    funding.startFails = true;
+    const r = await call("POST", "/v1/topups", "did:privy:topper4", { amountMinor: "100000" });
+    funding.startFails = false;
+    expect(r.statusCode).toBe(503);
+    const rows = await db.query("SELECT status FROM topups WHERE status = 'failed' AND error LIKE 'fake:%'");
+    expect(rows.rowCount).toBe(1);
   });
 });

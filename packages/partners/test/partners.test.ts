@@ -115,6 +115,36 @@ describe("Paystack", () => {
     expect(p.parseCredit(JSON.stringify({ event: "transfer.success", data: {} }))).toBeNull();
   });
 
+  it("parses a checkout payment (card, USSD, QR) by our reference, and leaves dedicated-account credits alone", () => {
+    const card = body.replace("dedicated_nuban", "card").replace('"reference":"ref1"', '"reference":"cu_top_1","fees":1523');
+    expect(p.parseCheckout(card)).toEqual({ reference: "cu_top_1", status: "success", eventId: "302961", amountMinor: 500_000n, currency: "NGN", channel: "card", feesMinor: 1523n });
+    expect(p.parseCheckout(body)).toBeNull();
+    expect(p.parseCheckout(JSON.stringify({ event: "charge.failed", data: { reference: "x" } }))).toBeNull();
+    expect(p.parseCheckout("not json")).toBeNull();
+  });
+
+  it("starts a checkout with our reference and every local channel, and verifies it", async () => {
+    const seen: { url: string; init: RequestInit }[] = [];
+    const ps = new Paystack({
+      secretKey: "sk_test_abc",
+      preferredBank: "test-bank",
+      fetch: stubFetch(
+        [
+          { body: { status: true, data: { authorization_url: "https://checkout.paystack.com/abc", access_code: "abc", reference: "cu_top_1" } } },
+          { body: { status: true, data: { id: 9, status: "abandoned", amount: 101523, currency: "NGN", channel: "card" } } },
+          { status: 404, body: { status: false, message: "Transaction reference not found" } },
+        ],
+        seen,
+      ),
+    });
+    const s = await ps.start({ email: "a@b.co", reference: "cu_top_1", totalMinor: 101_523n, callbackUrl: "https://x/app", metadata: { topupId: "1" } });
+    expect(s.authorizationUrl).toBe("https://checkout.paystack.com/abc");
+    const sent = JSON.parse(String(seen[0]!.init.body));
+    expect(sent).toMatchObject({ amount: "101523", currency: "NGN", reference: "cu_top_1", channels: ["card", "bank", "ussd", "qr", "bank_transfer"] });
+    expect((await ps.verify("cu_top_1")).status).toBe("failed");
+    expect((await ps.verify("cu_top_2")).status).toBe("pending");
+  });
+
   it("creates a customer then a dedicated account", async () => {
     const seen: { url: string; init: RequestInit }[] = [];
     const ps = new Paystack({

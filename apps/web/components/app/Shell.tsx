@@ -38,7 +38,9 @@ function useTab(): [Tab, (t: Tab) => void] {
   useEffect(() => {
     const read = () => {
       const h = window.location.hash.slice(1);
-      setTabState(isTab(h) ? h : "home");
+      // Back from a card top-up (D-075): Paystack returns to /app?topup=…, which belongs on Money.
+      const fromTopUp = new URLSearchParams(window.location.search).has("topup");
+      setTabState(isTab(h) ? h : fromTopUp ? "money" : "home");
     };
     read();
     window.addEventListener("hashchange", read);

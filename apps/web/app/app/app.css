@@ -1286,3 +1286,36 @@
   box-shadow: none;
   background: transparent;
 }
+
+/* Card, USSD and QR top-ups (D-075) */
+.ap-topup {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.ap-topup h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+}
+.ap-topup .ap-muted {
+  margin: 0;
+}
+.ap-topup-quote {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.ap-topup-quote b {
+  color: var(--ink);
+}
+.ap-topup .ap-quick {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 480px) {
+  .ap-topup .ap-quick {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

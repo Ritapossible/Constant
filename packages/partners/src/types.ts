@@ -81,6 +81,31 @@ export interface Funding {
   parseCredit(rawBody: string): FundingCredit | null;
 }
 
+/** A hosted checkout for one top-up (card, USSD, QR, pay with transfer). D-075. */
+export interface CheckoutStart {
+  authorizationUrl: string;
+}
+
+/** What the provider says happened to a checkout: from a signed webhook or a verify call. */
+export interface CheckoutResult {
+  reference: string;
+  status: "success" | "failed" | "pending";
+  /** The provider's transaction id: the funding event id, so a payment credits once. Null until it exists. */
+  eventId: string | null;
+  amountMinor: bigint | null;
+  currency: string | null;
+  channel: string | null;
+  feesMinor: bigint | null;
+}
+
+export interface Checkout {
+  readonly name: string;
+  start(c: { email: string; reference: string; totalMinor: bigint; callbackUrl: string; metadata: Record<string, string> }): Promise<CheckoutStart>;
+  verify(reference: string): Promise<CheckoutResult>;
+  /** A signed checkout payment event, or null for anything else (dedicated-account credits stay with Funding). */
+  parseCheckout(rawBody: string): CheckoutResult | null;
+}
+
 export type MessageChannel = "email" | "sms";
 
 export interface Messaging {

@@ -12,3 +12,4 @@ export * from "./delivery.js";
 export * from "./renewal.js";
 export * from "./dollars.js";
 export * from "./books.js";
+export * from "./pricing.js";

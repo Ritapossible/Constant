@@ -5,6 +5,7 @@ const LINKS = [
   { href: "#remind", label: "Reminders" },
   { href: "#how", label: "How it works" },
   { href: "#faq", label: "FAQ" },
+  { href: "/pricing", label: "Pricing" },
   { href: "/app", label: "Launch app" },
   { href: "/privacy", label: "Privacy" },
 ];

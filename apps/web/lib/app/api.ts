@@ -39,6 +39,18 @@ export type Me = {
   lines: ServerLine[];
   orders: ServerOrder[];
   payments: "on" | "paused";
+  /** Card, USSD and QR top-ups are open (D-075). */
+  cardTopUps: boolean;
+};
+
+export type Topup = {
+  id: string;
+  status: "pending" | "credited" | "failed" | "mismatch";
+  creditMinor: string;
+  feeMinor: string;
+  totalMinor: string;
+  authorizationUrl: string | null;
+  createdAt: string;
 };
 
 export type Lookup = { customerName: string; currentPlan: string | null; renewalAmountMinor: string | null; dueAt: string | null };

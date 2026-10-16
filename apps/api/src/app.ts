@@ -21,6 +21,12 @@ import {
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import {
+  insertTopup,
+  lockTopupByReference,
+  pendingTopupsToday,
+  topupForUser,
+  updateTopup,
+  type TopupRow,
   flag,
   getPayoutAccount,
   insertWithdrawal,
@@ -73,8 +79,11 @@ import {
   type Secrets,
   type UserRow,
 } from "@constant/db";
-import type { CableProvider, CableVending, Funding, Identity, Payouts, RateSource, StableSymbol } from "@constant/partners";
+import type { CableProvider, CableVending, Checkout, CheckoutResult, Funding, Identity, Payouts, RateSource, StableSymbol } from "@constant/partners";
 import {
+  TOPUP_MAX_MINOR,
+  TOPUP_MIN_MINOR,
+  topUpCharge,
   decideWithdrawal,
   namesMatch,
   payoutAccountUsable,
@@ -108,6 +117,8 @@ export interface ApiDeps {
   logger?: boolean;
   /** Paycrest off-ramp webhooks (D-068). Absent: the route answers 404. */
   offramp?: Pick<import("@constant/partners").Offramp, "verifyWebhook" | "parseWebhook">;
+  /** Card, USSD and QR top-ups (D-075), and where Paystack sends the user back. Absent: /v1/topups answers 503. */
+  checkout?: { provider: Checkout; callbackUrl: string };
   /** Naira withdrawals (D-067). Absent: the withdrawal routes answer 503. */
   payouts?: Payouts;
   /** Operator API (D-065). Absent: /ops doesn't exist. */
@@ -120,6 +131,18 @@ declare module "fastify" {
   interface FastifyRequest {
     user: UserRow;
   }
+}
+
+function topupView(t: TopupRow) {
+  return {
+    id: t.id,
+    status: t.status,
+    creditMinor: t.credit_minor.toString(),
+    feeMinor: t.fee_minor.toString(),
+    totalMinor: t.total_minor.toString(),
+    authorizationUrl: t.status === "pending" ? t.authorization_url : null,
+    createdAt: t.created_at.toISOString(),
+  };
 }
 
 const PROVIDERS: CableProvider[] = ["dstv", "gotv", "startimes"];
@@ -280,6 +303,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         lines: lines.map(lineView),
         orders: orders.map(orderView),
         payments: enabled ? "on" : "paused",
+        cardTopUps: Boolean(d.checkout),
       };
     });
 
@@ -311,6 +335,60 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         account_name: acct.accountName,
       });
       return { bankName: saved.bank_name, accountNumber: saved.account_number, accountName: saved.account_name };
+    });
+
+    // ── Top-ups by card, USSD or QR (D-075) ──
+    v1.post(
+      "/topups",
+      { config: { rateLimit: { max: 10, timeWindow: "1 minute", keyGenerator: (req: FastifyRequest) => req.headers.authorization ?? req.ip } } },
+      async (req) => {
+        if (!d.checkout) throw new HttpError(503, "topups_off", "Card top-ups aren't open yet. Use a bank transfer to your account number.");
+        const b = json(req);
+        const credit = typeof b.amountMinor === "string" && /^\d{1,12}$/.test(b.amountMinor) ? BigInt(b.amountMinor) : null;
+        if (credit === null || credit < TOPUP_MIN_MINOR || credit > TOPUP_MAX_MINOR) throw bad("invalid_amount", "Enter an amount between ₦1,000 and ₦500,000");
+        if ((await pendingTopupsToday(d.db, req.user.id)) >= 20) throw bad("too_many", "Too many unfinished top-ups today. Finish one or try tomorrow.");
+        const q = topUpCharge(credit);
+        // Saved with its reference before Paystack is called (persist before act).
+        const t = await insertTopup(d.db, {
+          userId: req.user.id,
+          provider: d.checkout.provider.name,
+          reference: `cu_top_${randomUUID().replace(/-/g, "")}`,
+          creditMinor: q.creditMinor,
+          feeMinor: q.feeMinor,
+          totalMinor: q.totalMinor,
+        });
+        try {
+          const started = await d.checkout.provider.start({
+            email: req.user.email ?? `u-${req.user.id}@${d.fundingEmailDomain}`,
+            reference: t.reference,
+            totalMinor: t.total_minor,
+            callbackUrl: `${d.checkout.callbackUrl}${d.checkout.callbackUrl.includes("?") ? "&" : "?"}topup=${t.id}`,
+            metadata: { topupId: t.id },
+          });
+          await updateTopup(d.db, t.id, { authorization_url: started.authorizationUrl });
+          return { ...topupView({ ...t, authorization_url: started.authorizationUrl }) };
+        } catch (err) {
+          await updateTopup(d.db, t.id, { status: "failed", error: String((err as Error).message).slice(0, 300) });
+          throw new HttpError(503, "unreachable", "Card payments aren't answering. Try again in a minute, or use a bank transfer.");
+        }
+      },
+    );
+
+    /** The app calls this when Paystack sends the user back; it asks Paystack, so a late webhook doesn't matter. */
+    v1.get("/topups/:id", async (req) => {
+      const { id } = req.params as { id: string };
+      if (!/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(404, "not_found", "No such top-up");
+      const t = await topupForUser(d.db, req.user.id, id);
+      if (!t) throw new HttpError(404, "not_found", "No such top-up");
+      if (t.status === "pending" && d.checkout) {
+        try {
+          await settleTopup(await d.checkout.provider.verify(t.reference));
+        } catch {
+          // Paystack unreachable: the webhook still settles it; the app asks again.
+        }
+        return topupView((await topupForUser(d.db, req.user.id, id))!);
+      }
+      return topupView(t);
     });
 
     v1.post(
@@ -727,6 +805,52 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     });
   }
 
+  /**
+   * Settles a checkout top-up from a signed webhook or a verify call, once. Credits exactly what was quoted, only
+   * when Paystack says success in naira for at least the quoted total; anything else paid is held for a person.
+   */
+  async function settleTopup(r: CheckoutResult): Promise<string> {
+    return withTx(d.db, async (tx) => {
+      const t = await lockTopupByReference(tx, r.reference);
+      if (!t) {
+        await raiseOpsAlert(tx, "page", "topup_unknown_reference", { reference: r.reference, eventId: r.eventId });
+        return "unknown_reference";
+      }
+      if (t.status === "credited" || t.status === "mismatch") return "duplicate";
+      if (r.status === "pending") return "pending";
+      if (r.status === "failed") {
+        if (t.status === "pending") await updateTopup(tx, t.id, { status: "failed", channel: r.channel, error: "declined or abandoned" });
+        return "failed";
+      }
+      // Paid. A failed top-up can still be paid later (a late USSD): settle it the same way.
+      const facts = { provider_event_id: r.eventId, channel: r.channel, paid_minor: r.amountMinor, provider_fee_minor: r.feesMinor };
+      if (!r.eventId || r.currency !== "NGN" || r.amountMinor === null || r.amountMinor < t.total_minor) {
+        await updateTopup(tx, t.id, { ...facts, status: "mismatch", error: `paid ${r.amountMinor ?? "?"} ${r.currency ?? "?"}, quoted ${t.total_minor} NGN` });
+        await raiseOpsAlert(tx, "page", "topup_mismatch", { topupId: t.id, reference: t.reference, paid: String(r.amountMinor), currency: r.currency, quoted: t.total_minor.toString() });
+        return "mismatch";
+      }
+      await lockUser(tx, t.user_id);
+      const credited = await recordFunding(tx, {
+        provider: t.provider,
+        eventId: r.eventId,
+        userId: t.user_id,
+        amountMinor: t.credit_minor,
+        currency: "NGN",
+        credit: true,
+      });
+      await updateTopup(tx, t.id, { ...facts, status: "credited", error: null });
+      if (credited === "credited") {
+        await queueNotice(tx, {
+          key: `notice:funded:${t.provider}:${r.eventId}`,
+          userId: t.user_id,
+          kind: "funded",
+          params: { amountMinor: t.credit_minor.toString(), balanceMinor: (await ledgerSum(tx, t.user_id)).toString() },
+        });
+      }
+      return "credited";
+    });
+  }
+
   if (d.opsToken) await registerOps(app, { db: d.db, opsToken: d.opsToken, now }, json);
 
   // ── Webhooks ───────────────────────────────────────────────────────────────
@@ -738,6 +862,9 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     if (!ok) return reply.status(401).send({ error: "bad_signature" });
     const transferEvent = d.payouts?.parseTransferEvent(body) ?? null;
     if (transferEvent) return { ok: true, result: await settleWithdrawal(transferEvent.reference, transferEvent.status) };
+    // A checkout payment carries our own reference; a transfer into a dedicated account doesn't (D-075).
+    const paid = d.checkout?.provider.parseCheckout(body) ?? null;
+    if (paid?.reference.startsWith("cu_top_")) return { ok: true, result: await settleTopup(paid) };
     const credit = d.funding.parseCredit(body);
     if (!credit) return { ok: true, ignored: true };
 

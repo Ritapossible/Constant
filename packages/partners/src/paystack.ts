@@ -1,11 +1,12 @@
 /**
  * Paystack dedicated virtual accounts (D-022): each user gets their own account number; transfers into it
  * arrive as a signed `charge.success` webhook with channel `dedicated_nuban`. The signature is
- * HMAC-SHA512 of the raw body with the secret key, in `x-paystack-signature`.
+ * HMAC-SHA512 of the raw body with the secret key, in `x-paystack-signature`. Checkout (D-075): card, USSD, QR and
+ * pay-with-transfer top-ups by our own reference; their `charge.success` has any other channel.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { fetchJson, type Fetch } from "./http.js";
-import type { Bank, DedicatedAccount, Funding, FundingCredit, Payouts, TransferEvent, TransferOutcome } from "./types.js";
+import type { Bank, Checkout, CheckoutResult, CheckoutStart, DedicatedAccount, Funding, FundingCredit, Payouts, TransferEvent, TransferOutcome } from "./types.js";
 
 export interface PaystackConfig {
   secretKey: string;
@@ -17,7 +18,7 @@ export interface PaystackConfig {
 
 export class PaystackError extends Error {}
 
-export class Paystack implements Funding, Payouts {
+export class Paystack implements Funding, Payouts, Checkout {
   readonly name = "paystack";
   private readonly f: Fetch;
   private readonly base: string;
@@ -122,6 +123,42 @@ export class Paystack implements Funding, Payouts {
     return timingSafeEqual(expected, Buffer.from(sig, "hex"));
   }
 
+  // ── Checkout (D-075) ──
+
+  async start(c: { email: string; reference: string; totalMinor: bigint; callbackUrl: string; metadata: Record<string, string> }): Promise<CheckoutStart> {
+    const d = await this.post("/transaction/initialize", {
+      email: c.email,
+      amount: c.totalMinor.toString(),
+      currency: "NGN",
+      reference: c.reference,
+      callback_url: c.callbackUrl,
+      channels: ["card", "bank", "ussd", "qr", "bank_transfer"],
+      metadata: c.metadata,
+    });
+    const url = String(d.authorization_url ?? "");
+    if (!url.startsWith("https://")) throw new PaystackError("paystack: no authorization url");
+    return { authorizationUrl: url };
+  }
+
+  async verify(reference: string): Promise<CheckoutResult> {
+    const r = await this.get(`/transaction/verify/${encodeURIComponent(reference)}`);
+    if (r.status === 404) return { reference, status: "pending", eventId: null, amountMinor: null, currency: null, channel: null, feesMinor: null };
+    if (r.status >= 400 || !r.body.data) throw new PaystackError(`paystack: verify ${r.status} ${r.body.message ?? ""}`);
+    return checkoutResult(reference, r.body.data as Record<string, unknown>);
+  }
+
+  parseCheckout(rawBody: string): CheckoutResult | null {
+    let b: { event?: string; data?: Record<string, unknown> };
+    try {
+      b = JSON.parse(rawBody);
+    } catch {
+      return null;
+    }
+    const d = b.data;
+    if (b.event !== "charge.success" || !d || d.channel === "dedicated_nuban" || typeof d.reference !== "string") return null;
+    return checkoutResult(d.reference, d);
+  }
+
   parseCredit(rawBody: string): FundingCredit | null {
     let b: { event?: string; data?: Record<string, unknown> };
     try {
@@ -145,6 +182,27 @@ export class Paystack implements Funding, Payouts {
   }
 }
 
+function kobo(v: unknown): bigint | null {
+  if (typeof v === "number" && Number.isSafeInteger(v) && v >= 0) return BigInt(v);
+  if (typeof v === "string" && /^\d+$/.test(v)) return BigInt(v);
+  return null;
+}
+
+/** Maps a Paystack transaction (webhook data or verify data). Only "success" credits; "failed" and "abandoned" end it. */
+export function checkoutResult(reference: string, d: Record<string, unknown>): CheckoutResult {
+  const s = String(d.status ?? "");
+  const status = s === "success" ? "success" : s === "failed" || s === "abandoned" || s === "reversed" ? "failed" : "pending";
+  return {
+    reference,
+    status,
+    eventId: d.id == null ? null : String(d.id),
+    amountMinor: kobo(d.amount),
+    currency: typeof d.currency === "string" ? d.currency : null,
+    channel: typeof d.channel === "string" ? d.channel : null,
+    feesMinor: kobo(d.fees),
+  };
+}
+
 /** Maps a Paystack transfer or verify response. Only an explicit failure is "failed"; anything unclear is "unknown". */
 export function transferOutcome(status: number, body: unknown): TransferOutcome {
   const b = (body ?? {}) as { status?: boolean; message?: string; data?: { status?: string; transfer_code?: string } };
@@ -161,7 +219,7 @@ export function transferOutcome(status: number, body: unknown): TransferOutcome 
 }
 
 /** For tests and local dev: signs with a known secret, hands out predictable account numbers. */
-export class FakeFunding implements Funding, Payouts {
+export class FakeFunding implements Funding, Payouts, Checkout {
   readonly name = "fake";
   private n = 0;
   constructor(readonly secret = "fake-secret") {}
@@ -181,6 +239,27 @@ export class FakeFunding implements Funding, Payouts {
 
   parseCredit(rawBody: string): FundingCredit | null {
     return new Paystack({ secretKey: this.secret, preferredBank: "test-bank" }).parseCredit(rawBody);
+  }
+
+  // ── Checkout ──
+  checkouts = new Map<string, { totalMinor: bigint; email: string; result: CheckoutResult | null }>();
+  startFails = false;
+  async start(c: { email: string; reference: string; totalMinor: bigint }): Promise<CheckoutStart> {
+    if (this.startFails) throw new Error("fake: checkout unavailable");
+    this.checkouts.set(c.reference, { totalMinor: c.totalMinor, email: c.email, result: null });
+    return { authorizationUrl: `https://checkout.example/${c.reference}` };
+  }
+  /** Test helper: what verify() will say for this reference. */
+  settle(reference: string, r: Partial<CheckoutResult> & { status: CheckoutResult["status"] }) {
+    const c = this.checkouts.get(reference);
+    if (!c) throw new Error(`fake: no checkout ${reference}`);
+    c.result = { reference, eventId: `T${reference}`, amountMinor: c.totalMinor, currency: "NGN", channel: "card", feesMinor: null, ...r };
+  }
+  async verify(reference: string): Promise<CheckoutResult> {
+    return this.checkouts.get(reference)?.result ?? { reference, status: "pending", eventId: null, amountMinor: null, currency: null, channel: null, feesMinor: null };
+  }
+  parseCheckout(rawBody: string): CheckoutResult | null {
+    return new Paystack({ secretKey: this.secret, preferredBank: "test-bank" }).parseCheckout(rawBody);
   }
 
   // ── Payouts ──

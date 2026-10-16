@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { CardTopUp } from "./CardTopUp";
 import { formatMoney } from "@/lib/app/format";
 import { Field } from "./Field";
 import { useServer } from "./Server";
@@ -112,6 +113,7 @@ export function NairaAccount() {
           <p className="ap-fine">Held by our licensed payment partner. You can stop or remove any bill at any time.</p>
         </form>
       )}
+      {me.cardTopUps && <CardTopUp />}
     </section>
   );
 }
