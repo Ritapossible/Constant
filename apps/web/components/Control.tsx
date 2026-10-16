@@ -8,8 +8,24 @@ const ITEMS = [
   { icon: <IconReceipt />, title: "A receipt for everything", text: "Every naira in and out, on the channel you chose." },
 ];
 
+/** What a bill can be: the providers' own logos, the same files the app uses (D-071). */
 const WORKS_WITH = [
-  "MTN", "Airtel", "Glo", "9mobile", "DSTV", "GOtv", "StarTimes", "IKEDC", "EKEDC", "EEDC", "AEDC", "ChatGPT", "Claude", "Gemini",
+  { name: "MTN", logo: "/providers/mtn.jpg" },
+  { name: "Airtel", logo: "/providers/airtel.jpg" },
+  { name: "Glo", logo: "/providers/glo.jpg" },
+  { name: "T2", logo: "/providers/9mobile.jpg" },
+  { name: "Ikeja Electric", logo: "/providers/ikedc.jpg" },
+  { name: "Eko Electricity", logo: "/providers/ekedc.jpg" },
+  { name: "Abuja Electricity", logo: "/providers/aedc.jpg" },
+  { name: "Enugu Electricity", logo: "/providers/eedc.jpg" },
+  { name: "DStv", logo: "/providers/dstv.jpg" },
+  { name: "GOtv", logo: "/providers/gotv.jpg" },
+  { name: "StarTimes", logo: "/providers/startimes.jpg" },
+  { name: "ChatGPT", logo: "/providers/chatgpt.png" },
+  { name: "Claude", logo: "/providers/claude.png" },
+  { name: "Gemini", logo: "/providers/gemini.png" },
+  { name: "Spotify", logo: "/providers/spotify.png" },
+  { name: "Netflix", logo: "/providers/netflix.svg" },
 ];
 
 export function Control() {
@@ -38,7 +54,8 @@ export function Control() {
         <div className="marquee-track">
           {[...WORKS_WITH, ...WORKS_WITH].map((w, i) => (
             <span className="marquee-item" key={i} aria-hidden={i >= WORKS_WITH.length}>
-              {w}
+              <img src={w.logo} alt="" width={28} height={28} loading="lazy" decoding="async" />
+              {w.name}
             </span>
           ))}
         </div>

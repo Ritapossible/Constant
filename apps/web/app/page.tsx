@@ -1,4 +1,5 @@
 import { Bento } from "@/components/Bento";
+import { BuiltWith } from "@/components/BuiltWith";
 import { Compare } from "@/components/Compare";
 import { Control } from "@/components/Control";
 import { Cta } from "@/components/Cta";
@@ -15,6 +16,7 @@ export default function Home() {
       <Nav />
       <main id="main">
         <Hero />
+        <BuiltWith />
         <Compare />
         <Bento />
         <Reminders />

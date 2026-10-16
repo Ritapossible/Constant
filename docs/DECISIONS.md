@@ -369,3 +369,9 @@ When the VTpass balance drops below `FLOAT_LOW_NGN`, charged USDC on the spender
 - **Improvements on the Grok brief:** an `orderId` on every charge, refused if repeated (on-chain idempotency, matching persist-before-act); the user opens each line (spender pinned in the app); fixed period windows; measured deposits; immutable treasury; a vend failure keeps the user's credited naira refundable (D-063) instead of leaving a token "for a human".
 - **Not invented:** the stablecoin address. The explorer shows several look-alikes (QUSDC, QUSD, mocks); the official one comes from the QIE team, recorded with proof in `contracts/qie/addresses.json`; the deploy script refuses to run without it.
 - **Open before deploy:** the stablecoin's backing and redemption, its route to naira (Paycrest doesn't list QIE; until then a low, separate daily limit and Constant pre-funds the naira float), and the organizers' answers on AI-assisted work and on projects started inside the build window.
+
+### D-073 The landing page shows what Constant is built with, as logos
+- **Two moving strips.** Under the hero, "Built with": the infrastructure the code actually integrates (Paystack, VTpass, Paycrest, Circle, Privy, Coinbase, Base, Arc, Stellar, Termii, Resend). In "You stay in control", the bills it pays, now as provider logos (the same files as the app, D-071).
+- **Honest labels.** "Built with", never "partners" or "trusted by": none of these companies endorse Constant. A service appears only once the code uses it (QIE joins after D-072 ships). Remove a logo if a company asks.
+- **Sources.** Each logo is the icon the company publishes on its own site, unaltered; Paystack's site blocks automated requests, so its mark is the image Paystack uses for its own social cards (its S3 asset bucket). Base and Arc reuse the marks already in `/tokens`.
+- **People photos** wait for photos with a clear licence, ideally Nigerian and ideally our own.
