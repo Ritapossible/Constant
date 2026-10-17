@@ -1,5 +1,5 @@
 /**
- * ConstantUnits's prices, in one place (D-075). The `fees` table seed, the pricing page and /llms.txt all come from
+ * ConstantUnits's prices, in one place (D-075, D-077). The `fees` table seed, the pricing page and /llms.txt all come from
  * this file, and a database test fails if the seed and this table disagree, so what people read can't drift from
  * what they are charged.
  */
@@ -16,13 +16,19 @@ export interface KindPrice {
   basis: string;
 }
 
-/** Per-bill fees for Nigeria (D-020, D-031). The `fees` table must match: packages/db/test checks it. */
+/**
+ * One fee per delivered bill, on top of its face value (D-077). Nothing stacks on it, and nothing is charged when
+ * the bill fails or is reversed. The `fees` table must match: packages/db/test checks it.
+ */
 export const KIND_PRICES: readonly KindPrice[] = [
-  { kind: "data", label: "Data", feeMinor: 0n, basis: "Face value. ConstantUnits earns the vend partner's discount." },
-  { kind: "airtime", label: "Airtime", feeMinor: 0n, basis: "Face value. ConstantUnits earns the vend partner's discount." },
-  { kind: "electricity", label: "Electricity", feeMinor: 10_000n, basis: "Charged only when the token is delivered." },
-  { kind: "tv", label: "TV", feeMinor: 0n, basis: "Face value. ConstantUnits earns the vend partner's discount." },
+  { kind: "data", label: "Data", feeMinor: 5_000n, basis: "Only if the bundle lands." },
+  { kind: "airtime", label: "Airtime", feeMinor: 3_000n, basis: "Only on ₦500 or more, and only if it lands." },
+  { kind: "tv", label: "Cable TV", feeMinor: 10_000n, basis: "Only if the decoder is renewed." },
+  { kind: "electricity", label: "Electricity", feeMinor: 10_000n, basis: "Only if the token arrives." },
 ];
+
+/** Data and airtime are paid automatically only from ₦500: below that the fee would be too large a share (D-077). */
+export const MIN_AUTOPAY_MINOR: Partial<Record<PricedKind, Minor>> = { data: 50_000n, airtime: 50_000n };
 
 export function feeForKind(kind: PricedKind): Minor {
   const p = KIND_PRICES.find((k) => k.kind === kind);
@@ -31,15 +37,11 @@ export function feeForKind(kind: PricedKind): Minor {
 }
 
 /**
- * The autopay fee (D-076): ₦50 on every payment ConstantUnits makes automatically, on top of the bill's own fee,
- * except on the user's first bill on autopay (their oldest bill not removed), which is always free. Charged only
- * when the payment is delivered, like every fee. The `markets` row must match: packages/db/test checks it.
+ * What one delivered payment costs on top of the bill (D-077): the kind's fee, or nothing when it is the first
+ * payment on a new account (once per person, not per bill).
  */
-export const AUTOPAY = { feeMinor: 5_000n, freeLines: 1 } as const;
-
-/** Everything ConstantUnits charges on one automatic payment of this kind. */
-export function billFee(kind: PricedKind, isFreeLine: boolean): Minor {
-  return feeForKind(kind) + (isFreeLine ? 0n : AUTOPAY.feeMinor);
+export function billFee(kind: PricedKind, isFirstPayment: boolean): Minor {
+  return isFirstPayment ? 0n : feeForKind(kind);
 }
 
 /**
@@ -88,10 +90,10 @@ export function topUpCharge(creditMinor: Minor): { creditMinor: Minor; feeMinor:
 /** Facts for the pricing page and /llms.txt. Each one must stay true; change the code first, then this. */
 export const PRICING_FACTS = {
   noSubscription: "No subscription and no monthly fee.",
-  firstBillFree: "Your first bill on autopay is free: no autopay fee, ever.",
+  firstFree: "The first delivered payment on a new account is free.",
   bankTransferFree: "Adding money by bank transfer, from any Nigerian bank app to your own ConstantUnits account number, is free.",
   cardAtCost: "Card, USSD and QR top-ups add the card processor's fee at cost, shown before you pay.",
   failedRefunded: "If a bill isn't delivered, you pay nothing, fee included. If a payment is refunded, the fee is refunded with it.",
   potsKeep: "Money in a pot stays there until it pays that bill or you move it. It doesn't expire.",
-  stablesSame: "Paying from USDC or USDT costs the same naira fees, at the market rate, with no spread added.",
+  stablesSame: "Paying from USDC or USDT costs the same naira fee, at the market rate, with no spread added.",
 } as const;

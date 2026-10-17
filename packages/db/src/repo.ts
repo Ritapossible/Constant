@@ -74,23 +74,14 @@ export async function feeFor(q: Q, market: string, kind: string): Promise<bigint
 }
 
 /**
- * Everything ConstantUnits charges on one automatic payment for this line (D-020, D-031, D-076): the kind's fee,
- * plus the market's autopay fee unless this is one of the user's first bills on autopay (oldest first, removed
- * bills don't count). Must be called in the transaction that writes the order.
+ * What ConstantUnits charges on the next payment for this line (D-077): the kind's one fee, or nothing if it is the
+ * user's first payment (no earlier order that didn't fail). Call it in the transaction that writes the order, with
+ * the user locked, so two bills due together can't both be "first".
  */
 export async function feeForLine(q: Q, market: string, line: { id: string; user_id: string; kind: string }): Promise<bigint> {
   const kindFee = await feeFor(q, market, line.kind);
-  const m = await q.query<{ autopay_fee_minor: bigint; free_autopay_lines: number }>(
-    "SELECT autopay_fee_minor, free_autopay_lines FROM markets WHERE code = $1",
-    [market],
-  );
-  const { autopay_fee_minor: autopay, free_autopay_lines: free } = m.rows[0] ?? { autopay_fee_minor: 0n, free_autopay_lines: 0 };
-  if (autopay === 0n) return kindFee;
-  const firsts = await q.query<{ id: string }>(
-    "SELECT id FROM lines WHERE user_id = $1 AND status <> 'cancelled' ORDER BY created_at, id LIMIT $2",
-    [line.user_id, free],
-  );
-  return firsts.rows.some((r) => r.id === line.id) ? kindFee : kindFee + autopay;
+  const earlier = await q.query("SELECT 1 FROM orders WHERE user_id = $1 AND state <> 'failed' LIMIT 1", [line.user_id]);
+  return (earlier.rowCount ?? 0) === 0 ? 0n : kindFee;
 }
 
 export async function providerEnabled(q: Q, code: string, kind: string): Promise<boolean> {

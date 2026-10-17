@@ -1,4 +1,4 @@
-import { AUTOPAY_FEE, BILL_PRICES, FACTS, TOPUP_EXAMPLES, TOPUP_RANGE } from "@/lib/pricing";
+import { BILL_PRICES, FACTS, TOPUP_EXAMPLES, TOPUP_RANGE } from "@/lib/pricing";
 import { CONTACT_EMAIL, SITE_URL } from "@/lib/site";
 
 /** A plain-text summary for AI assistants (llmstxt.org), from the same prices as /pricing (D-075). */
@@ -19,10 +19,8 @@ export function GET() {
 
 ## Pricing
 
-Autopay: the user's first bill on autopay is free. Every other bill costs ${AUTOPAY_FEE} per automatic payment,
-charged only when the payment is delivered.
-
-On top of that, per bill:
+One fee per delivered bill, on top of what the provider charges. The first delivered payment on a new account is
+free; a failed or reversed payment costs nothing.
 ${BILL_PRICES.map((b) => `- ${b.label}: ${b.fee}. ${b.basis}`).join("\n")}
 
 Adding money:

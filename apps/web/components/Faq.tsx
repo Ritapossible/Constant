@@ -1,10 +1,12 @@
 "use client";
 
-import { AUTOPAY, feeForKind } from "@constant/rules";
+import { feeForKind } from "@constant/rules";
 import { AnimatePresence, motion } from "motion/react";
 import { CONTACT_EMAIL } from "@/lib/site";
 import { useId, useState } from "react";
 import { Reveal } from "./Reveal";
+
+const n = (minor: bigint) => (minor / 100n).toLocaleString("en-NG");
 
 const QA = [
   {
@@ -29,7 +31,7 @@ const QA = [
   },
   {
     q: "What does it cost?",
-    a: `No subscription. Your first bill on autopay is free. After that, ₦${(AUTOPAY.feeMinor / 100n).toLocaleString("en-NG")} per automatic payment, and electricity tokens add ₦${(feeForKind("electricity") / 100n).toLocaleString("en-NG")}. Nothing is charged for a payment that isn't delivered. Full details on the pricing page.`,
+    a: `One small fee per delivered bill, on top of what the provider charges: data ₦${n(feeForKind("data"))}, airtime ₦${n(feeForKind("airtime"))}, cable TV ₦${n(feeForKind("tv"))}, electricity ₦${n(feeForKind("electricity"))}. Your first delivered payment is free, and a failed or reversed payment costs nothing. No subscription.`,
   },
   {
     q: "How do I add money?",

@@ -1,7 +1,7 @@
 # How ConstantUnits makes money
 
-Today's prices are in `packages/rules/src/pricing.ts` (D-075). Adopted on 2026-10-17: the autopay fee (D-076), first bill
-free, then ₦50 per automatic payment. All partner rates below are to be confirmed in the VTpass and
+Today's prices are in `packages/rules/src/pricing.ts` (D-075). Adopted on 2026-10-17 (D-077, replacing D-076): one fee
+per delivered bill, data ₦50, airtime ₦30, cable ₦100, electricity ₦100; the first delivered payment on an account free. All partner rates below are to be confirmed in the VTpass and
 Paystack dashboards (PLAN B2) before anything is announced.
 
 ## What exists today
@@ -9,8 +9,7 @@ Paystack dashboards (PLAN B2) before anything is announced.
 | Stream | Status | What we earn |
 |---|---|---|
 | VTpass commission on every vend | Built (D-031) | API rates on VTpass's own blog: MTN airtime and data 3%, DStv 1.5%, Ikeja Electric 1.5%, AEDC 1.2%. Other networks and DisCos differ. |
-| ₦100 per electricity token | Built (D-020) | ₦100, only when the token is delivered |
-| Autopay fee | Built (D-076) | ₦50 per automatic payment, except on each user's first bill |
+| One fee per delivered bill | Built (D-077) | Data ₦50, airtime ₦30, cable ₦100, electricity ₦100; first delivered payment free |
 | Card, USSD, QR top-ups | Built (D-075) | Nothing: Paystack's fee at cost |
 
 Sources: [VTpass commission rates](https://vtpass.com/blog/?p=2993), [Paystack transaction pricing](https://support.paystack.com/hc/en-us/articles/360009881920), [Paystack dedicated virtual accounts](https://support.paystack.com/hc/en-us/articles/360009881760).
@@ -20,18 +19,23 @@ Sources: [VTpass commission rates](https://vtpass.com/blog/?p=2993), [Paystack t
 A Lagos household on autopay: ₦10,000 data, ₦2,000 airtime, two ₦10,000 electricity tokens (Ikeja), DStv Compact
 (about ₦19,000). Funded by one bank transfer of about ₦51,000.
 
+Cautious commission rates (replace with the VTpass agreement's before freezing anything): data and airtime 2%, cable
+1%, electricity 0.8%.
+
 | | Naira |
 |---|---|
-| Commission: data 3% + airtime 3% + electricity 1.5% + DStv 1.5% | 300 + 60 + 300 + 285 = **945** |
-| Electricity fee, 2 tokens | **200** |
-| **Revenue** | **≈ 1,145** |
+| Fees (D-077): data ₦50 + airtime ₦30 + two tokens ₦200 + DStv ₦100 | **380** |
+| Commission: data 2% + airtime 2% + electricity 0.8% + DStv 1% | 200 + 40 + 160 + 190 = **590** |
+| **Revenue** | **≈ 970** |
 | Paystack fee on the transfer in (1%, capped at ₦300) | −300 |
 | Messages (about 8 SMS; WhatsApp and Telegram cost less) | −40 |
-| **Contribution** | **≈ 800** |
-| Autopay fee (D-076): about 7 automatic payments a month across 4 bills; the first bill (1 payment) free, so 6 × ₦50 | **+ 300** |
-| **Contribution with the autopay fee** | **≈ 1,100** |
+| **Contribution** | **≈ 630** |
 
-That's about ₦0.8M a month per 1,000 active users, before staff, hosting and support. It works as a base, but it isn't
+The first month is ₦100 lower (the first delivered payment is free). Grok's leaner household (₦40,000 sent once, DStv
+₦15,700, ₦3,000 data, one ₦10,000 token) leaves about ₦240. The fee is there so a single DStv renewal never costs
+ConstantUnits money; the company is the number of households, not a higher price.
+
+That's about ₦0.63M a month per 1,000 active households (₦0.24M for lean ones), before staff, hosting and support. It works as a base, but it isn't
 yet a business. Two facts matter:
 
 - **The biggest cost is the money coming in.** Each bank transfer costs up to ₦300. Two transfers a month instead of
@@ -45,10 +49,8 @@ yet a business. Two facts matter:
    amount that covers all their bills for the month, with a reminder on payday. It cuts the transfer fee to ₦300 a month
    at most, and every bill renews on time.
 
-2. **ConstantUnits Plus, about ₦1,500 a month (pilot in month 2 or 3).** For people who run more than one home or
-   family member's line: several homes and family lines on one account, a spare electricity token kept ready (D-049),
-   WhatsApp delivery, and priority support. Free stays fully useful for one person; Plus sells convenience, not
-   access. Already on the roadmap (D-031, D-020's "revisit when an owner has more than 5 sites").
+2. **No monthly plan (D-077).** The per-bill fee is the whole price for people. Revisit only if households with
+   several homes ask for one; a plan must never be needed to use ConstantUnits.
 
 3. **ConstantUnits for business: about ₦300 to ₦500 per line per month (the bigger bet).** Employers paying staff
    data and airtime allowances, landlords and estates keeping rented flats' meters topped up, schools and churches
@@ -67,7 +69,8 @@ yet a business. Two facts matter:
 
 ## What not to do
 
-- Fees on data and airtime: a ₦100 fee on ₦1,000 of data is 10%, and people leave (D-031).
+- Large fees on small top-ups: a ₦100 fee on ₦1,000 of data is 10%, and people leave. That's why data is ₦50, airtime
+  ₦30, and both autopay only from ₦500 (D-077).
 - A hidden FX spread, ads, or selling anyone's data. Trust is the product.
 - Interest on the money in pots. That's regulated stored value; only through the licensed partner, with written
   approval, and never counted on in a plan.
@@ -75,4 +78,4 @@ yet a business. Two facts matter:
 ## Numbers to watch from day one
 
 Monthly active payers, bills renewed on time (%), revenue and contribution per user, top-ups per user per month (the
-transfer fee), cost per message, and how many users hold more than one home (the Plus signal) or ask for business use.
+transfer fee), cost per message, and how many users hold more than one home or ask for business use.

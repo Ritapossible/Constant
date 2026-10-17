@@ -161,8 +161,8 @@ describe("safety", () => {
   });
 });
 
-describe("autopay fee (D-076)", () => {
-  it("the first bill on autopay is free; the second pays ₦50, written in the ledger with the payment", async () => {
+describe("one fee per delivered bill (D-077)", () => {
+  it("the account's first payment is free; the next pays the cable fee, written in the ledger with the payment", async () => {
     const a = await setup({ fundMinor: 10_000_000n });
     const smartcard = "7088888888";
     vending.decoders.set(smartcard, { customerName: "ADA OBI", plan: "Max", renewalAmountMinor: 850_000n, dueAt: DUE });
@@ -172,14 +172,12 @@ describe("autopay fee (D-076)", () => {
     });
     expect(await scanRenewals(deps)).toBe(2);
     await processOrders(deps);
-    const [first] = await orders(a.line.id);
-    const [later] = await orders(second.id);
-    expect(first.fee_minor).toBe(0n);
-    expect(later.fee_minor).toBe(5_000n);
-    // Bill plus fee, nothing else: 10,000,000 − 1,995,000 − 850,000 − 5,000.
-    expect(await ledgerSum(db, a.user.id)).toBe(7_150_000n);
-    const fees = (await db.query("SELECT amount_minor FROM ledger_entries WHERE user_id = $1 AND kind = 'fee'", [a.user.id])).rows;
-    expect(fees.map((r) => r.amount_minor)).toEqual([-5_000n]);
+    const fees = [(await orders(a.line.id))[0].fee_minor, (await orders(second.id))[0].fee_minor].sort();
+    expect(fees).toEqual([0n, 10_000n]);
+    // Both bills plus one ₦100 fee: 10,000,000 − 1,995,000 − 850,000 − 10,000.
+    expect(await ledgerSum(db, a.user.id)).toBe(7_145_000n);
+    const entries = (await db.query("SELECT amount_minor FROM ledger_entries WHERE user_id = $1 AND kind = 'fee'", [a.user.id])).rows;
+    expect(entries.map((r) => r.amount_minor)).toEqual([-10_000n]);
   });
 });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { MIN_AUTOPAY_MINOR } from "@constant/rules";
 import { feeNote } from "@/lib/pricing";
 import { KINDS, PROVIDERS, QUICK_AMOUNTS, REF_LABEL, UNIT, isUsageLine, maskRef, networkFor, validateRef, type Kind, type MeterType } from "@/lib/app/catalog";
 import { formatDay, formatMoney, toMinor, type Currency } from "@/lib/app/format";
@@ -266,10 +267,17 @@ function BillForm({
   const currentNum = current ? Number(current) : null;
   const day = Number(renewDay);
 
+  // Data and airtime autopay start at ₦500, so the fee stays a small share (D-077).
+  const minAuto = (MIN_AUTOPAY_MINOR as Record<string, bigint | undefined>)[kind];
   const errors = {
     provider: !effectiveProvider ? (mobile ? "Choose the network" : "Choose a provider") : null,
     ref: validateRef(kind, ref),
-    amount: amountMinor === null || amountMinor <= 0n ? "Enter an amount, e.g. 5000" : null,
+    amount:
+      amountMinor === null || amountMinor <= 0n
+        ? "Enter an amount, e.g. 5000"
+        : currency === "NGN" && minAuto && amountMinor < minAuto
+          ? `Automatic top-ups start at ${formatMoney(minAuto, "NGN")}`
+          : null,
     cap:
       cap && capMinor === null
         ? "Enter a number"

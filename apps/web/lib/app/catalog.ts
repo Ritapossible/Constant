@@ -137,7 +137,7 @@ export function networkFor(raw: string): string | null {
 
 /** Quick picks for "each top-up", in naira. */
 export const QUICK_AMOUNTS: Partial<Record<Kind, number[]>> = {
-  airtime: [100, 200, 500, 1000, 2000, 5000],
+  airtime: [500, 1000, 1500, 2000, 3000, 5000], // autopay starts at ₦500 (D-077)
   data: [500, 1000, 2000, 3500, 5000, 10000],
   electricity: [2000, 5000, 10000, 15000, 20000, 50000],
 };

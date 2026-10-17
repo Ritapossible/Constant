@@ -1,4 +1,4 @@
-import { AUTOPAY, feeForKind } from "@constant/rules";
+import { KIND_PRICES } from "@constant/rules";
 import { Reveal } from "./Reveal";
 
 const naira = (minor: bigint) => `₦${(minor / 100n).toLocaleString("en-NG")}`;
@@ -7,16 +7,8 @@ const naira = (minor: bigint) => `₦${(minor / 100n).toLocaleString("en-NG")}`;
  * What ConstantUnits costs and what happens to unused money, from the same prices the database charges (D-075).
  * Nothing here may promise withdrawals until the funding partner confirms them in writing (D-050).
  */
-const POINTS = [
-  { big: "Free", title: "Your first bill on autopay", text: "No autopay fee on it, ever. Try it on the bill you forget most." },
-  {
-    big: naira(AUTOPAY.feeMinor),
-    title: "Per automatic payment after that",
-    text: `Only when it's delivered. Electricity tokens add ${naira(feeForKind("electricity"))}. Bills cost what the provider charges.`,
-  },
-  { big: naira(0n), title: "To add money by bank transfer", text: "From any Nigerian bank app to your own ConstantUnits account number." },
-  { big: "Yours", title: "Unused money", text: "It stays in its pot until that bill needs it. It doesn't expire." },
-];
+/** The four fees, from the price list (D-077), each with when it's charged. */
+const POINTS = KIND_PRICES.map((k) => ({ big: naira(k.feeMinor), title: k.label, text: k.basis }));
 
 export function Fair() {
   return (
@@ -27,7 +19,7 @@ export function Fair() {
           <h2 id="fair-title" className="h2">
             Pay for what&apos;s delivered. <span className="serif">Nothing else.</span>
           </h2>
-          <p className="lead">No subscription. A small fee only when we pay a bill for you.</p>
+          <p className="lead">One small fee per bill, only when it&apos;s delivered. No subscription.</p>
         </Reveal>
         <Reveal className="fair">
           {POINTS.map((p) => (
@@ -38,6 +30,10 @@ export function Fair() {
             </div>
           ))}
         </Reveal>
+        <p className="fair-note">
+          The first delivered payment on a new account is free, and a failed or reversed payment costs nothing. Adding
+          money by bank transfer is free.
+        </p>
         <p className="fair-more">
           <a href="/pricing">See full pricing</a>
         </p>

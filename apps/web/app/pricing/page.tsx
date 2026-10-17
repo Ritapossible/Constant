@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
-import { AUTOPAY_FEE, BILL_PRICES, FACTS, TOPUP_EXAMPLES, TOPUP_RANGE } from "@/lib/pricing";
+import { BILL_PRICES, TOPUP_EXAMPLES, TOPUP_RANGE } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Pricing | ConstantUnits",
-  description: "What ConstantUnits costs: your first bill on autopay is free, then ₦50 per automatic payment. No subscription, and free bank transfers.",
+  description: "What ConstantUnits costs: one small fee per delivered bill (data ₦50, airtime ₦30, cable ₦100, electricity ₦100). Your first payment is free; bank transfers are free.",
   alternates: { canonical: "/pricing" },
 };
 
@@ -19,34 +19,8 @@ export default function Pricing() {
           <h1 className="h2">Pricing</h1>
           <p className="lede">No subscription. You pay for bills that are delivered, and nothing else.</p>
 
-          <h2>Autopay</h2>
-          <div className="price-table" role="table" aria-label="Autopay fee">
-            <div className="price-row" role="row">
-              <span role="cell" className="price-name">
-                Your first bill
-              </span>
-              <span role="cell" className="price-fee">
-                Free
-              </span>
-              <span role="cell" className="price-basis">
-                No autopay fee on any of its payments, for as long as it&apos;s on autopay.
-              </span>
-            </div>
-            <div className="price-row" role="row">
-              <span role="cell" className="price-name">
-                Every other bill
-              </span>
-              <span role="cell" className="price-fee">
-                {AUTOPAY_FEE} per payment
-              </span>
-              <span role="cell" className="price-basis">
-                Charged only when the payment is delivered. Nothing on a failed or refunded payment.
-              </span>
-            </div>
-          </div>
-
-          <h2>Bills</h2>
-          <p>On top of the autopay fee, the bill itself costs what the provider charges:</p>
+          <h2>One fee per bill</h2>
+          <p>On top of what the provider charges, once the bill is delivered:</p>
           <div className="price-table" role="table" aria-label="Fee per bill">
             {BILL_PRICES.map((b) => (
               <div className="price-row" role="row" key={b.kind}>
@@ -62,6 +36,10 @@ export default function Pricing() {
               </div>
             ))}
           </div>
+
+          <p>
+            The first delivered payment on a new account is free, and a failed or reversed payment costs nothing.
+          </p>
 
           <h2>Adding money</h2>
           <p>
@@ -90,12 +68,6 @@ export default function Pricing() {
             <b>Stablecoins</b> (USDC or USDT on Base, USDC on Arc): the same naira fees, converted at the market rate.
           </p>
 
-          <h2>Always</h2>
-          <ul>
-            {FACTS.map((f) => (
-              <li key={f}>{f}</li>
-            ))}
-          </ul>
           <p className="muted">If a price changes, we tell you before it applies to you.</p>
         </article>
       </main>
