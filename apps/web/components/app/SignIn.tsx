@@ -1,6 +1,7 @@
 "use client";
 
 import { useLogin } from "@privy-io/react-auth";
+import { SMS_LOGIN } from "./Providers";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { Logo } from "@/components/Logo";
@@ -40,7 +41,7 @@ export function SignIn() {
         </h1>
         <p className="ap-muted">Keep data, light, cable and subscriptions paid, and get warned before anything runs low.</p>
         <div className="ap-signin-buttons">
-          {BUTTONS.map((b, i) => (
+          {BUTTONS.filter((b) => b.m !== "sms" || SMS_LOGIN).map((b, i) => (
             <motion.button
               key={b.m}
               className="ap-auth-btn"

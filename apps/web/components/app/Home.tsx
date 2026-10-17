@@ -69,17 +69,29 @@ export function Home({ user, store, goTo }: { user: User; store: Store; goTo: Go
         <h1>{displayName(user, server.me?.user.displayName ?? store.plan.name)}</h1>
       </header>
 
-      <section className="ap-hero-card" aria-label="Monthly plan">
-        <span className="ap-hero-label">To stay covered each month</span>
-        <span className="ap-hero-num">{formatMoney(totals.ngn, "NGN")}</span>
-        {totals.usd > 0n && <span className="ap-hero-sub">+ {formatMoney(totals.usd, "USD")} in subscriptions</span>}
-        <div className="ap-hero-row">
-          <span>
-            {active.length + serverActive.length} active {active.length + serverActive.length === 1 ? "bill" : "bills"}
+      <section className="ap-hero-card" aria-labelledby="plan-title">
+        <div className="ap-hero-top">
+          <span id="plan-title" className="ap-hero-label">
+            To stay covered each month
           </span>
           <button className="ap-pill-btn" onClick={() => goTo("bills")}>
             Manage bills
           </button>
+        </div>
+        {/* Naira bills and dollar subscriptions side by side, each with what it is; one block when there's one. */}
+        <div className="ap-hero-totals" data-split={totals.ngn > 0n && totals.usd > 0n ? "" : undefined}>
+          {(totals.ngn > 0n || totals.usd === 0n) && (
+            <div className="ap-hero-total">
+              <span className="ap-hero-num">{formatMoney(totals.ngn, "NGN")}</span>
+              <span className="ap-hero-cap">Bills in naira</span>
+            </div>
+          )}
+          {totals.usd > 0n && (
+            <div className="ap-hero-total">
+              <span className="ap-hero-num">{formatMoney(totals.usd, "USD")}</span>
+              <span className="ap-hero-cap">Subscriptions in dollars</span>
+            </div>
+          )}
         </div>
       </section>
 

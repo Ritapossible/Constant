@@ -8,6 +8,13 @@ import { arc, base } from "@/lib/app/chains";
 export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
 
 /**
+ * Phone sign-in. Off: Privy sends SMS codes only to the US and Canada on its standard plans; Nigerian numbers need
+ * its Scale plan with our own Twilio (docs.privy.io, "Setting up SMS or WhatsApp login"). Turn on with
+ * NEXT_PUBLIC_SMS_LOGIN=true once that's set up and SMS is enabled in the Privy dashboard.
+ */
+export const SMS_LOGIN = process.env.NEXT_PUBLIC_SMS_LOGIN === "true";
+
+/**
  * Privy gives web2 sign-in (Google, email, phone, passkey) and a self-custodial
  * embedded wallet for anyone without one, used only for stablecoins (D-056).
  */
@@ -17,7 +24,9 @@ export function Providers({ children }: { children: ReactNode }) {
     <PrivyProvider
       appId={PRIVY_APP_ID}
       config={{
-        loginMethods: ["google", "email", "sms", "passkey", "wallet"],
+        loginMethods: SMS_LOGIN ? ["google", "email", "sms", "passkey", "wallet"] : ["google", "email", "passkey", "wallet"],
+        // Phone entry starts on Nigeria (+234) when phone sign-in is on.
+        intl: { defaultCountry: "NG" },
         appearance: {
           theme: "light",
           accentColor: "#0a0a0a",

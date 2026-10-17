@@ -310,6 +310,37 @@
   letter-spacing: -0.045em;
   line-height: 1.05;
 }
+.ap-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ap-hero-totals {
+  display: grid;
+  gap: 16px;
+}
+.ap-hero-totals[data-split] {
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+.ap-hero-total {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.ap-hero-totals[data-split] .ap-hero-total + .ap-hero-total {
+  padding-left: 18px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+.ap-hero-totals[data-split] .ap-hero-num {
+  font-size: clamp(28px, 7.5vw, 40px);
+}
+.ap-hero-cap {
+  font-size: 13px;
+  color: var(--on-inverse-muted);
+}
 .ap-hero-sub {
   font-size: 14px;
   color: var(--on-inverse-muted);

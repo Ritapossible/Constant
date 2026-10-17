@@ -7,6 +7,7 @@ import { displayName, type Store } from "./Shell";
 import { useServer } from "./Server";
 import { useNotify } from "./Toast";
 import { billsDocument } from "@/lib/app/export";
+import { SMS_LOGIN } from "./Providers";
 import { useWalletAddress } from "./useWalletAddress";
 
 const CHANNELS: { id: Channel; label: string }[] = [
@@ -31,7 +32,8 @@ export function Account({ user, store }: { user: User; store: Store }) {
   const methods = [
     { label: "Google", value: user.google?.email, link: linkGoogle },
     { label: "Email", value: user.email?.address, link: linkEmail },
-    { label: "Phone", value: user.phone?.number, link: linkPhone },
+    // Phone only while Privy can text Nigerian numbers (SMS_LOGIN); a number already linked still shows.
+    ...(SMS_LOGIN || user.phone?.number ? [{ label: "Phone", value: user.phone?.number, link: linkPhone }] : []),
     { label: "Passkey", value: hasPasskey ? "Added" : undefined, link: linkPasskey },
     { label: "Wallet", value: wallets.length ? `${wallets.length} linked` : undefined, link: linkWallet },
   ];

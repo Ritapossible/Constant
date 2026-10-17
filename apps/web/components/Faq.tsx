@@ -13,7 +13,7 @@ const QA = [
   },
   {
     q: "Can I use it today?",
-    a: "Yes. Launch the app, sign in with Google, email, your phone number or a passkey, and set up your bills and reminders. Stablecoin top-ups work now; paying bills switches on, starting in Nigeria, once our licensed partner is live.",
+    a: "Yes. Launch the app, sign in with Google, email or a passkey, and set up your bills and reminders. Stablecoin top-ups work now; paying bills switches on, starting in Nigeria, once our licensed partner is live.",
   },
   {
     q: "Do I still type in my electricity token?",
