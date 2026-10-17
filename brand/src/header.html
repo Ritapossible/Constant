@@ -7,17 +7,18 @@ body { position: relative; background: #0a0a0a; color: #fafafa; }
   background-image: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
   background-size: 50px 50px; mask-image: radial-gradient(ellipse 70% 90% at 62% 40%, #000 30%, transparent 75%); }
 /* The level line from the mark, running across: the level that never drops. */
-.level { position: absolute; left: 0; right: 0; top: 268px; height: 2px; background: linear-gradient(90deg, transparent 0, rgba(255,255,255,.18) 30%, rgba(255,255,255,.18) 70%, transparent 100%); }
+.level { position: absolute; left: 0; right: 0; top: 262px; height: 2px; background: linear-gradient(90deg, transparent 0, rgba(255,255,255,.18) 30%, rgba(255,255,255,.18) 70%, transparent 100%); }
 /* The mark, large and cropped at the right edge. */
 .big { position: absolute; right: -150px; top: 50%; width: 560px; height: 560px; transform: translateY(-50%); opacity: .09; }
-/* Content stays in the centre and right: the profile photo covers the lower left, and phones crop the edges. */
-.content { position: absolute; left: 430px; top: 92px; width: 900px; }
+/* Content sits in the lower band, right of the profile photo. The X phone app lays its back, search and menu
+   buttons across the middle of the header and darkens the top; the profile photo covers the lower left. */
+.content { position: absolute; left: 430px; top: 300px; width: 960px; }
 .brand { display: flex; align-items: center; gap: 16px; font-size: 30px; font-weight: 650; letter-spacing: -.03em; }
 .brand .units { font-weight: 400; }
 .brand svg { width: 44px; height: 44px; }
-h1 { margin-top: 34px; font-size: 92px; line-height: .98; font-weight: 650; letter-spacing: -.045em; }
+h1 { font-size: 84px; line-height: .98; font-weight: 650; letter-spacing: -.045em; }
 h1 em { font-family: "Instrument Serif", serif; font-style: italic; font-weight: 400; letter-spacing: -.01em; color: #d4d4cf; }
-.meta { margin-top: 38px; display: flex; gap: 14px; align-items: center; font-size: 22px; color: #a3a3a0; letter-spacing: -.005em; }
+.meta { margin-top: 22px; display: flex; gap: 14px; align-items: center; font-size: 22px; color: #a3a3a0; letter-spacing: -.005em; }
 .meta .dot { width: 5px; height: 5px; border-radius: 50%; background: #5a5a56; }
 </style></head><body>
 <div class="grid"></div>
@@ -27,10 +28,6 @@ h1 em { font-family: "Instrument Serif", serif; font-style: italic; font-weight:
   <path d="M13.5 16H25.5" stroke="#fafafa" stroke-width="1.2" stroke-linecap="round"/>
 </svg>
 <div class="content">
-  <div class="brand">
-    <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="9" fill="#fafafa"/><path d="M22.5 10.6A8.5 8.5 0 1 0 22.5 21.4" fill="none" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round"/><path d="M13.5 16H25.5" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round"/></svg>
-    <span>Constant<span class="units">Units</span></span>
-  </div>
   <h1>Set it once. <em>Never run out.</em></h1>
   <div class="meta"><span>Autopay for data, airtime, electricity and TV</span><span class="dot"></span><span>Nigeria</span></div>
 </div>

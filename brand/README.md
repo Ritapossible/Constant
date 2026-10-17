@@ -6,7 +6,7 @@ Ready to upload, in `out/`:
 |---|---|---|
 | `x-profile-400.png` | 400 × 400 | X profile photo (X shows it as a circle; the mark sits well inside it) |
 | `x-profile-400-light.png` | 400 × 400 | Same, light version |
-| `x-header-1500x500.png` | 1500 × 500 | X header. Content stays centre-right: the profile photo covers the lower left and phones crop the edges |
+| `x-header-1500x500.png` | 1500 × 500 | X header. Text sits in the lower band, right of the profile photo: the X phone app lays its buttons across the middle of the header |
 | `icon-1024.png` | 1024 × 1024 | Square icon for other profiles (LinkedIn, Instagram, app stores later) |
 | `logo-dark-2400x600.png` | 2400 × 600, transparent | Logo with the name, for light backgrounds |
 | `logo-light-2400x600.png` | 2400 × 600, transparent | Logo with the name, for dark backgrounds |
