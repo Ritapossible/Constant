@@ -1,0 +1,5 @@
+@font-face { font-family: "Inter Tight"; src: url("../fonts/inter-tight-latin-wght-normal.woff2") format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "Instrument Serif"; src: url("../fonts/instrument-serif-latin-400-italic.woff2") format("woff2"); font-style: italic; font-weight: 400; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: var(--w); height: var(--h); overflow: hidden; }
+body { font-family: "Inter Tight", sans-serif; -webkit-font-smoothing: antialiased; }
