@@ -156,3 +156,39 @@ describe("pricing (D-075)", () => {
     expect(rows).toEqual(published);
   });
 });
+
+describe("autopay fee (D-076)", () => {
+  it("the market charges the published autopay fee and frees the published number of first bills", async () => {
+    const { AUTOPAY } = await import("@constant/rules");
+    const m = (await db.query<{ autopay_fee_minor: bigint; free_autopay_lines: number }>("SELECT autopay_fee_minor, free_autopay_lines FROM markets WHERE code = 'NG'")).rows[0]!;
+    expect(m.autopay_fee_minor).toBe(AUTOPAY.feeMinor);
+    expect(m.free_autopay_lines).toBe(AUTOPAY.freeLines);
+  });
+
+  it("the first bill on autopay is free; every later one pays the fee; removing the first frees the next", async () => {
+    const { feeForLine } = await import("../src/index.js");
+    const user = await upsertUser(db, { privyDid: "did:autopay", email: "autopay@example.com" });
+    const add = (ref: string) =>
+      insertLine(db, {
+        userId: user.id,
+        kind: "tv",
+        provider: "dstv",
+        refCiphertext: secrets.encrypt(ref),
+        refHmac: secrets.hmac(`dstv:${ref}`),
+        refLast4: ref.slice(-4),
+        customerName: "ADA OBI",
+        planName: "Compact",
+        nickname: ref,
+        currency: "NGN",
+        capMinor: 2_500_000n,
+        dueAt: new Date("2026-11-15T06:00:00Z"),
+        nextRunAt: new Date("2026-11-14T06:00:00Z"),
+      });
+    const first = await add("7000000001");
+    const second = await add("7000000002");
+    expect(await feeForLine(db, "NG", first)).toBe(0n);
+    expect(await feeForLine(db, "NG", second)).toBe(5_000n);
+    await db.query("UPDATE lines SET status = 'cancelled' WHERE id = $1", [first.id]);
+    expect(await feeForLine(db, "NG", second)).toBe(0n);
+  });
+});

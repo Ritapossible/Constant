@@ -1,7 +1,7 @@
 # How ConstantUnits makes money
 
-A proposal for the founder to decide on (2026-10-16). Today's prices are in `packages/rules/src/pricing.ts` (D-075);
-nothing here changes them until a decision says so. All partner rates below are to be confirmed in the VTpass and
+Today's prices are in `packages/rules/src/pricing.ts` (D-075). Adopted on 2026-10-17: the autopay fee (D-076), first bill
+free, then ₦50 per automatic payment. All partner rates below are to be confirmed in the VTpass and
 Paystack dashboards (PLAN B2) before anything is announced.
 
 ## What exists today
@@ -10,6 +10,7 @@ Paystack dashboards (PLAN B2) before anything is announced.
 |---|---|---|
 | VTpass commission on every vend | Built (D-031) | API rates on VTpass's own blog: MTN airtime and data 3%, DStv 1.5%, Ikeja Electric 1.5%, AEDC 1.2%. Other networks and DisCos differ. |
 | ₦100 per electricity token | Built (D-020) | ₦100, only when the token is delivered |
+| Autopay fee | Built (D-076) | ₦50 per automatic payment, except on each user's first bill |
 | Card, USSD, QR top-ups | Built (D-075) | Nothing: Paystack's fee at cost |
 
 Sources: [VTpass commission rates](https://vtpass.com/blog/?p=2993), [Paystack transaction pricing](https://support.paystack.com/hc/en-us/articles/360009881920), [Paystack dedicated virtual accounts](https://support.paystack.com/hc/en-us/articles/360009881760).
@@ -27,6 +28,8 @@ A Lagos household on autopay: ₦10,000 data, ₦2,000 airtime, two ₦10,000 el
 | Paystack fee on the transfer in (1%, capped at ₦300) | −300 |
 | Messages (about 8 SMS; WhatsApp and Telegram cost less) | −40 |
 | **Contribution** | **≈ 800** |
+| Autopay fee (D-076): about 7 automatic payments a month across 4 bills; the first bill (1 payment) free, so 6 × ₦50 | **+ 300** |
+| **Contribution with the autopay fee** | **≈ 1,100** |
 
 That's about ₦0.8M a month per 1,000 active users, before staff, hosting and support. It works as a base, but it isn't
 yet a business. Two facts matter:

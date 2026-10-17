@@ -2110,14 +2110,17 @@ button {
 .price-basis {
   color: var(--muted);
 }
-.price-table[aria-label="Fee per bill"] .price-row {
-  grid-template-columns: 140px 170px 1fr;
+.price-table[aria-label="Fee per bill"] .price-row,
+.price-table[aria-label="Autopay fee"] .price-row {
+  grid-template-columns: 150px 170px 1fr;
 }
 @media (max-width: 640px) {
-  .price-table[aria-label="Fee per bill"] .price-row {
+  .price-table[aria-label="Fee per bill"] .price-row,
+  .price-table[aria-label="Autopay fee"] .price-row {
     grid-template-columns: 1fr auto;
   }
-  .price-table[aria-label="Fee per bill"] .price-basis {
+  .price-table[aria-label="Fee per bill"] .price-basis,
+  .price-table[aria-label="Autopay fee"] .price-basis {
     grid-column: 1 / -1;
   }
 }

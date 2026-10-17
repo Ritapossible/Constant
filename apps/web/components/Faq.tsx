@@ -1,6 +1,6 @@
 "use client";
 
-import { feeForKind } from "@constant/rules";
+import { AUTOPAY, feeForKind } from "@constant/rules";
 import { AnimatePresence, motion } from "motion/react";
 import { useId, useState } from "react";
 import { Reveal } from "./Reveal";
@@ -28,11 +28,11 @@ const QA = [
   },
   {
     q: "What does it cost?",
-    a: `No subscription. Data, airtime and TV have no fee; electricity is ₦${(feeForKind("electricity") / 100n).toLocaleString("en-NG")} per token delivered. Nothing is charged for a bill that isn't delivered. Full details on the pricing page.`,
+    a: `No subscription. Your first bill on autopay is free. After that, ₦${(AUTOPAY.feeMinor / 100n).toLocaleString("en-NG")} per automatic payment, and electricity tokens add ₦${(feeForKind("electricity") / 100n).toLocaleString("en-NG")}. Nothing is charged for a payment that isn't delivered. Full details on the pricing page.`,
   },
   {
     q: "How do I add money?",
-    a: "A bank transfer to your own ConstantUnits account number, which is free; a card, USSD or QR payment, with Paystack's fee at cost; or stablecoins from anywhere: USDC or USDT on Base, or USDC on Arc.",
+    a: "By bank transfer, free: you get your own ConstantUnits account number, and send money to it from any Nigerian bank or mobile money app. A card, USSD or QR payment also works, with the card fee at cost. Family abroad can send stablecoins: USDC or USDT on Base, or USDC on Arc.",
   },
   {
     q: "What happens to money I don't use?",

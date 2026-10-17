@@ -91,9 +91,8 @@ export function CardTopUp() {
   }
 
   return (
-    <div className="ap-topup" aria-labelledby={`${id}-title`}>
-      <h3 id={`${id}-title`}>Card, USSD or QR</h3>
-      <p className="ap-muted">Pay with any Nigerian bank card, a USSD code or a bank app QR, through Paystack.</p>
+    <div className="ap-topup">
+      <p className="ap-muted">Pay with any Nigerian bank card, a USSD code or a bank app QR. A bank transfer to your account number is free; this adds the card fee.</p>
       {checking && (
         <div className="ap-inline-state" role="status">
           <span className="ap-spinner" aria-hidden="true" />
@@ -128,7 +127,7 @@ export function CardTopUp() {
       <p id={`${id}-quote`} className="ap-topup-quote" aria-live="polite">
         {quote ? (
           <>
-            Paystack&apos;s fee {formatMoney(quote.feeMinor, "NGN")} · You pay <b>{formatMoney(quote.totalMinor, "NGN")}</b>
+            Card fee {formatMoney(quote.feeMinor, "NGN")} · You pay <b>{formatMoney(quote.totalMinor, "NGN")}</b>
           </>
         ) : (
           `From ${formatMoney(TOPUP_MIN_MINOR, "NGN")} to ${formatMoney(TOPUP_MAX_MINOR, "NGN")}. A bank transfer to your account number is free.`
@@ -140,9 +139,9 @@ export function CardTopUp() {
         </span>
       )}
       <button className="btn btn-primary" type="button" onClick={pay} disabled={busy || checking}>
-        {busy ? "Opening Paystack…" : quote ? `Pay ${formatMoney(quote.totalMinor, "NGN")}` : "Continue"}
+        {busy ? "Opening the payment page…" : quote ? `Pay ${formatMoney(quote.totalMinor, "NGN")}` : "Continue"}
       </button>
-      <p className="ap-fine">Paystack&apos;s fee is passed on at cost. ConstantUnits adds nothing.</p>
+      <p className="ap-fine">The card fee is the payment processor&apos;s (Paystack), passed on at cost. ConstantUnits adds nothing.</p>
     </div>
   );
 }

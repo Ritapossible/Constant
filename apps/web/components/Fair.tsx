@@ -1,4 +1,4 @@
-import { feeForKind } from "@constant/rules";
+import { AUTOPAY, feeForKind } from "@constant/rules";
 import { Reveal } from "./Reveal";
 
 const naira = (minor: bigint) => `₦${(minor / 100n).toLocaleString("en-NG")}`;
@@ -8,9 +8,13 @@ const naira = (minor: bigint) => `₦${(minor / 100n).toLocaleString("en-NG")}`;
  * Nothing here may promise withdrawals until the funding partner confirms them in writing (D-050).
  */
 const POINTS = [
-  { big: naira(0n), title: "Data, airtime and TV", text: "No fee. You pay what the network or provider charges." },
-  { big: naira(feeForKind("electricity")), title: "Per electricity token", text: "Only when the token is delivered. A failed buy costs nothing." },
-  { big: naira(0n), title: "To add money by transfer", text: "To your own account number. Card, USSD or QR at Paystack's cost." },
+  { big: "Free", title: "Your first bill on autopay", text: "No autopay fee on it, ever. Try it on the bill you forget most." },
+  {
+    big: naira(AUTOPAY.feeMinor),
+    title: "Per automatic payment after that",
+    text: `Only when it's delivered. Electricity tokens add ${naira(feeForKind("electricity"))}. Bills cost what the provider charges.`,
+  },
+  { big: naira(0n), title: "To add money by bank transfer", text: "From any Nigerian bank app to your own ConstantUnits account number." },
   { big: "Yours", title: "Unused money", text: "It stays in its pot until that bill needs it. It doesn't expire." },
 ];
 
@@ -23,7 +27,7 @@ export function Fair() {
           <h2 id="fair-title" className="h2">
             Pay for what&apos;s delivered. <span className="serif">Nothing else.</span>
           </h2>
-          <p className="lead">No subscription and no monthly fee.</p>
+          <p className="lead">No subscription. A small fee only when we pay a bill for you.</p>
         </Reveal>
         <Reveal className="fair">
           {POINTS.map((p) => (

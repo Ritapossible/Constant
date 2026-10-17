@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { KIND_PRICES, PAYSTACK_LOCAL, TOPUP_MAX_MINOR, TOPUP_MIN_MINOR, feeForKind, paystackFee, topUpCharge } from "../src/index.js";
+import { AUTOPAY, KIND_PRICES, PAYSTACK_LOCAL, TOPUP_MAX_MINOR, TOPUP_MIN_MINOR, billFee, feeForKind, paystackFee, topUpCharge } from "../src/index.js";
 
 const naira = (n: number) => BigInt(n) * 100n;
 
@@ -11,6 +11,15 @@ describe("pricing", () => {
     expect(feeForKind("data")).toBe(0n);
     expect(feeForKind("airtime")).toBe(0n);
     expect(feeForKind("tv")).toBe(0n);
+  });
+
+  it("autopay: the first bill is free; every other automatic payment adds ₦50 to the bill's own fee (D-076)", () => {
+    expect(AUTOPAY).toEqual({ feeMinor: naira(50), freeLines: 1 });
+    expect(billFee("tv", true)).toBe(0n);
+    expect(billFee("tv", false)).toBe(naira(50));
+    expect(billFee("data", false)).toBe(naira(50));
+    expect(billFee("electricity", true)).toBe(naira(100));
+    expect(billFee("electricity", false)).toBe(naira(150));
   });
 
   it("Paystack's fee: 1.5%, plus ₦100 from ₦2,500, capped at ₦2,000", () => {

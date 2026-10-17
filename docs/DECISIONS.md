@@ -388,3 +388,10 @@ When the VTpass balance drops below `FLOAT_LOW_NGN`, charged USDC on the spender
 - **Known cost:** a foreign card costs more than the local rate; the difference is absorbed (the actual fee is recorded per top-up to measure it).
 - **Copy rules kept:** nothing promises withdrawals until D-050's gate lifts. "Unused money stays in its pot and doesn't expire" is true today (D-040).
 - **Not copied from BrewKeg:** reselling AI model access below the vendors' list prices, or any pooled-capacity scheme. ConstantUnits renews the user's own subscriptions (D-039).
+
+### D-076 The autopay fee: first bill free, then ₦50 per automatic payment — *amends D-020 and D-031; from the revenue review (REVENUE.md)*
+- **Why:** commissions on face-value bills (about ₦800 contribution per household a month) keep the lights on at scale but not early. The value is the automation, so that is what's charged for.
+- **What:** ₦50 on every payment ConstantUnits makes automatically, on top of the bill's own fee (electricity keeps its ₦100 per token, D-020). The user's first bill on autopay, their oldest bill not removed, never pays it, so everyone can try autopay on the bill they forget most. Charged only with a delivered payment, written in the ledger with the vend like every fee; nothing on a failed or refunded payment. Stored per market (`markets.autopay_fee_minor`, `free_autopay_lines`) and published from `AUTOPAY` in `pricing.ts` (INV-88).
+- **Shown:** on the pricing page, the home page, the FAQ, `/llms.txt`, and in the form when a bill is added, before anything is paid.
+- **Later (not built):** Plus at about ₦1,500 a month waives the autopay fee for several homes and family lines; business pricing per line (REVENUE.md). Manual one-off buys, when they exist, carry no autopay fee.
+- **Money in:** bank transfer to the user's own account number stays the main and free way to add money; card, USSD and QR sit behind "Other ways" (D-075).

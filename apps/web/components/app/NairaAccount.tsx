@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { CardTopUp } from "./CardTopUp";
 import { formatMoney } from "@/lib/app/format";
 import { Field } from "./Field";
@@ -16,6 +16,11 @@ export function NairaAccount() {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // Bank transfer is the main way in; card, USSD and QR sit behind "Other ways", open when coming back from one.
+  const [otherOpen, setOtherOpen] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("topup")) setOtherOpen(true);
+  }, []);
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -99,7 +104,7 @@ export function NairaAccount() {
         </>
       ) : (
         <form className="ap-form" onSubmit={create} noValidate>
-          <p className="ap-muted">Get your own account number. Transfers to it fund your bills.</p>
+          <p className="ap-muted">Get your own account number. Send money to it from any Nigerian bank or mobile money app, like any other transfer. It&apos;s free.</p>
           <div className="ap-grid-2">
             <Field label="First name">{(a) => <input {...a} autoComplete="given-name" value={first} onChange={(e) => setFirst(e.target.value)} />}</Field>
             <Field label="Last name">{(a) => <input {...a} autoComplete="family-name" value={last} onChange={(e) => setLast(e.target.value)} />}</Field>
@@ -113,7 +118,12 @@ export function NairaAccount() {
           <p className="ap-fine">Held by our licensed payment partner. You can stop or remove any bill at any time.</p>
         </form>
       )}
-      {me.cardTopUps && <CardTopUp />}
+      {me.cardTopUps && (
+        <details className="ap-other" open={otherOpen} onToggle={(e) => setOtherOpen((e.target as HTMLDetailsElement).open)}>
+          <summary>Other ways to add money: card, USSD or QR</summary>
+          <CardTopUp />
+        </details>
+      )}
     </section>
   );
 }

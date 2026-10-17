@@ -1287,13 +1287,38 @@
   background: transparent;
 }
 
-/* Card, USSD and QR top-ups (D-075) */
+/* Card, USSD and QR top-ups (D-075), behind "Other ways" under the bank transfer */
+.ap-other {
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.ap-other summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ap-other summary::-webkit-details-marker {
+  display: none;
+}
+.ap-other summary::after {
+  content: "+";
+  font-size: 20px;
+  line-height: 1;
+  color: var(--muted);
+}
+.ap-other[open] summary::after {
+  content: "−";
+}
 .ap-topup {
   display: grid;
   gap: 12px;
-  margin-top: 8px;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
+  margin-top: 14px;
 }
 .ap-topup h3 {
   margin: 0;

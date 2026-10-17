@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/Footer";
 import { Logo } from "@/components/Logo";
-import { BILL_PRICES, FACTS, TOPUP_EXAMPLES, TOPUP_RANGE } from "@/lib/pricing";
+import { AUTOPAY_FEE, BILL_PRICES, FACTS, TOPUP_EXAMPLES, TOPUP_RANGE } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Pricing | ConstantUnits",
-  description: "What ConstantUnits costs: no subscription, no fee on data, airtime and TV, ₦100 per electricity token, and card top-ups at Paystack's cost.",
+  description: "What ConstantUnits costs: your first bill on autopay is free, then ₦50 per automatic payment. No subscription, and free bank transfers.",
   alternates: { canonical: "/pricing" },
 };
 
@@ -23,7 +23,34 @@ export default function Pricing() {
           <h1 className="h2">Pricing</h1>
           <p className="lede">No subscription. You pay for bills that are delivered, and nothing else.</p>
 
+          <h2>Autopay</h2>
+          <div className="price-table" role="table" aria-label="Autopay fee">
+            <div className="price-row" role="row">
+              <span role="cell" className="price-name">
+                Your first bill
+              </span>
+              <span role="cell" className="price-fee">
+                Free
+              </span>
+              <span role="cell" className="price-basis">
+                No autopay fee on any of its payments, for as long as it&apos;s on autopay.
+              </span>
+            </div>
+            <div className="price-row" role="row">
+              <span role="cell" className="price-name">
+                Every other bill
+              </span>
+              <span role="cell" className="price-fee">
+                {AUTOPAY_FEE} per payment
+              </span>
+              <span role="cell" className="price-basis">
+                Charged only when the payment is delivered. Nothing on a failed or refunded payment.
+              </span>
+            </div>
+          </div>
+
           <h2>Bills</h2>
+          <p>On top of the autopay fee, the bill itself costs what the provider charges:</p>
           <div className="price-table" role="table" aria-label="Fee per bill">
             {BILL_PRICES.map((b) => (
               <div className="price-row" role="row" key={b.kind}>
@@ -42,16 +69,17 @@ export default function Pricing() {
 
           <h2>Adding money</h2>
           <p>
-            <b>Bank transfer to your own ConstantUnits account number:</b> free.
+            <b>Bank transfer:</b> free. You get your own ConstantUnits account number; send money to it from any
+            Nigerian bank or mobile money app, like any other transfer.
           </p>
           <p>
-            <b>Card, USSD or QR</b> ({TOPUP_RANGE}): Paystack&apos;s fee is added at cost, so the full amount reaches
-            your balance. You see the total before you pay.
+            <b>Card, USSD or QR</b> ({TOPUP_RANGE}), if you prefer: the card processor&apos;s fee (Paystack) is added at
+            cost, so the full amount reaches your balance. You see the total before you pay.
           </p>
           <div className="price-table" role="table" aria-label="Card, USSD and QR top-ups">
             <div className="price-row price-head" role="row">
               <span role="columnheader">You add</span>
-              <span role="columnheader">Paystack&apos;s fee</span>
+              <span role="columnheader">Card fee</span>
               <span role="columnheader">You pay</span>
             </div>
             {TOPUP_EXAMPLES.map((t) => (

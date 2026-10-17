@@ -161,6 +161,28 @@ describe("safety", () => {
   });
 });
 
+describe("autopay fee (D-076)", () => {
+  it("the first bill on autopay is free; the second pays ₦50, written in the ledger with the payment", async () => {
+    const a = await setup({ fundMinor: 10_000_000n });
+    const smartcard = "7088888888";
+    vending.decoders.set(smartcard, { customerName: "ADA OBI", plan: "Max", renewalAmountMinor: 850_000n, dueAt: DUE });
+    const second = await insertLine(db, {
+      userId: a.user.id, kind: "tv", provider: "gotv", refCiphertext: secrets.encrypt(smartcard), refHmac: secrets.hmac(`gotv:${smartcard}`), refLast4: "8888",
+      customerName: "ADA OBI", planName: "Max", nickname: "Bedroom GOtv", currency: "NGN", capMinor: 2_500_000n, dueAt: DUE, nextRunAt: T0,
+    });
+    expect(await scanRenewals(deps)).toBe(2);
+    await processOrders(deps);
+    const [first] = await orders(a.line.id);
+    const [later] = await orders(second.id);
+    expect(first.fee_minor).toBe(0n);
+    expect(later.fee_minor).toBe(5_000n);
+    // Bill plus fee, nothing else: 10,000,000 − 1,995,000 − 850,000 − 5,000.
+    expect(await ledgerSum(db, a.user.id)).toBe(7_150_000n);
+    const fees = (await db.query("SELECT amount_minor FROM ledger_entries WHERE user_id = $1 AND kind = 'fee'", [a.user.id])).rows;
+    expect(fees.map((r) => r.amount_minor)).toEqual([-5_000n]);
+  });
+});
+
 describe("money and price (INV-39, INV-23)", () => {
   it("not enough money: tells the user once, then renews when money arrives the same day", async () => {
     const { user, line } = await setup({ fundMinor: 1_000_000n });

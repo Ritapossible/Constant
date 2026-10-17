@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { feeNote } from "@/lib/pricing";
 import type { Lookup, ServerLine, ServerOrder } from "@/lib/app/api";
 import { formatDay, formatMoney, toMinor } from "@/lib/app/format";
 import { Field } from "./Field";
@@ -32,7 +33,7 @@ export function cableStatus(l: ServerLine): { right: string; sub: string } {
 
 /* ── Add: find the decoder, confirm, save on the server ─────────────── */
 
-export function CableAdd({ onBack, onDone }: { onBack: () => void; onDone: (l: ServerLine) => void }) {
+export function CableAdd({ onBack, onDone, isFirst = false }: { onBack: () => void; onDone: (l: ServerLine) => void; isFirst?: boolean }) {
   const { call, reload } = useServer();
   const [provider, setProvider] = useState<ProviderId>("dstv");
   const [card, setCard] = useState("");
@@ -158,7 +159,9 @@ export function CableAdd({ onBack, onDone }: { onBack: () => void; onDone: (l: S
       <button className="btn btn-primary" type="submit" disabled={busy}>
         {busy ? "Saving…" : "Renew this automatically"}
       </button>
-      <p className="ap-fine">Nothing is paid now. ConstantUnits renews the day before your plan ends, from your naira balance, and tells you when it's done.</p>
+      <p className="ap-fine">
+        Nothing is paid now. ConstantUnits renews the day before your plan ends, from your naira balance, and tells you when it&apos;s done. {feeNote("tv", isFirst)}
+      </p>
     </form>
   );
 }

@@ -30,7 +30,7 @@ import {
   lockPermission,
   lockUser,
   hasOpenOrder,
-  feeFor,
+  feeForLine,
   permissionsInStatus,
   queueNotice,
   raiseOpsAlert,
@@ -189,7 +189,7 @@ export async function renewDollarLine(d: Deps, dd: DollarDeps, pre: LineRow, quo
       now,
       quote,
       capMinor: line.cap_minor,
-      feeMinor: await feeFor(tx, market.code, line.kind),
+      feeMinor: await feeForLine(tx, market.code, line),
       hasOpenOrder: await hasOpenOrder(tx, line.id),
       lastRenewedAt: line.last_renewed_at,
     };

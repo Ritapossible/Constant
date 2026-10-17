@@ -73,6 +73,26 @@ export async function feeFor(q: Q, market: string, kind: string): Promise<bigint
   return r.rows[0].fee_minor;
 }
 
+/**
+ * Everything ConstantUnits charges on one automatic payment for this line (D-020, D-031, D-076): the kind's fee,
+ * plus the market's autopay fee unless this is one of the user's first bills on autopay (oldest first, removed
+ * bills don't count). Must be called in the transaction that writes the order.
+ */
+export async function feeForLine(q: Q, market: string, line: { id: string; user_id: string; kind: string }): Promise<bigint> {
+  const kindFee = await feeFor(q, market, line.kind);
+  const m = await q.query<{ autopay_fee_minor: bigint; free_autopay_lines: number }>(
+    "SELECT autopay_fee_minor, free_autopay_lines FROM markets WHERE code = $1",
+    [market],
+  );
+  const { autopay_fee_minor: autopay, free_autopay_lines: free } = m.rows[0] ?? { autopay_fee_minor: 0n, free_autopay_lines: 0 };
+  if (autopay === 0n) return kindFee;
+  const firsts = await q.query<{ id: string }>(
+    "SELECT id FROM lines WHERE user_id = $1 AND status <> 'cancelled' ORDER BY created_at, id LIMIT $2",
+    [line.user_id, free],
+  );
+  return firsts.rows.some((r) => r.id === line.id) ? kindFee : kindFee + autopay;
+}
+
 export async function providerEnabled(q: Q, code: string, kind: string): Promise<boolean> {
   const r = await q.query<{ enabled: boolean }>("SELECT enabled FROM providers WHERE code = $1 AND kind = $2", [code, kind]);
   return r.rows[0]?.enabled ?? false;

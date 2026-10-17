@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { feeNote } from "@/lib/pricing";
 import { KINDS, PROVIDERS, QUICK_AMOUNTS, REF_LABEL, UNIT, isUsageLine, maskRef, networkFor, validateRef, type Kind, type MeterType } from "@/lib/app/catalog";
 import { formatDay, formatMoney, toMinor, type Currency } from "@/lib/app/format";
 import { latest, outlook } from "@/lib/app/insights";
@@ -127,6 +128,7 @@ export function Bills({ store }: { store: Store }) {
 
       <Sheet open={adding} onClose={() => setAdding(false)} title="Add a bill">
         <AddBill
+          isFirst={store.plan.lines.length + serverLines.length === 0}
           serverTv={server.enabled && server.me !== null}
           onServerSaved={(line) => {
             setAdding(false);
@@ -180,7 +182,7 @@ function ServerRow({ line, onOpen }: { line: ServerLine; onOpen: () => void }) {
   );
 }
 
-function AddBill({ onSave, serverTv, onServerSaved }: { onSave: (l: Line) => void; serverTv: boolean; onServerSaved: (l: ServerLine) => void }) {
+function AddBill({ onSave, serverTv, onServerSaved, isFirst }: { onSave: (l: Line) => void; serverTv: boolean; onServerSaved: (l: ServerLine) => void; isFirst: boolean }) {
   const [kind, setKind] = useState<Kind | null>(null);
   if (!kind) {
     return (
@@ -196,8 +198,8 @@ function AddBill({ onSave, serverTv, onServerSaved }: { onSave: (l: Line) => voi
     );
   }
   // Cable TV is the first bill paid for real, on the server. The rest stay on this device for now.
-  if (kind === "tv" && serverTv) return <CableAdd onBack={() => setKind(null)} onDone={onServerSaved} />;
-  return <BillForm kind={kind} onBack={() => setKind(null)} onSave={onSave} />;
+  if (kind === "tv" && serverTv) return <CableAdd onBack={() => setKind(null)} onDone={onServerSaved} isFirst={isFirst} />;
+  return <BillForm kind={kind} onBack={() => setKind(null)} onSave={onSave} isFirst={isFirst} />;
 }
 
 /* ── Form (add and edit) ─────────────────────────────────── */
@@ -218,11 +220,14 @@ function BillForm({
   initial,
   onBack,
   onSave,
+  isFirst = false,
 }: {
   kind: Kind;
   initial?: Line;
   onBack?: () => void;
   onSave: (l: Line) => void;
+  /** No other bill yet: this one is the free bill on autopay (D-076). */
+  isFirst?: boolean;
 }) {
   const providers = PROVIDERS[kind];
   const mobile = MOBILE(kind);
@@ -529,7 +534,8 @@ function BillForm({
       </button>
       {!initial && (
         <p className="ap-fine">
-          Nothing is paid now. Before the first payment, ConstantUnits checks the {REF_LABEL[kind].toLowerCase()} and shows you the name on it.
+          Nothing is paid now. Before the first payment, ConstantUnits checks the {REF_LABEL[kind].toLowerCase()} and shows you the name on it.{" "}
+          {feeNote(kind, isFirst)}
         </p>
       )}
     </form>

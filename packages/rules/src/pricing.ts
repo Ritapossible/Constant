@@ -31,6 +31,18 @@ export function feeForKind(kind: PricedKind): Minor {
 }
 
 /**
+ * The autopay fee (D-076): ₦50 on every payment ConstantUnits makes automatically, on top of the bill's own fee,
+ * except on the user's first bill on autopay (their oldest bill not removed), which is always free. Charged only
+ * when the payment is delivered, like every fee. The `markets` row must match: packages/db/test checks it.
+ */
+export const AUTOPAY = { feeMinor: 5_000n, freeLines: 1 } as const;
+
+/** Everything ConstantUnits charges on one automatic payment of this kind. */
+export function billFee(kind: PricedKind, isFreeLine: boolean): Minor {
+  return feeForKind(kind) + (isFreeLine ? 0n : AUTOPAY.feeMinor);
+}
+
+/**
  * Paystack's published local-payment fee (Nigeria): 1.5% + ₦100, the ₦100 waived under ₦2,500, capped at ₦2,000.
  * Card, USSD and QR top-ups pass this on at cost, shown before paying; ConstantUnits adds nothing. A transfer to
  * the user's own account number costs them nothing. Re-check against paystack.com/pricing when it changes.
@@ -76,9 +88,10 @@ export function topUpCharge(creditMinor: Minor): { creditMinor: Minor; feeMinor:
 /** Facts for the pricing page and /llms.txt. Each one must stay true; change the code first, then this. */
 export const PRICING_FACTS = {
   noSubscription: "No subscription and no monthly fee.",
-  bankTransferFree: "Adding money by bank transfer to your own ConstantUnits account number is free.",
-  cardAtCost: "Card, USSD and QR top-ups pass on Paystack's fee at cost, shown before you pay.",
+  firstBillFree: "Your first bill on autopay is free: no autopay fee, ever.",
+  bankTransferFree: "Adding money by bank transfer, from any Nigerian bank app to your own ConstantUnits account number, is free.",
+  cardAtCost: "Card, USSD and QR top-ups add the card processor's fee at cost, shown before you pay.",
   failedRefunded: "If a bill isn't delivered, you pay nothing, fee included. If a payment is refunded, the fee is refunded with it.",
   potsKeep: "Money in a pot stays there until it pays that bill or you move it. It doesn't expire.",
-  stablesSame: "Paying from USDC or USDT costs the same naira fee, at the market rate, with no spread added.",
+  stablesSame: "Paying from USDC or USDT costs the same naira fees, at the market rate, with no spread added.",
 } as const;

@@ -126,3 +126,4 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 85 | The `fees` table charges exactly the prices published from `@constant/rules` (pricing page, /llms.txt, FAQ). | db test |
 | 86 | A card, USSD or QR top-up is saved with its reference before Paystack is called; it credits exactly the amount the user asked for, once per Paystack transaction, and only when Paystack reports success in naira for at least the quoted total. Anything else is held for a person. | rules (property) · api |
 | 87 | A top-up's fee is Paystack's at cost: the smallest total that lands the full amount, never above Paystack's cap. | rules (property) |
+| 88 | The autopay fee is charged only with a delivered payment, never on the user's first bill on autopay (their oldest bill not removed), and the market's fee always equals the published one. | rules · db · worker |
