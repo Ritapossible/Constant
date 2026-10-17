@@ -2056,7 +2056,34 @@ button {
   }
 }
 
-/* ── Simple pages (privacy) ──────────────────────────────── */
+/* ── Simple pages (pricing, privacy) ──────────────────────── */
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 28px;
+}
+.page-back {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  transition: background 0.2s ease, transform 0.2s var(--ease-out);
+}
+.page-back:hover {
+  background: var(--surface-2);
+  transform: translateX(-2px);
+}
+.page-back:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
 
 .prose h2 {
   font-size: 20px;

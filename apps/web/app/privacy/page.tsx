@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/Footer";
-import { Logo } from "@/components/Logo";
+import { PageHeader } from "@/components/PageHeader";
 import { CONTACT_EMAIL } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -14,11 +14,7 @@ const CONTACT = CONTACT_EMAIL;
 export default function Privacy() {
   return (
     <>
-      <header className="container" style={{ paddingTop: 28 }}>
-        <a href="/" aria-label="ConstantUnits home">
-          <Logo />
-        </a>
-      </header>
+      <PageHeader />
       <main id="main" className="container section" style={{ maxWidth: 760 }}>
         <article className="prose">
           <h1 className="h2">Privacy</h1>

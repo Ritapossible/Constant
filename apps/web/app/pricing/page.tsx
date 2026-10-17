@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/Footer";
-import { Logo } from "@/components/Logo";
+import { PageHeader } from "@/components/PageHeader";
 import { AUTOPAY_FEE, BILL_PRICES, FACTS, TOPUP_EXAMPLES, TOPUP_RANGE } from "@/lib/pricing";
 
 export const metadata: Metadata = {
@@ -13,11 +13,7 @@ export const metadata: Metadata = {
 export default function Pricing() {
   return (
     <>
-      <header className="container" style={{ paddingTop: 28 }}>
-        <a href="/" aria-label="ConstantUnits home">
-          <Logo />
-        </a>
-      </header>
+      <PageHeader />
       <main id="main" className="container section" style={{ maxWidth: 820 }}>
         <article className="prose">
           <h1 className="h2">Pricing</h1>
