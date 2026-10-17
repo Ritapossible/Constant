@@ -6,6 +6,7 @@ import type { Channel } from "@/lib/app/store";
 import { displayName, type Store } from "./Shell";
 import { useServer } from "./Server";
 import { useNotify } from "./Toast";
+import { billsDocument } from "@/lib/app/export";
 import { useWalletAddress } from "./useWalletAddress";
 
 const CHANNELS: { id: Channel; label: string }[] = [
@@ -20,6 +21,7 @@ const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 export function Account({ user, store }: { user: User; store: Store }) {
   const { logout, linkEmail, linkPhone, linkGoogle, linkPasskey, linkWallet, exportWallet } = usePrivy();
   const notify = useNotify();
+  const server = useServer();
   const wallet = useWalletAddress(user);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmExport, setConfirmExport] = useState(false);
@@ -186,14 +188,15 @@ export function Account({ user, store }: { user: User; store: Store }) {
           <button
             className="btn btn-ghost btn-sm"
             onClick={() => {
-              const blob = new Blob([JSON.stringify(store.plan, null, 2)], { type: "application/json" });
-              const url = URL.createObjectURL(blob);
+              // A readable page (opens on any phone, prints or saves as PDF), not a raw data file.
+              const html = billsDocument(store.plan, server.me?.lines ?? [], server.me?.user.displayName ?? store.plan.name ?? null);
+              const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
               const a = document.createElement("a");
               a.href = url;
-              a.download = "constant-bills.json";
+              a.download = `constantunits-bills-${new Date().toISOString().slice(0, 10)}.html`;
               a.click();
-              URL.revokeObjectURL(url);
-              notify("Downloaded");
+              setTimeout(() => URL.revokeObjectURL(url), 1000);
+              notify("Downloaded. Open it to view, print or save as PDF.");
             }}
           >
             Download my bills

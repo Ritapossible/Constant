@@ -1,5 +1,5 @@
 import { AUTOPAY_FEE, BILL_PRICES, FACTS, TOPUP_EXAMPLES, TOPUP_RANGE } from "@/lib/pricing";
-import { SITE_URL } from "@/lib/site";
+import { CONTACT_EMAIL, SITE_URL } from "@/lib/site";
 
 /** A plain-text summary for AI assistants (llmstxt.org), from the same prices as /pricing (D-075). */
 export const dynamic = "force-static";
@@ -38,6 +38,8 @@ ${FACTS.map((f) => `- ${f}`).join("\n")}
 - Pricing: ${SITE_URL}/pricing
 - App: ${SITE_URL}/app
 - Privacy: ${SITE_URL}/privacy
+
+Contact: ${CONTACT_EMAIL}
 `;
   return new Response(body, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" } });
 }

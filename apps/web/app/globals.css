@@ -1764,6 +1764,17 @@ button {
   max-width: 32ch;
   font-size: 16px;
 }
+.footer-contact {
+  margin: 12px 0 0;
+  font-size: 15px;
+  color: var(--muted);
+}
+.footer-contact a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .footer-links {
   display: grid;
   grid-template-columns: 1fr 1fr;

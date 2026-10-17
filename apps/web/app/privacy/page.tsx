@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/Footer";
 import { Logo } from "@/components/Logo";
+import { CONTACT_EMAIL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Privacy | ConstantUnits",
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-const CONTACT = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
+const CONTACT = CONTACT_EMAIL;
 
 export default function Privacy() {
   return (

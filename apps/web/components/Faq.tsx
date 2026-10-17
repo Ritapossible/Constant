@@ -2,6 +2,7 @@
 
 import { AUTOPAY, feeForKind } from "@constant/rules";
 import { AnimatePresence, motion } from "motion/react";
+import { CONTACT_EMAIL } from "@/lib/site";
 import { useId, useState } from "react";
 import { Reveal } from "./Reveal";
 
@@ -33,6 +34,10 @@ const QA = [
   {
     q: "How do I add money?",
     a: "By bank transfer, free: you get your own ConstantUnits account number, and send money to it from any Nigerian bank or mobile money app. A card, USSD or QR payment also works, with the card fee at cost. Family abroad can send stablecoins: USDC or USDT on Base, or USDC on Arc.",
+  },
+  {
+    q: "How do I reach you?",
+    a: `Email ${CONTACT_EMAIL}. A person reads every message.`,
   },
   {
     q: "What happens to money I don't use?",

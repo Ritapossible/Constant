@@ -1,3 +1,4 @@
+import { CONTACT_EMAIL } from "@/lib/site";
 import { Logo } from "./Logo";
 
 const LINKS = [
@@ -20,6 +21,9 @@ export function Footer({ base = "" }: { base?: string }) {
             <div>
               <Logo />
               <p className="footer-tag">Set it once. Never run out of data, light, TV or the tools you pay for.</p>
+              <p className="footer-contact">
+                Questions? <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
+              </p>
             </div>
             <nav className="footer-links" aria-label="Footer">
               <h4>Quick links</h4>
