@@ -77,6 +77,26 @@ Leave out everything about dollars, chains and Stellar for now: those parts stay
 4. Deploy. The worker's log should say `worker started`, and its `/health` should answer `{"ok":true,…}` within a
    minute. If `/health` says `"ok":false`, the worker started but its loop stopped: read the log.
 
+### Turning on email (when you're ready)
+
+The worker sends email through [Resend](https://resend.com) (free: 3,000 a month, 100 a day). Resend only delivers to
+other people's inboxes from a domain you own and have verified; until then it sends only to your own address.
+
+1. Own a domain (e.g. `constantunits.com`). Any registrar works; buying it in Vercel puts its DNS in Vercel too.
+2. **Resend → Domains → Add domain**: use a subdomain such as `mail.constantunits.com`, region **Ireland (eu-west-1)**.
+   Add the DNS records Resend shows (in Vercel: Domains → your domain → DNS Records) and wait until it shows Verified.
+3. **Resend → API Keys → Create**: permission *Sending access*, that domain only.
+4. On the **worker** in Pxxl: remove `MESSAGING_PROVIDER`, then add
+
+| Name | Value |
+|---|---|
+| `RESEND_API_KEY` | the key from step 3 (`re_…`) |
+| `EMAIL_FROM` | `ConstantUnits <hello@mail.constantunits.com>` |
+| `EMAIL_REPLY_TO` | `constantunitshq@gmail.com`, so replies reach a person |
+| `OPS_EMAIL` (optional) | `constantunitshq@gmail.com`, for alerts to you |
+
+Redeploy the worker. A user who signed in with email or Google gets receipts and warnings at that address.
+
 ## 5. Point the website at it
 
 In **Vercel → constant-units → Settings → Environment Variables**: set `NEXT_PUBLIC_API_URL` to the API's address

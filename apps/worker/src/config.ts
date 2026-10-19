@@ -26,7 +26,7 @@ export function fromEnv(env: NodeJS.ProcessEnv = process.env): { db: Db; vending
     env.MESSAGING_PROVIDER === "fake"
       ? new FakeMessaging()
       : new HttpMessaging({
-          ...(env.RESEND_API_KEY ? { resend: { apiKey: env.RESEND_API_KEY, from: need(env, "EMAIL_FROM") } } : {}),
+          ...(env.RESEND_API_KEY ? { resend: { apiKey: env.RESEND_API_KEY, from: need(env, "EMAIL_FROM"), ...(env.EMAIL_REPLY_TO ? { replyTo: env.EMAIL_REPLY_TO } : {}) } } : {}),
           ...(env.TERMII_API_KEY ? { termii: { apiKey: env.TERMII_API_KEY, senderId: env.TERMII_SENDER_ID ?? "ConstUnits", ...(env.TERMII_BASE_URL ? { baseUrl: env.TERMII_BASE_URL } : {}) } } : {}),
         });
   // Withdrawals go out through Paystack transfers when its key is set (still gated by payouts_enabled).

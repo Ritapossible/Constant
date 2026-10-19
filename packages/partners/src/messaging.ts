@@ -5,7 +5,7 @@ import { fetchJson, type Fetch } from "./http.js";
 import type { MessageChannel, Messaging } from "./types.js";
 
 export interface MessagingConfig {
-  resend?: { apiKey: string; from: string };
+  resend?: { apiKey: string; from: string; replyTo?: string };
   termii?: { apiKey: string; senderId: string; baseUrl?: string };
   fetch?: Fetch;
 }
@@ -26,7 +26,8 @@ export class HttpMessaging implements Messaging {
       const res = await fetchJson(this.f, "https://api.resend.com/emails", {
         method: "POST",
         headers: { authorization: `Bearer ${this.c.resend.apiKey}`, "content-type": "application/json" },
-        body: JSON.stringify({ from: this.c.resend.from, to: [to], subject, text }),
+        // Replies go to a real inbox (EMAIL_REPLY_TO), not to the sending address, which has none.
+        body: JSON.stringify({ from: this.c.resend.from, to: [to], subject, text, ...(this.c.resend.replyTo ? { reply_to: this.c.resend.replyTo } : {}) }),
         timeoutMs: 15_000,
       });
       const id = (res.body as { id?: string })?.id;

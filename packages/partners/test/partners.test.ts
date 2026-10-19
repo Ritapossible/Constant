@@ -1,7 +1,7 @@
 import { createHmac, generateKeyPairSync } from "node:crypto";
 import { SignJWT, importPKCS8 } from "jose";
 import { describe, expect, it } from "vitest";
-import { Paystack, Privy, Vtpass, contactFromPrivyUser, nairaToMinor, parseDueDate, vtpassOutcome, type Fetch } from "../src/index.js";
+import { HttpMessaging, Paystack, Privy, Vtpass, contactFromPrivyUser, nairaToMinor, parseDueDate, vtpassOutcome, type Fetch } from "../src/index.js";
 
 function stubFetch(responses: { status?: number; body: unknown }[], seen: { url: string; init: RequestInit }[] = []): Fetch {
   return (async (url: string, init: RequestInit) => {
@@ -287,5 +287,24 @@ describe("Paycrest off-ramp (D-068)", () => {
     expect(p.verifyWebhook(body, sig.toUpperCase())).toBe(true);
     expect(p.verifyWebhook(body + " ", sig)).toBe(false);
     expect(p.parseWebhook(body)).toEqual({ orderId: "o1", reference: "ofr_1", status: "settled" });
+  });
+});
+
+describe("email (Resend)", () => {
+  it("sends from EMAIL_FROM with replies to EMAIL_REPLY_TO", async () => {
+    const seen: { url: string; init: RequestInit }[] = [];
+    const m = new HttpMessaging({ resend: { apiKey: "re_test", from: "ConstantUnits <hello@example.com>", replyTo: "help@example.com" }, fetch: stubFetch([{ body: { id: "em_1" } }], seen) });
+    expect(m.channels).toEqual(["email"]);
+    expect(await m.send("email", "ada@example.com", "Renewed", "Done")).toEqual({ providerId: "em_1" });
+    expect(seen[0]!.url).toBe("https://api.resend.com/emails");
+    expect(JSON.parse(seen[0]!.init.body as string)).toEqual({ from: "ConstantUnits <hello@example.com>", to: ["ada@example.com"], subject: "Renewed", text: "Done", reply_to: "help@example.com" });
+  });
+
+  it("leaves reply_to out when it isn't set, and fails loudly on an error", async () => {
+    const seen: { url: string; init: RequestInit }[] = [];
+    const m = new HttpMessaging({ resend: { apiKey: "re_test", from: "a@example.com" }, fetch: stubFetch([{ body: { id: "em_2" } }, { status: 422, body: { message: "domain not verified" } }], seen) });
+    await m.send("email", "b@example.com", "s", "t");
+    expect(JSON.parse(seen[0]!.init.body as string)).not.toHaveProperty("reply_to");
+    await expect(m.send("email", "b@example.com", "s", "t")).rejects.toThrow("email failed (422)");
   });
 });
