@@ -24,6 +24,7 @@ import {
   markNotice,
   ordersInState,
   queueNotice,
+  spentLast7Days,
   raiseOpsAlert,
   receiptId,
   setVendingEnabled,
@@ -39,11 +40,15 @@ import {
   type Secrets,
   type Tx,
 } from "@constant/db";
-import type { CableProvider, CableVending, Messaging, VendOutcome } from "@constant/partners";
+import type { CableProvider, CableVending, DataPlan, Messaging, VendOutcome, VendRequest } from "@constant/partners";
 import {
+  DEFAULT_MIN_DAYS_BETWEEN_RENEWALS,
+  MONTHLY_MIN_DAYS_BETWEEN_PAYMENTS,
+  USAGE_MIN_DAYS_BETWEEN_TOPUPS,
   availableBalance,
   decideRenewal,
   nextDueAfter,
+  nextMonthlyRunAt,
   noticeKey,
   recoverVending,
   renewalAction,
@@ -83,6 +88,40 @@ export const MAX_NOTICE_ATTEMPTS = 5;
 
 const iso = (d: Date | null) => (d ? d.toISOString() : undefined);
 const label = (l: LineRow) => l.nickname;
+const prepaidMeter = (l: LineRow) => l.kind === "electricity" && l.meter_type !== "postpaid";
+
+/** Data bundle prices change rarely; ask the partner at most every 10 minutes per network. */
+const PLANS_TTL_MS = 10 * MIN;
+const planCache = new Map<string, { at: number; plans: DataPlan[] }>();
+async function dataPlans(d: Deps, network: string): Promise<DataPlan[]> {
+  const key = `${d.vending.name}:${network}`;
+  const hit = planCache.get(key);
+  if (hit && d.now().getTime() - hit.at < PLANS_TTL_MS) return hit.plans;
+  const plans = await d.vending.dataPlans(network);
+  planCache.set(key, { at: d.now().getTime(), plans });
+  return plans;
+}
+/** Tests swap partners between cases. */
+export function clearPlanCache(): void {
+  planCache.clear();
+}
+
+/**
+ * Today's price for one payment on a line, from the partner where it can change. Cable: a fresh decoder lookup.
+ * Data: the chosen bundle's current price (gone from the list: no quote, nothing is bought). Airtime and power:
+ * the amount the user set.
+ */
+async function quoteFor(d: Deps, line: LineRow): Promise<RenewalQuote | null> {
+  if (line.kind === "tv") {
+    const lookup = await d.vending.lookup(line.provider as CableProvider, d.secrets.decrypt(line.ref_ciphertext));
+    return lookup.ok && lookup.renewalAmountMinor !== null ? { amountMinor: lookup.renewalAmountMinor, dueAt: lookup.dueAt } : null;
+  }
+  if (line.kind === "data") {
+    const plan = line.variation_code ? (await dataPlans(d, line.provider).catch(() => [])).find((p) => p.code === line.variation_code) : undefined;
+    return plan ? { amountMinor: plan.amountMinor, dueAt: null } : null;
+  }
+  return line.amount_minor !== null ? { amountMinor: line.amount_minor, dueAt: null } : null;
+}
 
 // ── Renewal scan ─────────────────────────────────────────────────────────────
 
@@ -103,14 +142,13 @@ export async function scanRenewals(d: Deps): Promise<number> {
 async function renewLine(d: Deps, lineId: string): Promise<boolean> {
   const pre = await getLine(d.db, lineId);
   if (!pre || pre.status !== "active" || !pre.next_run_at) return false;
+  // Subscriptions are tracked, not paid (D-039); a line waiting for the user (no bundle chosen) can't pay yet.
+  if (pre.kind === "subscription" || pre.schedule === "none" || pre.setup_needed) return false;
   if (await hasOpenOrder(d.db, lineId)) return false;
 
   // The quote is a side-effect-free lookup, made outside any transaction.
-  const smartcard = d.secrets.decrypt(pre.ref_ciphertext);
-  const lookup = await d.vending.lookup(pre.provider as CableProvider, smartcard);
-  const quote: RenewalQuote | null =
-    lookup.ok && lookup.renewalAmountMinor !== null ? { amountMinor: lookup.renewalAmountMinor, dueAt: lookup.dueAt } : null;
-  if (pre.funding === "stables") return d.dollars ? renewDollarLine(d, d.dollars, pre, quote) : false;
+  const quote = await quoteFor(d, pre);
+  if (pre.funding === "stables") return d.dollars && pre.kind === "tv" ? renewDollarLine(d, d.dollars, pre, quote) : false;
 
   return withTx(d.db, async (tx) => {
     const user = await lockUser(tx, pre.user_id);
@@ -130,6 +168,9 @@ async function renewLine(d: Deps, lineId: string): Promise<boolean> {
       availableMinor: availableBalance(await ledgerSum(tx, user.id), await committedToOpenOrders(tx, user.id)),
       hasOpenOrder: await hasOpenOrder(tx, line.id),
       lastRenewedAt: line.last_renewed_at,
+      minDaysBetweenRenewals: line.schedule === "usage" ? USAGE_MIN_DAYS_BETWEEN_TOPUPS : line.schedule === "monthly" ? MONTHLY_MIN_DAYS_BETWEEN_PAYMENTS : DEFAULT_MIN_DAYS_BETWEEN_RENEWALS,
+      weeklyCapMinor: line.schedule === "usage" ? line.weekly_cap_minor : null,
+      spentLast7DaysMinor: line.schedule === "usage" ? await spentLast7Days(tx, line.id, now) : 0n,
     };
     const decision = decideRenewal(input);
     const action = renewalAction(decision, input, market.time_zone);
@@ -147,11 +188,22 @@ async function renewLine(d: Deps, lineId: string): Promise<boolean> {
           scheduledFor: line.next_run_at,
           partner: d.vending.name,
           receiptId: receiptId(),
+          trigger: line.schedule === "usage" ? "usage" : line.schedule === "monthly" ? "scheduled" : "renewal",
         });
         if (quote?.dueAt) await updateLine(tx, line.id, { due_at: quote.dueAt });
         return order !== null;
       }
       case "reschedule":
+        if (line.schedule === "monthly" && line.renew_day) {
+          // Paid less than 20 days ago (e.g. the day was moved): the next month's day.
+          await updateLine(tx, line.id, { next_run_at: nextMonthlyRunAt(line.renew_day, line.next_run_at, market.time_zone) });
+          return false;
+        }
+        if (line.schedule === "usage") {
+          // Topped up a few hours ago: look again once the gap has passed.
+          await updateLine(tx, line.id, { next_run_at: new Date((line.last_renewed_at ?? now).getTime() + USAGE_MIN_DAYS_BETWEEN_TOPUPS * 86_400_000) });
+          return false;
+        }
         await updateLine(tx, line.id, {
           next_run_at: action.runAt,
           ...(decision.kind === "do_not_renew" && decision.reason === "already_renewed" && quote?.dueAt ? { due_at: quote.dueAt } : {}),
@@ -168,7 +220,7 @@ async function renewLine(d: Deps, lineId: string): Promise<boolean> {
           params: {
             line: label(line),
             amountMinor: quote?.amountMinor.toString(),
-            capMinor: line.cap_minor.toString(),
+            capMinor: (action.notice === "weekly_cap" ? (line.weekly_cap_minor ?? line.cap_minor) : line.cap_minor).toString(),
             shortMinor: short > 0n ? short.toString() : undefined,
             dueAt: iso(quote?.dueAt ?? line.due_at),
           },
@@ -229,22 +281,26 @@ export async function stepOrder(d: Deps, orderId: string): Promise<void> {
     // Persist the partner's request id BEFORE calling (rule 7). A crash after this line is recoverable.
     const requestId = d.vending.newRequestId(order.id, now);
     const started = await transition(tx, order, { type: "start" }, { partner_ref: requestId, next_check_at: new Date(now.getTime() + CHECK_BACKOFF_MIN[0]! * MIN), checks: 0 }, "worker");
-    return {
-      call: "renew" as const,
-      order: started,
-      req: {
-        requestId,
-        provider: line.provider as CableProvider,
-        smartcard: d.secrets.decrypt(line.ref_ciphertext),
-        amountMinor: order.amount_minor,
-        phone: user.phone_e164 ? user.phone_e164.replace(/^\+234/, "0") : d.fallbackPhone,
-      },
+    const req: VendRequest = {
+      requestId,
+      kind: line.kind as VendRequest["kind"],
+      provider: line.provider,
+      ref: d.secrets.decrypt(line.ref_ciphertext),
+      amountMinor: order.amount_minor,
+      phone: user.phone_e164 ? user.phone_e164.replace(/^\+234/, "0") : d.fallbackPhone,
+      variationCode: line.variation_code,
+      meterType: line.meter_type,
     };
+    return { call: "renew" as const, order: started, req };
   });
   if (!prepared) return;
 
   const outcome =
-    prepared.call === "renew" ? await d.vending.renew(prepared.req) : await d.vending.requery(prepared.order.partner_ref!);
+    prepared.call !== "renew"
+      ? await d.vending.requery(prepared.order.partner_ref!)
+      : prepared.req.kind === "tv"
+        ? await d.vending.renew({ requestId: prepared.req.requestId, provider: prepared.req.provider as CableProvider, smartcard: prepared.req.ref, amountMinor: prepared.req.amountMinor, phone: prepared.req.phone })
+        : await d.vending.vend(prepared.req).catch((err: Error): VendOutcome => ({ kind: "unknown", detail: err.message }));
   d.log.info("partner outcome", { orderId, call: prepared.call, outcome: outcome.kind });
   await applyOutcome(d, orderId, outcome, prepared.call);
 }
@@ -260,7 +316,12 @@ export async function applyOutcome(d: Deps, orderId: string, outcome: VendOutcom
 
     switch (outcome.kind) {
       case "delivered":
-        return settleDelivered(tx, order, line, outcome.partnerTxnId, market.time_zone, now);
+        // A prepaid meter's payment is only useful with its token. VTpass sometimes adds it a little later:
+        // keep asking through the usual rechecks, then settle without it (the user is told to contact us).
+        if (prepaidMeter(line) && !outcome.token && order.checks < CHECK_BACKOFF_MIN.length) {
+          return recheckLater(tx, order, line, now, "delivered, waiting for the token");
+        }
+        return settleDelivered(tx, order, line, outcome, market.time_zone, now, d.secrets);
 
       case "failed":
         if (outcome.code === "018") {
@@ -289,20 +350,50 @@ export async function applyOutcome(d: Deps, orderId: string, outcome: VendOutcom
   });
 }
 
-async function settleDelivered(tx: Tx, order: OrderRow, line: LineRow, txnId: string | null, timeZone: string, now: Date) {
+async function settleDelivered(
+  tx: Tx,
+  order: OrderRow,
+  line: LineRow,
+  outcome: Extract<VendOutcome, { kind: "delivered" }>,
+  timeZone: string,
+  now: Date,
+  secrets: Secrets,
+) {
   // The vend (and fee) entries are written once, here, at delivery (INV-13).
   await writeVendEntries(tx, order, order.partner_ref!);
-  const stored = await transition(tx, order, { type: "token" }, { ...(txnId ? { partner_txn_id: txnId } : {}), next_check_at: null, error: null }, "worker");
+  const stored = await transition(
+    tx,
+    order,
+    { type: "token" },
+    {
+      ...(outcome.partnerTxnId ? { partner_txn_id: outcome.partnerTxnId } : {}),
+      // The token is stored encrypted, like a meter number; the message reads it from here when it is sent.
+      ...(outcome.token ? { token_ciphertext: secrets.encrypt(outcome.token), token_units: outcome.units ?? null } : {}),
+      next_check_at: null,
+      error: null,
+    },
+    "worker",
+  );
   await transition(tx, stored, { type: "notify_start" }, {}, "worker");
-  const due = nextDueAfter(line.due_at ?? order.scheduled_for ?? now, timeZone);
-  await updateLine(tx, line.id, { last_renewed_at: now, due_at: due, next_run_at: renewalRunAt(due, timeZone) });
+  const base = { line: label(line), amountMinor: order.amount_minor.toString() };
+
+  if (line.kind === "tv") {
+    const due = nextDueAfter(line.due_at ?? order.scheduled_for ?? now, timeZone);
+    await updateLine(tx, line.id, { last_renewed_at: now, due_at: due, next_run_at: renewalRunAt(due, timeZone) });
+    await queueNotice(tx, { key: `notice:renewed:${order.id}`, userId: order.user_id, lineId: line.id, orderId: order.id, kind: "renewed", params: { ...base, dueAt: due.toISOString() } });
+    return;
+  }
+  // Monthly: the same day next month. Usage: wait for the next low reading or "top up now".
+  const next = line.schedule === "monthly" && line.renew_day ? nextMonthlyRunAt(line.renew_day, order.scheduled_for ?? now, timeZone) : null;
+  await updateLine(tx, line.id, { last_renewed_at: now, next_run_at: next });
+  const kind = prepaidMeter(line) ? "token" : line.kind === "electricity" ? "bill_paid" : "topped_up";
   await queueNotice(tx, {
-    key: `notice:renewed:${order.id}`,
+    key: `notice:${kind}:${order.id}`,
     userId: order.user_id,
     lineId: line.id,
     orderId: order.id,
-    kind: "renewed",
-    params: { line: label(line), amountMinor: order.amount_minor.toString(), dueAt: due.toISOString() },
+    kind,
+    params: { ...base, ...(next ? { nextAt: next.toISOString() } : {}), ...(outcome.units ? { units: outcome.units } : {}) },
   });
 }
 
@@ -381,18 +472,22 @@ export async function sendNotices(d: Deps, max = 20): Promise<number> {
       const n = await claimNotice(tx, d.now());
       if (!n) return false;
       const user = await getUser(tx, n.user_id);
-      const target =
-        user?.email && d.messaging.channels.includes("email")
-          ? { channel: "email" as const, to: user.email }
-          : user?.phone_e164 && d.messaging.channels.includes("sms")
-            ? { channel: "sms" as const, to: user.phone_e164 }
-            : null;
+      // The user's own order of channels (D-054), then any other that works; only those we can send on today.
+      const reach: Record<string, string | null | undefined> = { email: user?.email, sms: user?.phone_e164 };
+      const order = [...(user?.channels ?? []), "email", "sms"].filter((c, i, all) => all.indexOf(c) === i);
+      const pick = order.find((c) => reach[c] && d.messaging.channels.includes(c as "email" | "sms"));
+      const target = pick ? { channel: pick as "email" | "sms", to: reach[pick]! } : null;
+      const params = { ...(n.params as Record<string, string>) };
+      if (n.kind === "token" && n.order_id) {
+        const o = await getOrder(tx, n.order_id);
+        if (o?.token_ciphertext) params.token = d.secrets.decrypt(o.token_ciphertext);
+      }
       const attempts = n.attempts + 1;
       let ok = false;
       if (!target) {
         await markNotice(tx, n.id, { status: "failed", attempts, error: "no channel for this user" });
       } else {
-        const msg = render(n.kind as NoticeKind, n.params as Record<string, string>);
+        const msg = render(n.kind as NoticeKind, params);
         try {
           const r = await d.messaging.send(target.channel, target.to, msg.subject, msg.text);
           await markNotice(tx, n.id, { status: "sent", attempts, channel: target.channel, provider_msg_id: r.providerId });

@@ -140,3 +140,28 @@ describe("INV-52: money committed to open orders cannot be spent twice", () => {
     expect(renewalOrderKey("l1", DUE)).not.toBe(renewalOrderKey("l2", DUE));
   });
 });
+
+describe("monthly and usage bills (D-079)", () => {
+  const TZ = "Africa/Lagos";
+  it("a monthly bill runs at 07:00 Lagos on its day: this month if still ahead, else next month", async () => {
+    const { monthlyRunAt, nextMonthlyRunAt } = await import("../src/index.js");
+    expect(monthlyRunAt(5, new Date("2026-11-04T10:00:00Z"), TZ).toISOString()).toBe("2026-11-05T06:00:00.000Z");
+    expect(monthlyRunAt(5, new Date("2026-11-05T06:00:00Z"), TZ).toISOString()).toBe("2026-11-05T06:00:00.000Z");
+    expect(monthlyRunAt(5, new Date("2026-11-05T06:00:01Z"), TZ).toISOString()).toBe("2026-12-05T06:00:00.000Z");
+    expect(monthlyRunAt(28, new Date("2026-12-29T00:00:00Z"), TZ).toISOString()).toBe("2027-01-28T06:00:00.000Z");
+    expect(nextMonthlyRunAt(5, new Date("2026-11-05T06:00:00Z"), TZ).toISOString()).toBe("2026-12-05T06:00:00.000Z");
+    expect(() => monthlyRunAt(29, new Date(), TZ)).toThrow();
+  });
+
+  it("a usage line never spends more than its weekly cap", async () => {
+    const { decideRenewal } = await import("../src/index.js");
+    const base = {
+      vendingEnabled: true, status: "active" as const, verified: true, runAt: new Date("2026-11-01T00:00:00Z"), now: new Date("2026-11-01T01:00:00Z"),
+      quote: { amountMinor: 100_000n, dueAt: null }, capMinor: 100_000n, feeMinor: 5_000n, availableMinor: 10_000_000n, hasOpenOrder: false,
+      lastRenewedAt: null, minDaysBetweenRenewals: 0.25,
+    };
+    expect(decideRenewal({ ...base, weeklyCapMinor: 300_000n, spentLast7DaysMinor: 200_000n }).kind).toBe("renew");
+    expect(decideRenewal({ ...base, weeklyCapMinor: 300_000n, spentLast7DaysMinor: 200_001n })).toEqual({ kind: "do_not_renew", reason: "weekly_cap" });
+    expect(decideRenewal({ ...base, weeklyCapMinor: null, spentLast7DaysMinor: 99_000_000n }).kind).toBe("renew");
+  });
+});

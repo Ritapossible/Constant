@@ -1,6 +1,7 @@
 /**
  * Customer-facing messages, English (Nigeria). Pidgin comes next (PLAN step 7).
- * Rules: local currency only, no chain words (CLAUDE.md rule 10), never a full smartcard, meter or token.
+ * Rules: local currency only, no chain words (CLAUDE.md rule 10), never a full smartcard, meter or phone number.
+ * The one exception is the electricity token, which goes only to its owner in the "token" message: it's what they paid for.
  */
 
 import { renderStables, type StableNoticeKind, type StableParams } from "./stables.js";
@@ -14,6 +15,10 @@ export type NoticeKind =
   | "needs_attention"
   | "withdrawal_sent"
   | "withdrawal_failed"
+  | "topped_up"
+  | "token"
+  | "bill_paid"
+  | "weekly_cap"
   | StableNoticeKind;
 
 export interface Message {
@@ -44,6 +49,10 @@ export interface NoticeParams {
   dueAt?: string;
   balanceMinor?: string;
   bank?: string;
+  /** Electricity: the token (added at send time from the encrypted order, never stored in the notice). */
+  token?: string;
+  units?: string;
+  nextAt?: string;
 }
 
 /** One message per notice kind. Short enough for one SMS where it may go by SMS. */
@@ -58,18 +67,38 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
       };
     case "renewal_failed":
       return {
-        subject: `${who} was not renewed`,
-        text: `ConstantUnits: we couldn't renew ${who}. No money was taken. We'll try again, or open the app to check the decoder.`,
+        subject: `${who} was not paid`,
+        text: `ConstantUnits: we couldn't pay ${who}. No money was taken. We'll try again, or open the app to check the bill.`,
       };
     case "insufficient":
       return {
-        subject: `Add money to renew ${who}`,
-        text: `ConstantUnits: ${who} renews ${p.dueAt ? day(p.dueAt) : "soon"} for ${amt}. You are ${p.shortMinor ? naira(BigInt(p.shortMinor)) : "a little"} short. Add money and we'll renew it.`,
+        subject: `Add money for ${who}`,
+        text: `ConstantUnits: ${who} is due ${p.dueAt ? day(p.dueAt) : "now"} for ${amt}. You are ${p.shortMinor ? naira(BigInt(p.shortMinor)) : "a little"} short. Add money and we'll pay it.`,
       };
     case "above_cap":
       return {
         subject: `${who} costs more now`,
         text: `ConstantUnits: ${who} now costs ${amt}, above your limit of ${p.capMinor ? naira(BigInt(p.capMinor)) : "your limit"}. We won't pay it until you raise the limit in the app.`,
+      };
+    case "topped_up":
+      return {
+        subject: `${who} topped up`,
+        text: `ConstantUnits: ${who} topped up with ${amt}.${p.nextAt ? ` Next on ${day(p.nextAt)}.` : ""}`,
+      };
+    case "token":
+      return {
+        subject: `Your token for ${who}`,
+        text: `ConstantUnits: ${amt} token for ${who}${p.units ? ` (${p.units} kWh)` : ""}: ${p.token ?? "open the app to see it"}. Enter it on your meter.`,
+      };
+    case "bill_paid":
+      return {
+        subject: `${who} paid`,
+        text: `ConstantUnits: ${who} paid, ${amt}.${p.nextAt ? ` Next on ${day(p.nextAt)}.` : ""}`,
+      };
+    case "weekly_cap":
+      return {
+        subject: `${who} reached its weekly limit`,
+        text: `ConstantUnits: ${who} reached its weekly limit of ${p.capMinor ? naira(BigInt(p.capMinor)) : "your limit"}. We'll top up when the week allows, or raise it in the app.`,
       };
     case "funded":
       return {

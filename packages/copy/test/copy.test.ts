@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { naira, render, type NoticeKind } from "../src/index.js";
 
-const KINDS: NoticeKind[] = ["renewed", "renewal_failed", "insufficient", "above_cap", "funded", "needs_attention", "withdrawal_sent", "withdrawal_failed"];
+const KINDS: NoticeKind[] = ["renewed", "renewal_failed", "insufficient", "above_cap", "funded", "needs_attention", "withdrawal_sent", "withdrawal_failed", "topped_up", "bill_paid", "weekly_cap"];
 
 describe("copy", () => {
   it("formats naira from kobo", () => {
@@ -12,6 +12,15 @@ describe("copy", () => {
     const m = render(kind, { line: "Living room DSTV", amountMinor: "1995000", capMinor: "2500000", shortMinor: "500000", dueAt: "2026-11-15T06:00:00Z", balanceMinor: "100" });
     expect(m.text.length).toBeLessThanOrEqual(160);
     expect(m.text).not.toMatch(/usdc|crypto|wallet|blockchain|\b\d{10,}\b/i);
+  });
+});
+
+describe("electricity token (D-079)", () => {
+  it("carries the token to its owner and fits one SMS", () => {
+    const m = render("token", { line: "Home meter", amountMinor: "500000", token: "1234-5678-9012-3456-7890", units: "45.2" });
+    expect(m.text).toContain("1234-5678-9012-3456-7890");
+    expect(m.text).toContain("45.2 kWh");
+    expect(m.text.length).toBeLessThanOrEqual(160);
   });
 });
 

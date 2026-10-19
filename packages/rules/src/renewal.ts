@@ -38,6 +38,9 @@ export interface RenewalInput {
   hasOpenOrder: boolean;
   lastRenewedAt: Date | null;
   minDaysBetweenRenewals?: number;
+  /** Usage lines: the most to spend on this line in any 7 days, and what was spent in the last 7 (D-079). */
+  weeklyCapMinor?: Minor | null;
+  spentLast7DaysMinor?: Minor;
 }
 
 export type RenewalSkipReason =
@@ -53,6 +56,7 @@ export type RenewalSkipReason =
   | "already_renewed"
   | "misconfigured"
   | "above_cap"
+  | "weekly_cap"
   | "insufficient";
 
 export type RenewalDecision =
@@ -89,6 +93,7 @@ export function decideRenewal(i: RenewalInput): RenewalDecision {
   }
   if (i.quote.amountMinor <= 0n || i.capMinor <= 0n || i.feeMinor < 0n) return no("misconfigured");
   if (i.quote.amountMinor > i.capMinor) return no("above_cap");
+  if (i.weeklyCapMinor != null && (i.spentLast7DaysMinor ?? 0n) + i.quote.amountMinor > i.weeklyCapMinor) return no("weekly_cap");
   if (i.availableMinor < i.quote.amountMinor + i.feeMinor) return no("insufficient");
   return { kind: "renew", amountMinor: i.quote.amountMinor, feeMinor: i.feeMinor };
 }
@@ -105,7 +110,7 @@ export function decideRenewal(i: RenewalInput): RenewalDecision {
 export type RenewalAction =
   | { kind: "vend"; amountMinor: Minor; feeMinor: Minor }
   | { kind: "reschedule"; runAt: Date }
-  | { kind: "notify_and_hold"; notice: "insufficient" | "above_cap" }
+  | { kind: "notify_and_hold"; notice: "insufficient" | "above_cap" | "weekly_cap" }
   | { kind: "hold" };
 
 export function renewalAction(d: RenewalDecision, i: Pick<RenewalInput, "quote" | "runAt">, timeZone: string): RenewalAction {
@@ -118,6 +123,7 @@ export function renewalAction(d: RenewalDecision, i: Pick<RenewalInput, "quote" 
       return { kind: "reschedule", runAt: renewalRunAt(nextDueAfter(i.runAt, timeZone), timeZone) };
     case "insufficient":
     case "above_cap":
+    case "weekly_cap":
       return { kind: "notify_and_hold", notice: d.reason };
     case "killed":
     case "cancelled":
@@ -148,6 +154,30 @@ export function nextDueAfter(dueAt: Date, timeZone: string): Date {
   const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
   return zonedInstant({ year, month, day: Math.min(d.day, last) }, RENEWAL_RUN_MINUTE_LOCAL, timeZone);
 }
+
+/**
+ * Monthly bills (D-079): 07:00 local on `renewDay` (1 to 28) of this month if that is still ahead of `now`,
+ * otherwise of next month.
+ */
+export function monthlyRunAt(renewDay: number, now: Date, timeZone: string): Date {
+  if (!Number.isInteger(renewDay) || renewDay < 1 || renewDay > 28) throw new Error("renewDay must be 1 to 28");
+  const today = localDate(now, timeZone);
+  const thisMonth = zonedInstant({ year: today.year, month: today.month, day: renewDay }, RENEWAL_RUN_MINUTE_LOCAL, timeZone);
+  if (thisMonth.getTime() >= now.getTime()) return thisMonth;
+  const year = today.month === 12 ? today.year + 1 : today.year;
+  const month = today.month === 12 ? 1 : today.month + 1;
+  return zonedInstant({ year, month, day: renewDay }, RENEWAL_RUN_MINUTE_LOCAL, timeZone);
+}
+
+/** After a monthly payment for the run at `paidFor`: the same day next month (days 1 to 28 exist in every month). */
+export function nextMonthlyRunAt(renewDay: number, paidFor: Date, timeZone: string): Date {
+  return monthlyRunAt(renewDay, new Date(paidFor.getTime() + 1), timeZone);
+}
+
+/** Usage lines: at most one top-up in this many days, however often the user reports it low. */
+export const USAGE_MIN_DAYS_BETWEEN_TOPUPS = 0.25;
+/** Monthly lines: never twice in this many days. */
+export const MONTHLY_MIN_DAYS_BETWEEN_PAYMENTS = 20;
 
 /**
  * Money a user can spend now. Open orders have not written their ledger entries yet

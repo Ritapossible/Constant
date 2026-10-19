@@ -15,6 +15,7 @@ export interface UserRow {
   phone_e164: string | null;
   market_code: string;
   status: "active" | "frozen";
+  channels: string[];
   created_at: Date;
 }
 
@@ -51,6 +52,10 @@ export async function lockUser(tx: Tx, id: string): Promise<UserRow> {
 
 export async function setDisplayName(q: Q, id: string, name: string | null): Promise<void> {
   await q.query("UPDATE users SET display_name = $2, updated_at = now() WHERE id = $1", [id, name]);
+}
+
+export async function setChannels(q: Q, id: string, channels: string[]): Promise<void> {
+  await q.query("UPDATE users SET channels = $2, updated_at = now() WHERE id = $1", [id, channels]);
 }
 
 // ── Market config ────────────────────────────────────────────────────────────
@@ -106,10 +111,13 @@ export async function setVendingEnabled(q: Q, value: boolean, by: string, reason
 
 export type LineStatus = "active" | "paused" | "frozen" | "cancelled";
 
+export type LineKind = "tv" | "data" | "airtime" | "electricity" | "subscription";
+export type LineSchedule = "due_date" | "monthly" | "usage" | "none";
+
 export interface LineRow {
   id: string;
   user_id: string;
-  kind: "tv";
+  kind: LineKind;
   provider: string;
   ref_ciphertext: string;
   ref_hmac: string;
@@ -126,12 +134,21 @@ export interface LineRow {
   next_run_at: Date | null;
   last_renewed_at: Date | null;
   funding: "naira" | "stables";
+  schedule: LineSchedule;
+  renew_day: number | null;
+  amount_minor: bigint | null;
+  variation_code: string | null;
+  meter_type: "prepaid" | "postpaid" | null;
+  /** numeric comes back as a string. */
+  threshold: string | null;
+  weekly_cap_minor: bigint | null;
+  setup_needed: "bundle" | null;
   created_at: Date;
 }
 
 export interface NewLine {
   userId: string;
-  kind: "tv";
+  kind: LineKind;
   provider: string;
   refCiphertext: string;
   refHmac: string;
@@ -143,6 +160,17 @@ export interface NewLine {
   capMinor: bigint;
   dueAt: Date | null;
   nextRunAt: Date | null;
+  schedule?: LineSchedule;
+  renewDay?: number | null;
+  amountMinor?: bigint | null;
+  variationCode?: string | null;
+  meterType?: "prepaid" | "postpaid" | null;
+  threshold?: number | null;
+  weeklyCapMinor?: bigint | null;
+  setupNeeded?: "bundle" | null;
+  /** False when the payee couldn't be checked (it then can't be paid until it is). Default true. */
+  verified?: boolean;
+  status?: "active" | "paused";
 }
 
 export class DuplicateLine extends Error {}
@@ -151,13 +179,18 @@ export async function insertLine(q: Q, l: NewLine): Promise<LineRow> {
   try {
     const r = await q.query<LineRow>(
       `INSERT INTO lines (user_id, kind, provider, ref_ciphertext, ref_hmac, ref_last4, customer_name, plan_name,
-                          nickname, currency, cap_minor, verified, due_at, next_run_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true,$12,$13) RETURNING *`,
-      [l.userId, l.kind, l.provider, l.refCiphertext, l.refHmac, l.refLast4, l.customerName, l.planName, l.nickname, l.currency, l.capMinor, l.dueAt, l.nextRunAt],
+                          nickname, currency, cap_minor, verified, due_at, next_run_at, schedule, renew_day, amount_minor,
+                          variation_code, meter_type, threshold, weekly_cap_minor, setup_needed, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING *`,
+      [
+        l.userId, l.kind, l.provider, l.refCiphertext, l.refHmac, l.refLast4, l.customerName, l.planName, l.nickname, l.currency, l.capMinor,
+        l.verified ?? true, l.dueAt, l.nextRunAt, l.schedule ?? "due_date", l.renewDay ?? null, l.amountMinor ?? null, l.variationCode ?? null,
+        l.meterType ?? null, l.threshold ?? null, l.weeklyCapMinor ?? null, l.setupNeeded ?? null, l.status ?? "active",
+      ],
     );
     return r.rows[0]!;
   } catch (err) {
-    if ((err as { code?: string }).code === "23505") throw new DuplicateLine("this decoder is already on your account");
+    if ((err as { code?: string }).code === "23505") throw new DuplicateLine("this bill is already on your account");
     throw err;
   }
 }
@@ -191,12 +224,51 @@ export async function dueLineIds(q: Q, now: Date, limit = 50): Promise<string[]>
 export async function updateLine(
   q: Q,
   id: string,
-  patch: Partial<{ status: LineStatus; frozen_reason: string | null; cap_minor: bigint; nickname: string; due_at: Date | null; next_run_at: Date | null; last_renewed_at: Date; plan_name: string | null }>,
+  patch: Partial<{
+    status: LineStatus; frozen_reason: string | null; cap_minor: bigint; nickname: string; due_at: Date | null; next_run_at: Date | null;
+    last_renewed_at: Date; plan_name: string | null; renew_day: number | null; amount_minor: bigint | null; variation_code: string | null;
+    threshold: number | null; weekly_cap_minor: bigint | null; setup_needed: "bundle" | null;
+  }>,
 ): Promise<void> {
   const keys = Object.keys(patch) as (keyof typeof patch)[];
   if (keys.length === 0) return;
   const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(", ");
   await q.query(`UPDATE lines SET ${sets}, updated_at = now() WHERE id = $1`, [id, ...keys.map((k) => patch[k])]);
+}
+
+// ── Readings (usage lines) ─────────────────────────────────────────────────────
+
+export interface ReadingRow {
+  line_id: string;
+  value: string;
+  at: Date;
+}
+
+export async function insertReading(q: Q, lineId: string, value: number, at: Date): Promise<void> {
+  await q.query("INSERT INTO line_readings (line_id, value, at) VALUES ($1, $2, $3)", [lineId, value, at]);
+}
+
+/** The latest readings of each of these lines, newest first, at most `perLine` each. */
+export async function recentReadings(q: Q, lineIds: string[], perLine = 30): Promise<ReadingRow[]> {
+  if (lineIds.length === 0) return [];
+  return (
+    await q.query<ReadingRow>(
+      `SELECT line_id, value::text AS value, at FROM (
+         SELECT line_id, value, at, row_number() OVER (PARTITION BY line_id ORDER BY at DESC, id DESC) AS n
+         FROM line_readings WHERE line_id = ANY($1::uuid[])) r
+       WHERE n <= $2 ORDER BY line_id, at DESC`,
+      [lineIds, perLine],
+    )
+  ).rows;
+}
+
+/** What this line spent (bill amounts, not fees) on orders for the 7 days before `now` that didn't fail. */
+export async function spentLast7Days(q: Q, lineId: string, now: Date): Promise<bigint> {
+  const r = await q.query<{ s: bigint }>(
+    "SELECT COALESCE(SUM(amount_minor), 0)::bigint AS s FROM orders WHERE line_id = $1 AND state <> 'failed' AND COALESCE(scheduled_for, created_at) > $2::timestamptz - interval '7 days'",
+    [lineId, now],
+  );
+  return r.rows[0]!.s;
 }
 
 // ── Ledger ───────────────────────────────────────────────────────────────────
@@ -267,7 +339,7 @@ export interface OrderRow {
   id: string;
   user_id: string;
   line_id: string;
-  trigger: "renewal";
+  trigger: "renewal" | "scheduled" | "usage";
   state: OrderState;
   amount_minor: bigint;
   fee_minor: bigint;
@@ -282,6 +354,8 @@ export interface OrderRow {
   error: string | null;
   receipt_id: string;
   funding: "naira" | "stables";
+  token_ciphertext: string | null;
+  token_units: string | null;
   created_at: Date;
   updated_at: Date;
   settled_at: Date | null;
@@ -298,6 +372,7 @@ export interface NewOrder {
   partner: string;
   receiptId: string;
   funding?: "naira" | "stables";
+  trigger?: "renewal" | "scheduled" | "usage";
 }
 
 /** Inserts the order in `ready`. Returns null if the key exists or the line already has an open order. */
@@ -306,8 +381,8 @@ export async function insertOrder(tx: Tx, o: NewOrder): Promise<OrderRow | null>
   try {
     const r = await tx.query<OrderRow>(
       `INSERT INTO orders (user_id, line_id, trigger, state, amount_minor, fee_minor, currency, idempotency_key, scheduled_for, partner, receipt_id, next_check_at, funding)
-       VALUES ($1,$2,'renewal','ready',$3,$4,$5,$6,$7,$8,$9, now(), $10) RETURNING *`,
-      [o.userId, o.lineId, o.amountMinor, o.feeMinor, o.currency, o.idempotencyKey, o.scheduledFor, o.partner, o.receiptId, o.funding ?? "naira"],
+       VALUES ($1,$2,$11,'ready',$3,$4,$5,$6,$7,$8,$9, now(), $10) RETURNING *`,
+      [o.userId, o.lineId, o.amountMinor, o.feeMinor, o.currency, o.idempotencyKey, o.scheduledFor, o.partner, o.receiptId, o.funding ?? "naira", o.trigger ?? "renewal"],
     );
     await tx.query("RELEASE SAVEPOINT insert_order");
     const row = r.rows[0]!;
@@ -367,7 +442,7 @@ export async function transition(
   tx: Tx,
   order: OrderRow,
   event: OrderEvent,
-  patch: Partial<{ partner_ref: string; partner_txn_id: string; next_check_at: Date | null; checks: number; error: string | null; settled_at: Date }>,
+  patch: Partial<{ partner_ref: string; partner_txn_id: string; next_check_at: Date | null; checks: number; error: string | null; settled_at: Date; token_ciphertext: string; token_units: string | null }>,
   actor: string,
   detail?: Record<string, unknown>,
 ): Promise<OrderRow> {

@@ -68,6 +68,16 @@ import {
   recordFunding,
   saveInboundWebhook,
   setDisplayName,
+  setChannels,
+  insertReading,
+  recentReadings,
+  getSession,
+  recordSession,
+  touchSession,
+  revokeSession,
+  revokeAllSessions,
+  activeSessions,
+  type ReadingRow,
   updateLine,
   upsertUser,
   usersByCustomerCode,
@@ -79,7 +89,7 @@ import {
   type Secrets,
   type UserRow,
 } from "@constant/db";
-import type { CableProvider, CableVending, Checkout, CheckoutResult, Funding, Identity, Payouts, RateSource, StableSymbol } from "@constant/partners";
+import type { CableProvider, CableVending, Checkout, CheckoutResult, DataPlan, Funding, Identity, MeterType, Payouts, RateSource, StableSymbol } from "@constant/partners";
 import {
   TOPUP_MAX_MINOR,
   TOPUP_MIN_MINOR,
@@ -95,6 +105,11 @@ import {
   parseRate,
   permissionAllowance,
   renewalRunAt,
+  MIN_AUTOPAY_MINOR,
+  SESSION_IDLE_DAYS,
+  SESSION_MAX_DAYS,
+  decideSession,
+  monthlyRunAt,
 } from "@constant/rules";
 import { randomBytes, randomUUID } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
@@ -103,8 +118,8 @@ import { registerOps } from "./ops.js";
 export interface ApiDeps {
   db: Db;
   identity: Identity;
-  /** Used only for lookups here. */
-  vending: Pick<CableVending, "lookup">;
+  /** Used only for lookups here: decoders, meters and data bundle prices. */
+  vending: Pick<CableVending, "lookup" | "lookupMeter" | "dataPlans">;
   funding: Funding;
   secrets: Secrets;
   /** Origins allowed to call /v1 from a browser, e.g. https://constant-units.vercel.app */
@@ -115,6 +130,8 @@ export interface ApiDeps {
   fundingEmailDomain: string;
   now?: () => Date;
   logger?: boolean;
+  /** Sign-in sessions end after this many days unused, or this many days after sign-in (D-080). */
+  sessions?: { idleDays: number; maxDays: number };
   /** Paycrest off-ramp webhooks (D-068). Absent: the route answers 404. */
   offramp?: Pick<import("@constant/partners").Offramp, "verifyWebhook" | "parseWebhook">;
   /** Card, USSD and QR top-ups (D-075), and where Paystack sends the user back. Absent: /v1/topups answers 503. */
@@ -130,6 +147,8 @@ export interface ApiDeps {
 declare module "fastify" {
   interface FastifyRequest {
     user: UserRow;
+    /** The identity provider's session id for this request, when it gave one. */
+    sid: string | null;
   }
 }
 
@@ -186,10 +205,50 @@ function smartcard(v: unknown): string {
 }
 
 const NETWORK_NAME = { base: "Base", arc: "Arc" } as const;
+const CHANNELS = ["whatsapp", "telegram", "sms", "email"] as const;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** "iPhone · Safari", "Android · Chrome": enough for a person to recognise their own device in a list. */
+export function deviceName(ua: string | null): string {
+  if (!ua) return "Unknown device";
+  const os = /iPhone|iPad/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) ? "Mac" : /Linux/.test(ua) ? "Linux" : "Device";
+  const browser = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /CriOS|Chrome\//.test(ua) ? "Chrome" : /FxiOS|Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "Browser";
+  return `${os} · ${browser}`;
+}
+
+// ── Bills other than cable (D-079) ──────────────────────────────────────────
+
+type BillKind = "data" | "airtime" | "electricity" | "subscription";
+const BILL_KINDS: BillKind[] = ["data", "airtime", "electricity", "subscription"];
+/** Electricity tokens below this are refused by most DisCos. */
+const MIN_ELECTRICITY_MINOR = 100_000n;
+const MAX_READINGS_IMPORTED = 60;
+
+/** A Nigerian mobile number as 0XXXXXXXXXX, or null. */
+export function nigerianMobile(v: unknown): string | null {
+  const s = typeof v === "string" ? v.replace(/[\s-]/g, "") : "";
+  const m = /^(?:\+?234|0)([789]\d{9})$/.exec(s);
+  return m ? `0${m[1]}` : null;
+}
+
+function maskedEmail(email: string): string {
+  const [u, dom] = email.split("@");
+  return `${(u ?? "").slice(0, 2)}•••@${dom ?? ""}`.slice(0, 60);
+}
 const usd = (micro: bigint) => formatUnits6(micro);
 
-const lineView = (l: LineRow) => ({
+const lineView = (l: LineRow, readings: ReadingRow[] = []) => ({
   funding: l.funding,
+  schedule: l.schedule,
+  renewDay: l.renew_day,
+  amountMinor: l.amount_minor?.toString() ?? null,
+  variationCode: l.variation_code,
+  meterType: l.meter_type,
+  threshold: l.threshold === null ? null : Number(l.threshold),
+  weeklyCapMinor: l.weekly_cap_minor?.toString() ?? null,
+  setupNeeded: l.setup_needed,
+  verified: l.verified,
+  readings: readings.filter((r) => r.line_id === l.id).map((r) => ({ at: r.at.toISOString(), value: Number(r.value) })),
   id: l.id,
   kind: l.kind,
   provider: l.provider,
@@ -206,7 +265,10 @@ const lineView = (l: LineRow) => ({
   lastRenewedAt: l.last_renewed_at?.toISOString() ?? null,
 });
 
-const orderView = (o: OrderRow) => ({
+const orderView = (o: OrderRow, secrets?: Secrets) => ({
+  // The owner's own electricity token, so the app can show it again. Only ever returned to the signed-in owner.
+  token: secrets && o.token_ciphertext ? secrets.decrypt(o.token_ciphertext) : null,
+  tokenUnits: o.token_units,
   id: o.id,
   lineId: o.line_id,
   state: o.state,
@@ -220,6 +282,16 @@ const orderView = (o: OrderRow) => ({
 
 export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
   const now = d.now ?? (() => new Date());
+  const sessionPolicy = d.sessions ?? { idleDays: SESSION_IDLE_DAYS, maxDays: SESSION_MAX_DAYS };
+  // Data bundle prices, shared by everyone for 10 minutes: they change rarely and the partner is slow.
+  const planCache = new Map<string, { at: number; plans: DataPlan[] }>();
+  const dataPlans = async (network: string): Promise<DataPlan[]> => {
+    const hit = planCache.get(network);
+    if (hit && now().getTime() - hit.at < 10 * 60_000) return hit.plans;
+    const plans = await d.vending.dataPlans(network);
+    planCache.set(network, { at: now().getTime(), plans });
+    return plans;
+  };
   const lastRefresh = new Map<string, number>();
   const shouldRefresh = (did: string) => {
     const t = now().getTime();
@@ -263,8 +335,9 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
   await app.register(async (v1) => {
     v1.addHook("preHandler", async (req) => {
       const h = req.headers.authorization;
-      const did = h?.startsWith("Bearer ") ? await d.identity.verify(h.slice(7)) : null;
-      if (!did) throw new HttpError(401, "unauthenticated", "Sign in again");
+      const verified = h?.startsWith("Bearer ") ? await d.identity.verify(h.slice(7)) : null;
+      if (!verified) throw new HttpError(401, "unauthenticated", "Sign in again");
+      const did = verified.did;
       let user = await getUserByDid(d.db, did);
       // Contact details and wallet addresses come from the identity provider, never from the browser.
       // Re-read them while either is missing (the wallet is created just after first sign-in), at most once a minute.
@@ -283,7 +356,39 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       }
       if (!user) user = await upsertUser(d.db, { privyDid: did });
       req.user = user;
+      req.sid = verified.sid;
+
+      // Sessions (D-080): unused for a week or older than a month, the person signs in again. A session that was
+      // signed out (here or on another device) stays out, even though the provider would still refresh its token.
+      if (verified.sid) {
+        const t = now();
+        const s = await getSession(d.db, verified.sid);
+        if (s && s.user_id !== user.id) throw new HttpError(401, "session_expired", "Sign in again");
+        const decision = decideSession(s && { createdAt: s.created_at, lastSeenAt: s.last_seen_at, revokedAt: s.revoked_at }, t, sessionPolicy);
+        if (decision.kind === "revoke") await revokeSession(d.db, verified.sid, decision.reason, t);
+        if (decision.kind !== "allow") throw new HttpError(401, "session_expired", "For your safety, you were signed out. Sign in again.");
+        if (!s) await recordSession(d.db, { sid: verified.sid, userId: user.id, userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null, now: t });
+        else if (decision.touch) await touchSession(d.db, verified.sid, t);
+      }
     });
+
+    /** Sign out here: this session's tokens are refused from now on, whatever the identity provider says. */
+    v1.post("/session/end", async (req, reply) => {
+      if (req.sid) await revokeSession(d.db, req.sid, "signed_out", now());
+      return reply.status(204).send();
+    });
+
+    /** Sign out everywhere: a lost phone, a shared computer. Every session on the account ends now. */
+    v1.post("/sessions/end-all", async (req) => ({ ended: await revokeAllSessions(d.db, req.user.id, "all_signed_out", now()) }));
+
+    v1.get("/sessions", async (req) =>
+      (await activeSessions(d.db, req.user.id)).map((s) => ({
+        current: s.sid === req.sid,
+        device: deviceName(s.user_agent),
+        signedInAt: s.created_at.toISOString(),
+        lastSeenAt: s.last_seen_at.toISOString(),
+      })),
+    );
 
     v1.get("/me", async (req) => {
       const u = req.user;
@@ -296,12 +401,13 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         vendingEnabled(d.db),
         getMarket(d.db, u.market_code),
       ]);
+      const readings = await recentReadings(d.db, lines.filter((l) => l.kind !== "tv").map((l) => l.id));
       return {
-        user: { id: u.id, displayName: u.display_name, email: u.email, phone: u.phone_e164 },
+        user: { id: u.id, displayName: u.display_name, email: u.email, phone: u.phone_e164, channels: u.channels },
         balance: { currency: market.currency, ledgerMinor: sum.toString(), availableMinor: availableBalance(sum, committed).toString() },
         fundingAccount: account && { bankName: account.bank_name, accountNumber: account.account_number, accountName: account.account_name },
-        lines: lines.map(lineView),
-        orders: orders.map(orderView),
+        lines: lines.map((l) => lineView(l, readings)),
+        orders: orders.map((o) => orderView(o, d.secrets)),
         payments: enabled ? "on" : "paused",
         cardTopUps: Boolean(d.checkout),
       };
@@ -309,9 +415,21 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
 
     v1.patch("/me", async (req) => {
       const b = json(req);
-      const name = b.displayName === null || b.displayName === "" ? null : str(b.displayName, "displayName", 40);
-      await setDisplayName(d.db, req.user.id, name);
-      return { displayName: name };
+      const out: { displayName?: string | null; channels?: string[] } = {};
+      if (b.displayName !== undefined) {
+        const name = b.displayName === null || b.displayName === "" ? null : str(b.displayName, "displayName", 40);
+        await setDisplayName(d.db, req.user.id, name);
+        out.displayName = name;
+      }
+      if (b.channels !== undefined) {
+        const list = Array.isArray(b.channels) ? b.channels : null;
+        if (!list || list.length > CHANNELS.length || list.some((c) => !CHANNELS.includes(c as never)) || new Set(list).size !== list.length) {
+          throw bad("invalid", "channels must be some of whatsapp, telegram, sms, email, each once");
+        }
+        await setChannels(d.db, req.user.id, list as string[]);
+        out.channels = list as string[];
+      }
+      return out;
     });
 
     v1.post("/funding-account", async (req) => {
@@ -408,10 +526,187 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       },
     );
 
-    v1.get("/lines", async (req) => (await listLines(d.db, req.user.id)).map(lineView));
+    v1.get("/lines", async (req) => {
+      const lines = await listLines(d.db, req.user.id);
+      const readings = await recentReadings(d.db, lines.filter((l) => l.kind !== "tv").map((l) => l.id));
+      return lines.map((l) => lineView(l, readings));
+    });
+
+    v1.get("/data-plans", async (req) => {
+      const network = (req.query as { network?: string }).network ?? "";
+      if (!(await providerEnabled(d.db, network, "data"))) throw bad("provider_off", "Choose MTN, Airtel, Glo or T2");
+      try {
+        return (await dataPlans(network)).map((p) => ({ code: p.code, name: p.name, amountMinor: p.amountMinor.toString() }));
+      } catch {
+        throw new HttpError(503, "unreachable", "Bundles aren't loading. Try again in a minute.");
+      }
+    });
+
+    v1.post(
+      "/meters/lookup",
+      { config: { rateLimit: { max: 10, timeWindow: "1 minute", keyGenerator: (req: FastifyRequest) => req.headers.authorization ?? req.ip } } },
+      async (req) => {
+        const b = json(req);
+        const { provider: p, meter, meterType } = meterInput(b);
+        if (!(await providerEnabled(d.db, p, "electricity"))) throw bad("provider_off", "This distributor isn't available yet");
+        const r = await d.vending.lookupMeter(p, meter, meterType);
+        if (!r.ok) {
+          throw r.reason === "not_found"
+            ? bad("not_found", "We couldn't find that meter. Check the number, distributor and meter type.")
+            : new HttpError(503, "unreachable", "The distributor isn't answering. Try again in a minute.");
+        }
+        return { customerName: r.customerName, address: r.address, meterType: r.meterType };
+      },
+    );
+
+    const meterInput = (b: Record<string, unknown>) => {
+      const p = typeof b.provider === "string" ? b.provider : "";
+      const meter = typeof b.meter === "string" ? b.meter.replace(/[\s-]/g, "") : "";
+      if (!/^\d{11,13}$/.test(meter)) throw bad("invalid_meter", "Meter numbers are 11 to 13 digits");
+      if (b.meterType !== "prepaid" && b.meterType !== "postpaid") throw bad("invalid", "meterType must be prepaid or postpaid");
+      return { provider: p, meter, meterType: b.meterType as MeterType };
+    };
+
+    /** Data, airtime, electricity and subscriptions. The payee is checked here, never trusted from the client. */
+    const createBill = async (req: FastifyRequest, kind: BillKind, b: Record<string, unknown>) => {
+      const imported = b.import === true;
+      const p = typeof b.provider === "string" ? b.provider : "";
+      if (!(await providerEnabled(d.db, p, kind))) throw bad("provider_off", "This provider isn't available yet");
+      const market = await getMarket(d.db, req.user.market_code);
+      const t = now();
+
+      // The payee.
+      let ref: string;
+      let last4: string;
+      let customerName: string | null = null;
+      let meterType: MeterType | null = null;
+      if (kind === "data" || kind === "airtime") {
+        const phone = nigerianMobile(b.ref);
+        if (!phone) throw bad("invalid_phone", "Enter a Nigerian number, e.g. 0803 123 4567");
+        ref = phone;
+        last4 = phone.slice(-4);
+      } else if (kind === "electricity") {
+        const m = meterInput({ ...b, meter: b.ref });
+        const r = await d.vending.lookupMeter(p, m.meter, m.meterType);
+        if (!r.ok) {
+          throw r.reason === "not_found"
+            ? bad("not_found", "We couldn't find that meter. Check the number, distributor and meter type.")
+            : new HttpError(503, "unreachable", "The distributor isn't answering. Try again in a minute.");
+        }
+        ref = m.meter;
+        last4 = m.meter.slice(-4);
+        customerName = r.customerName;
+        meterType = m.meterType;
+      } else {
+        const email = typeof b.ref === "string" ? b.ref.trim().toLowerCase() : "";
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 120) throw bad("invalid", "Enter the email on that account");
+        ref = email;
+        last4 = maskedEmail(email);
+      }
+
+      // What each payment buys.
+      const currency = kind === "subscription" ? "USD" : market.currency;
+      let amount = b.amountMinor === undefined ? null : minor(b.amountMinor, "amountMinor");
+      let variationCode: string | null = null;
+      let planName: string | null = null;
+      let setupNeeded: "bundle" | null = null;
+      if (kind === "data") {
+        if (typeof b.variationCode === "string" && b.variationCode) {
+          let plans: DataPlan[];
+          try {
+            plans = await dataPlans(p);
+          } catch {
+            throw new HttpError(503, "unreachable", "Bundles aren't loading. Try again in a minute.");
+          }
+          const plan = plans.find((x) => x.code === b.variationCode);
+          if (!plan) throw bad("bundle_gone", "That bundle isn't sold any more. Choose another.");
+          variationCode = plan.code;
+          planName = plan.name;
+          amount = plan.amountMinor;
+        } else if (imported) {
+          setupNeeded = "bundle"; // moved from the phone, where data had an amount but no bundle: the user picks one
+        } else {
+          throw bad("bundle_needed", "Choose a bundle");
+        }
+      }
+      if (amount === null) throw bad("amount_needed", "Enter an amount");
+      const minAuto = (MIN_AUTOPAY_MINOR as Partial<Record<string, bigint>>)[kind];
+      if (minAuto && amount < minAuto && !setupNeeded) throw bad("too_small", "Automatic top-ups start at ₦500");
+      if (kind === "electricity" && amount < MIN_ELECTRICITY_MINOR) throw bad("too_small", "Electricity payments start at ₦1,000");
+      if (amount <= 0n || amount > MAX_CAP_MINOR) throw bad("invalid", "That amount doesn't look right");
+      const cap = b.capMinor === undefined || b.capMinor === null ? amount : minor(b.capMinor, "capMinor");
+      if (cap < amount || cap > MAX_CAP_MINOR) throw bad("invalid", "The limit can't be lower than one payment");
+
+      // When it pays.
+      const schedule = kind === "subscription" ? "none" : b.schedule === "usage" && meterType !== "postpaid" ? "usage" : "monthly";
+      if (b.schedule === "usage" && meterType === "postpaid") throw bad("invalid", "A postpaid meter is paid on a day each month");
+      const day = b.renewDay === undefined || b.renewDay === null ? null : Number(b.renewDay);
+      if ((schedule === "monthly" || kind === "subscription") && (day === null || !Number.isInteger(day) || day < 1 || day > 28)) throw bad("invalid_day", "Pick a day from 1 to 28");
+      const threshold = b.threshold === undefined || b.threshold === null ? null : Number(b.threshold);
+      if (schedule === "usage" && (threshold === null || !Number.isFinite(threshold) || threshold < 0 || threshold > 1e9)) throw bad("invalid", "Enter the level to top up at");
+      const weekly = schedule === "usage" ? (b.weeklyCapMinor === undefined || b.weeklyCapMinor === null ? amount : minor(b.weeklyCapMinor, "weeklyCapMinor")) : null;
+      if (weekly !== null && (weekly < amount || weekly > MAX_CAP_MINOR)) throw bad("invalid", "The weekly limit can't be lower than one top-up");
+
+      const nickname = str(b.nickname ?? `${p.toUpperCase()} ${kind}`, "nickname", 40);
+      let line: LineRow;
+      try {
+        line = await insertLine(d.db, {
+          userId: req.user.id,
+          kind,
+          provider: p,
+          refCiphertext: d.secrets.encrypt(ref),
+          refHmac: d.secrets.hmac(`${kind}:${p}:${ref}`),
+          refLast4: last4,
+          customerName,
+          planName,
+          nickname,
+          currency,
+          capMinor: cap,
+          dueAt: null,
+          nextRunAt: schedule === "monthly" ? monthlyRunAt(day!, t, market.time_zone) : null,
+          schedule,
+          renewDay: day,
+          amountMinor: amount,
+          variationCode,
+          meterType,
+          threshold: schedule === "usage" ? threshold : null,
+          weeklyCapMinor: weekly,
+          setupNeeded,
+          status: b.status === "paused" ? "paused" : "active",
+        });
+      } catch (err) {
+        if (err instanceof DuplicateLine) throw new HttpError(409, "duplicate", "This bill is already on your account");
+        throw err;
+      }
+
+      // Readings moved from the phone keep the forecast going. They never start a payment by themselves.
+      if (imported && Array.isArray(b.readings) && schedule === "usage") {
+        for (const r of b.readings.slice(-MAX_READINGS_IMPORTED) as { at?: unknown; value?: unknown }[]) {
+          const at = typeof r.at === "string" ? new Date(r.at) : null;
+          const value = Number(r.value);
+          if (at && !Number.isNaN(at.getTime()) && at <= t && Number.isFinite(value) && value >= 0 && value <= 1e9) await insertReading(d.db, line.id, value, at);
+        }
+      }
+      return line;
+    };
+
+    const ownBill = async (req: FastifyRequest) => {
+      const { id } = req.params as { id: string };
+      if (!UUID.test(id)) throw new HttpError(404, "not_found", "No such bill");
+      const line = await getLine(d.db, id, req.user.id);
+      if (!line || line.status === "cancelled") throw new HttpError(404, "not_found", "No such bill");
+      return line;
+    };
+    const viewOf = async (line: LineRow) => lineView(line, await recentReadings(d.db, [line.id]));
 
     v1.post("/lines", async (req, reply) => {
       const b = json(req);
+      const kind = b.kind ?? "tv";
+      if (kind !== "tv") {
+        if (!BILL_KINDS.includes(kind as BillKind)) throw bad("invalid", "kind must be tv, data, airtime, electricity or subscription");
+        const line = await createBill(req, kind as BillKind, b);
+        return reply.status(201).send(await viewOf(line));
+      }
       const p = provider(b.provider);
       const card = smartcard(b.smartcard);
       const nickname = str(b.nickname ?? `${p.toUpperCase()} ••${card.slice(-4)}`, "nickname", 40);
@@ -460,9 +755,9 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
 
     v1.patch("/lines/:id", async (req) => {
       const { id } = req.params as { id: string };
-      const line = await getLine(d.db, id, req.user.id);
-      if (!line || line.status === "cancelled") throw new HttpError(404, "not_found", "No such bill");
+      const line = await ownBill(req);
       const b = json(req);
+      if (line.kind !== "tv") return viewOf(await patchBill(req, line, b));
       const patch: Parameters<typeof updateLine>[2] = {};
       if (b.nickname !== undefined) patch.nickname = str(b.nickname, "nickname", 40);
       if (b.capMinor !== undefined) {
@@ -479,17 +774,110 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       return lineView((await getLine(d.db, id, req.user.id))!);
     });
 
+    /** Changes to a data, airtime, electricity or subscription bill. The payee and provider never change. */
+    const patchBill = async (req: FastifyRequest, line: LineRow, b: Record<string, unknown>) => {
+      const market = await getMarket(d.db, req.user.market_code);
+      const t = now();
+      const patch: Parameters<typeof updateLine>[2] = {};
+      if (b.nickname !== undefined) patch.nickname = str(b.nickname, "nickname", 40);
+      let amount = line.amount_minor;
+      if (b.variationCode !== undefined && line.kind === "data") {
+        let plans: DataPlan[];
+        try {
+          plans = await dataPlans(line.provider);
+        } catch {
+          throw new HttpError(503, "unreachable", "Bundles aren't loading. Try again in a minute.");
+        }
+        const plan = plans.find((x) => x.code === b.variationCode);
+        if (!plan) throw bad("bundle_gone", "That bundle isn't sold any more. Choose another.");
+        Object.assign(patch, { variation_code: plan.code, plan_name: plan.name, amount_minor: plan.amountMinor, setup_needed: null });
+        amount = plan.amountMinor;
+      } else if (b.amountMinor !== undefined && line.kind !== "data") {
+        amount = minor(b.amountMinor, "amountMinor");
+        const minAuto = (MIN_AUTOPAY_MINOR as Partial<Record<string, bigint>>)[line.kind];
+        if (minAuto && amount < minAuto) throw bad("too_small", "Automatic top-ups start at ₦500");
+        if (line.kind === "electricity" && amount < MIN_ELECTRICITY_MINOR) throw bad("too_small", "Electricity payments start at ₦1,000");
+        if (amount <= 0n || amount > MAX_CAP_MINOR) throw bad("invalid", "That amount doesn't look right");
+        patch.amount_minor = amount;
+      }
+      const cap = b.capMinor !== undefined && b.capMinor !== null ? minor(b.capMinor, "capMinor") : line.cap_minor < (amount ?? 0n) ? amount! : line.cap_minor;
+      if (cap < (amount ?? 0n) || cap > MAX_CAP_MINOR) throw bad("invalid", "The limit can't be lower than one payment");
+      if (cap !== line.cap_minor) patch.cap_minor = cap;
+      if (line.schedule === "usage") {
+        if (b.threshold !== undefined) {
+          const th = Number(b.threshold);
+          if (!Number.isFinite(th) || th < 0 || th > 1e9) throw bad("invalid", "Enter the level to top up at");
+          patch.threshold = th;
+        }
+        const weekly = b.weeklyCapMinor !== undefined && b.weeklyCapMinor !== null ? minor(b.weeklyCapMinor, "weeklyCapMinor") : (line.weekly_cap_minor ?? amount!);
+        if (weekly < (amount ?? 0n) || weekly > MAX_CAP_MINOR) throw bad("invalid", "The weekly limit can't be lower than one top-up");
+        if (weekly !== line.weekly_cap_minor) patch.weekly_cap_minor = weekly;
+      }
+      let day = line.renew_day;
+      if (b.renewDay !== undefined && (line.schedule === "monthly" || line.kind === "subscription")) {
+        day = Number(b.renewDay);
+        if (!Number.isInteger(day) || day < 1 || day > 28) throw bad("invalid_day", "Pick a day from 1 to 28");
+        patch.renew_day = day;
+      }
+      if (b.status !== undefined) {
+        if (b.status !== "active" && b.status !== "paused") throw bad("invalid", "status must be active or paused");
+        if (line.status === "frozen") throw new HttpError(409, "frozen", "This bill is paused while we check a payment. We'll message you.");
+        patch.status = b.status;
+      }
+      // A monthly bill moved to another day, or resumed after a pause, runs on its next day: never on a missed one.
+      const resumed = patch.status === "active" && line.status === "paused";
+      if (line.schedule === "monthly" && day && (patch.renew_day !== undefined || resumed) && !(await hasOpenOrder(d.db, line.id))) {
+        patch.next_run_at = monthlyRunAt(day, t, market.time_zone);
+      }
+      await updateLine(d.db, line.id, patch);
+      return (await getLine(d.db, line.id))!;
+    };
+
+    v1.post(
+      "/lines/:id/readings",
+      { config: { rateLimit: { max: 30, timeWindow: "1 minute", keyGenerator: (req: FastifyRequest) => req.headers.authorization ?? req.ip } } },
+      async (req) => {
+        const line = await ownBill(req);
+        if (line.kind !== "data" && line.kind !== "airtime" && line.kind !== "electricity") throw bad("invalid", "This bill has no readings");
+        const value = Number(json(req).value);
+        if (!Number.isFinite(value) || value < 0 || value > 1e9) throw bad("invalid", "Enter what's left, e.g. 250");
+        const t = now();
+        await insertReading(d.db, line.id, value, t);
+        // A usage line reported at or below its level is due now; reported above it, it isn't any more.
+        if (line.schedule === "usage" && line.status === "active" && line.threshold !== null && !(await hasOpenOrder(d.db, line.id))) {
+          const low = value <= Number(line.threshold);
+          if (low && !line.next_run_at) await updateLine(d.db, line.id, { next_run_at: t });
+          if (!low && line.next_run_at) await updateLine(d.db, line.id, { next_run_at: null });
+        }
+        return viewOf((await getLine(d.db, line.id))!);
+      },
+    );
+
+    /** "Top up now" on a usage line. The worker still decides: balance, limits, and never twice within hours. */
+    v1.post(
+      "/lines/:id/top-up-now",
+      { config: { rateLimit: { max: 5, timeWindow: "1 minute", keyGenerator: (req: FastifyRequest) => req.headers.authorization ?? req.ip } } },
+      async (req) => {
+        const line = await ownBill(req);
+        if (line.schedule !== "usage") throw bad("invalid", "Only top-up bills can be topped up now");
+        if (line.status !== "active") throw new HttpError(409, "paused", "Resume this bill first");
+        if (line.setup_needed) throw new HttpError(409, "setup_needed", "Choose a bundle first");
+        if (await hasOpenOrder(d.db, line.id)) throw new HttpError(409, "in_flight", "A top-up is already on its way");
+        await updateLine(d.db, line.id, { next_run_at: now() });
+        return viewOf((await getLine(d.db, line.id))!);
+      },
+    );
+
     v1.delete("/lines/:id", async (req, reply) => {
       const { id } = req.params as { id: string };
-      const line = await getLine(d.db, id, req.user.id);
-      if (!line || line.status === "cancelled") throw new HttpError(404, "not_found", "No such bill");
+      const line = await ownBill(req);
       if (await hasOpenOrder(d.db, id)) throw new HttpError(409, "in_flight", "A renewal is in progress. Try again in a few minutes.");
       await updateLine(d.db, id, { status: "cancelled", next_run_at: null });
       for (const perm of await livePermissions(d.db, id)) await updatePermission(d.db, perm.id, perm.status === "signed" ? { status: "revoked" } : { status: "revoke_pending", tx_hash: null, tx_raw: null });
       return reply.status(204).send();
     });
 
-    v1.get("/orders", async (req) => (await listOrders(d.db, req.user.id, 50)).map(orderView));
+    v1.get("/orders", async (req) => (await listOrders(d.db, req.user.id, 50)).map((o) => orderView(o, d.secrets)));
 
     // ── Withdrawals to the user's own bank account (D-067) ──────────────────
     const payouts = () => {
@@ -575,6 +963,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     // One permission per token and chain. The worker charges the first that can pay the whole bill: Base USDC, Base USDT, Arc USDC.
     const ownLine = async (req: FastifyRequest) => {
       const { id } = req.params as { id: string };
+      if (!UUID.test(id)) throw new HttpError(404, "not_found", "No such bill");
       const line = await getLine(d.db, id, req.user.id);
       if (!line || line.status === "cancelled") throw new HttpError(404, "not_found", "No such bill");
       return line;
@@ -633,6 +1022,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     /** What the user is asked to sign: Constant may take up to this much of one token every 30 days for this bill. */
     v1.post("/lines/:id/stables/proposal", async (req) => {
       const line = await ownLine(req);
+      if (line.kind !== "tv") throw bad("tv_only", "Paying from stablecoins covers cable TV for now.");
       if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact ConstantUnits support.");
       const b = json(req);
       const token = tokenBySymbol(b.symbol ?? "USDC", b.network ?? "base");
@@ -669,6 +1059,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     /** The signed permission. Every field is checked against what Constant would propose, and the signature on Base. */
     v1.post("/lines/:id/stables", async (req, reply) => {
       const line = await ownLine(req);
+      if (line.kind !== "tv") throw bad("tv_only", "Paying from stablecoins covers cable TV for now.");
       if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact ConstantUnits support.");
       dollars();
       const b = json(req);

@@ -28,15 +28,47 @@ export type DecoderLookup =
  * (after a grace period) release the money; everything else is "ask again" (INV-8, INV-13).
  */
 export type VendOutcome =
-  | { kind: "delivered"; partnerTxnId: string | null }
+  /** `token`: the electricity token (prepaid meters), with its units when the DisCo said. */
+  | { kind: "delivered"; partnerTxnId: string | null; token?: string | null; units?: string | null }
   | { kind: "pending"; detail: string }
   | { kind: "failed"; code: string; detail: string }
   | { kind: "reversed"; detail: string }
   | { kind: "not_found" }
   | { kind: "unknown"; detail: string };
 
+/** Bills paid through the vend partner (D-079). Providers are ConstantUnits's codes ('mtn', 'ikedc', 'dstv'). */
+export type VendKind = "tv" | "data" | "airtime" | "electricity";
+export type MeterType = "prepaid" | "postpaid";
+
+export interface DataPlan {
+  code: string;
+  name: string;
+  amountMinor: bigint;
+}
+
+export type MeterLookup =
+  | { ok: true; customerName: string; address: string | null; meterType: MeterType }
+  | { ok: false; reason: "not_found" | "unreachable" };
+
+/** One payment. `ref` is the phone, meter or smartcard; `variationCode` the data bundle; `meterType` for power. */
+export interface VendRequest {
+  requestId: string;
+  kind: VendKind;
+  provider: string;
+  ref: string;
+  amountMinor: bigint;
+  phone: string;
+  variationCode?: string | null;
+  meterType?: MeterType | null;
+}
+
 export interface CableVending {
   readonly name: string;
+  /** Data bundles a network sells now, with today's prices. */
+  dataPlans(network: string): Promise<DataPlan[]>;
+  lookupMeter(provider: string, meter: string, meterType: MeterType): Promise<MeterLookup>;
+  /** Data, airtime and electricity. `requestId` is saved on the order before this is called. */
+  vend(req: VendRequest): Promise<VendOutcome>;
   plans(provider: CableProvider): Promise<CablePlan[]>;
   lookup(provider: CableProvider, smartcard: string): Promise<DecoderLookup>;
   /** `requestId` is saved on the order before this is called. */
@@ -125,8 +157,11 @@ export interface IdentityUser {
 }
 
 export interface Identity {
-  /** The user's DID from a valid access token, or null. Never throws for a bad token. */
-  verify(accessToken: string): Promise<string | null>;
+  /**
+   * The user's DID and the provider's session id (`sid`) from a valid access token, or null. Never throws for a bad
+   * token. `sid` is null if the provider didn't include one.
+   */
+  verify(accessToken: string): Promise<{ did: string; sid: string | null } | null>;
   /** Verified contact details from the identity provider, not from the client. */
   user(did: string): Promise<IdentityUser>;
 }

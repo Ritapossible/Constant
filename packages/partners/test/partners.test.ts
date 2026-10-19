@@ -1,7 +1,7 @@
 import { createHmac, generateKeyPairSync } from "node:crypto";
 import { SignJWT, importPKCS8 } from "jose";
 import { describe, expect, it } from "vitest";
-import { HttpMessaging, Paystack, Privy, Vtpass, contactFromPrivyUser, nairaToMinor, parseDueDate, vtpassOutcome, type Fetch } from "../src/index.js";
+import { HttpMessaging, cleanToken, vtpassToken, Paystack, Privy, Vtpass, contactFromPrivyUser, nairaToMinor, parseDueDate, vtpassOutcome, type Fetch } from "../src/index.js";
 
 function stubFetch(responses: { status?: number; body: unknown }[], seen: { url: string; init: RequestInit }[] = []): Fetch {
   return (async (url: string, init: RequestInit) => {
@@ -82,6 +82,50 @@ describe("VTpass adapter", () => {
     const v = new Vtpass(cfg);
     expect(v.webhookRequestId(JSON.stringify({ type: "transaction-update", data: { requestId: "abc", code: "000" } }))).toBe("abc");
     expect(v.webhookRequestId("nope")).toBeNull();
+  });
+
+  it("airtime goes to the number on the right network (9mobile is etisalat at VTpass)", async () => {
+    const seen: { url: string; init: RequestInit }[] = [];
+    const v = new Vtpass({ ...cfg, fetch: stubFetch([{ body: { code: "000", content: { transactions: { status: "delivered", transactionId: 1 } } } }], seen) });
+    const out = await v.vend({ requestId: "r1", kind: "airtime", provider: "9mobile", ref: "08091234567", amountMinor: 100_000n, phone: "08000000000" });
+    expect(out.kind).toBe("delivered");
+    expect(JSON.parse(seen[0]!.init.body as string)).toEqual({ request_id: "r1", serviceID: "etisalat", amount: "1000.00", phone: "08091234567" });
+  });
+
+  it("data buys the chosen bundle for the number", async () => {
+    const seen: { url: string; init: RequestInit }[] = [];
+    const v = new Vtpass({ ...cfg, fetch: stubFetch([{ body: { code: "000", content: { transactions: { status: "delivered" } } } }], seen) });
+    await v.vend({ requestId: "r2", kind: "data", provider: "mtn", ref: "08031234567", amountMinor: 100_000n, phone: "08000000000", variationCode: "mtn-10mb-100" });
+    expect(JSON.parse(seen[0]!.init.body as string)).toMatchObject({ serviceID: "mtn-data", billersCode: "08031234567", variation_code: "mtn-10mb-100", amount: "1000.00" });
+    await expect(v.vend({ requestId: "r3", kind: "data", provider: "mtn", ref: "08031234567", amountMinor: 1n, phone: "0" })).rejects.toThrow("bundle");
+  });
+
+  it("electricity returns the token from the pay reply and from a requery", async () => {
+    const delivered = { code: "000", content: { transactions: { status: "delivered", transactionId: "77" } } };
+    const v = new Vtpass({ ...cfg, fetch: stubFetch([{ body: { ...delivered, purchased_code: "Token : 1234 5678 9012 3456 7890", units: "45.2 kWh" } }, { body: { ...delivered, mainToken: "12345678901234567890", mainTokenUnits: 45.2 } }]) });
+    const paid = await v.vend({ requestId: "r4", kind: "electricity", provider: "ikedc", ref: "45012345678", amountMinor: 500_000n, phone: "08000000000", meterType: "prepaid" });
+    expect(paid).toEqual({ kind: "delivered", partnerTxnId: "77", token: "1234-5678-9012-3456-7890", units: "45.2" });
+    expect(await v.requery("r4")).toEqual({ kind: "delivered", partnerTxnId: "77", token: "1234-5678-9012-3456-7890", units: "45.2" });
+  });
+
+  it("meter lookup sends the meter type and reads the name; a wrong meter is not_found", async () => {
+    const seen: { url: string; init: RequestInit }[] = [];
+    const v = new Vtpass({ ...cfg, fetch: stubFetch([{ body: { code: "000", content: { Customer_Name: "ADA OBI", Address: "12 Allen Ave" } } }, { body: { code: "000", content: { WrongBillersCode: true } } }], seen) });
+    expect(await v.lookupMeter("ekedc", "45012345678", "postpaid")).toEqual({ ok: true, customerName: "ADA OBI", address: "12 Allen Ave", meterType: "postpaid" });
+    expect(JSON.parse(seen[0]!.init.body as string)).toEqual({ billersCode: "45012345678", serviceID: "eko-electric", type: "postpaid" });
+    expect(await v.lookupMeter("ekedc", "1", "prepaid")).toEqual({ ok: false, reason: "not_found" });
+  });
+
+  it("data plans come with today's prices", async () => {
+    const v = new Vtpass({ ...cfg, fetch: stubFetch([{ body: { content: { variations: [{ variation_code: "mtn-1gb", name: "MTN 1GB ", variation_amount: "1000.00" }, { variation_code: "x", name: "free", variation_amount: "0" }] } } }]) });
+    expect(await v.dataPlans("mtn")).toEqual([{ code: "mtn-1gb", name: "MTN 1GB", amountMinor: 100_000n }]);
+  });
+
+  it("tokens are only accepted when they look like tokens", () => {
+    expect(cleanToken("Token : 1234-5678-9012-3456-7890")).toBe("1234-5678-9012-3456-7890");
+    expect(cleanToken("12")).toBeNull();
+    expect(cleanToken(undefined)).toBeNull();
+    expect(vtpassToken({})).toEqual({ token: null, units: null });
   });
 
   it("due dates in either format", () => {
@@ -173,7 +217,7 @@ describe("Privy", () => {
     const sign = (aud: string, iss = "privy.io") =>
       new SignJWT({ sid: "s" }).setProtectedHeader({ alg: "ES256" }).setSubject("did:privy:abc").setIssuer(iss).setAudience(aud).setIssuedAt().setExpirationTime("1h").sign(key);
     const privy = new Privy({ appId: "app1", appSecret: "x", verificationKey: pem });
-    expect(await privy.verify(await sign("app1"))).toBe("did:privy:abc");
+    expect(await privy.verify(await sign("app1"))).toEqual({ did: "did:privy:abc", sid: "s" });
     expect(await privy.verify(await sign("other-app"))).toBeNull();
     expect(await privy.verify(await sign("app1", "evil.io"))).toBeNull();
     expect(await privy.verify("garbage")).toBeNull();

@@ -9,7 +9,42 @@
  */
 import { localParts } from "@constant/rules";
 import { fetchJson, minorToNaira, nairaToMinor, type Fetch } from "./http.js";
-import type { CablePlan, CableProvider, CableVending, DecoderLookup, VendOutcome } from "./types.js";
+import type { CablePlan, CableProvider, CableVending, DataPlan, DecoderLookup, MeterLookup, MeterType, VendOutcome, VendRequest } from "./types.js";
+
+/** ConstantUnits's provider codes → VTpass serviceIDs (D-079). 9mobile is still "etisalat" at VTpass. */
+export const VTPASS_SERVICE: Record<"airtime" | "data" | "electricity", Record<string, string>> = {
+  airtime: { mtn: "mtn", airtel: "airtel", glo: "glo", "9mobile": "etisalat" },
+  data: { mtn: "mtn-data", airtel: "airtel-data", glo: "glo-data", "9mobile": "etisalat-data" },
+  electricity: {
+    ikedc: "ikeja-electric", ekedc: "eko-electric", aedc: "abuja-electric", eedc: "enugu-electric", ibedc: "ibadan-electric",
+    phed: "portharcourt-electric", bedc: "benin-electric", kedco: "kano-electric", kaedco: "kaduna-electric", jed: "jos-electric",
+    yedc: "yola-electric", aba: "aba-electric",
+  },
+};
+
+function service(kind: "airtime" | "data" | "electricity", provider: string): string {
+  const id = VTPASS_SERVICE[kind][provider];
+  if (!id) throw new Error(`no VTpass service for ${kind}/${provider}`);
+  return id;
+}
+
+/** "Token : 1234-5678-…" or "12345678901234567890" → the digits in groups of four, or null. */
+export function cleanToken(v: unknown): string | null {
+  if (typeof v !== "string" && typeof v !== "number") return null;
+  const digits = String(v).replace(/^\s*token\s*:?\s*/i, "").replace(/[^\d]/g, "");
+  if (digits.length < 16 || digits.length > 24) return null;
+  return digits.replace(/(\d{4})(?=\d)/g, "$1-");
+}
+
+/** The token and units from a pay or requery reply, where VTpass puts them for prepaid meters. */
+export function vtpassToken(body: unknown): { token: string | null; units: string | null } {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const c = ((b.content as { transactions?: Record<string, unknown> } | undefined)?.transactions ?? {}) as Record<string, unknown>;
+  const token = cleanToken(b.mainToken) ?? cleanToken(b.token) ?? cleanToken(b.purchased_code) ?? cleanToken(b.Token) ?? cleanToken(c.token);
+  const rawUnits = b.mainTokenUnits ?? b.units ?? b.Units ?? c.units;
+  const units = typeof rawUnits === "string" || typeof rawUnits === "number" ? String(rawUnits).replace(/[^\d.]/g, "") || null : null;
+  return { token, units };
+}
 
 export interface VtpassConfig {
   baseUrl: string; // https://sandbox.vtpass.com/api or https://vtpass.com/api
@@ -42,6 +77,13 @@ export function vtpassOutcome(status: number, body: unknown): VendOutcome {
   if (PENDING.has(code)) return { kind: "pending", detail: desc };
   if (FAILED.has(code)) return { kind: "failed", code, detail: desc };
   return { kind: "unknown", detail: `${code} ${desc}` }; // 014, 044, 083 and anything new: ask again or a person
+}
+
+/** A delivered prepaid-meter payment carries its token; anything else is returned as it is. */
+function withToken(o: VendOutcome, body: unknown): VendOutcome {
+  if (o.kind !== "delivered") return o;
+  const t = vtpassToken(body);
+  return t.token ? { ...o, token: t.token, units: t.units } : o;
 }
 
 /** "2026-11-15", "2026-11-15T00:00:00", "15 Nov 2026" → the start of that day in Lagos. */
@@ -97,6 +139,48 @@ export class Vtpass implements CableVending {
     });
   }
 
+  async dataPlans(network: string): Promise<DataPlan[]> {
+    const { body } = await this.get(`service-variations?serviceID=${service("data", network)}`);
+    const content = (body as { content?: { variations?: unknown[]; varations?: unknown[] } })?.content;
+    const list = (content?.variations ?? content?.varations ?? []) as { variation_code?: string; name?: string; variation_amount?: unknown; fixedPrice?: unknown }[];
+    return list.flatMap((v) => {
+      const amount = nairaToMinor(v.variation_amount);
+      return v.variation_code && v.name && amount !== null && amount > 0n ? [{ code: v.variation_code, name: v.name.trim(), amountMinor: amount }] : [];
+    });
+  }
+
+  async lookupMeter(provider: string, meter: string, meterType: MeterType): Promise<MeterLookup> {
+    let res;
+    try {
+      res = await this.post("merchant-verify", { billersCode: meter, serviceID: service("electricity", provider), type: meterType });
+    } catch {
+      return { ok: false, reason: "unreachable" };
+    }
+    const b = res.body as { code?: string; content?: Record<string, unknown> };
+    const c = b?.content ?? {};
+    if (b?.code === "030" || res.status >= 500) return { ok: false, reason: "unreachable" };
+    const name = typeof c.Customer_Name === "string" ? c.Customer_Name.trim() : "";
+    if (!name || c.error || c.WrongBillersCode === true) return { ok: false, reason: "not_found" };
+    const address = typeof c.Address === "string" && c.Address.trim() ? c.Address.trim() : null;
+    return { ok: true, customerName: name, address, meterType };
+  }
+
+  async vend(req: VendRequest): Promise<VendOutcome> {
+    if (req.kind === "tv") return this.renew({ requestId: req.requestId, provider: req.provider as CableProvider, smartcard: req.ref, amountMinor: req.amountMinor, phone: req.phone });
+    const body: Record<string, unknown> = { request_id: req.requestId, serviceID: service(req.kind, req.provider), amount: minorToNaira(req.amountMinor), phone: req.kind === "airtime" ? req.ref : req.phone };
+    if (req.kind === "data") {
+      if (!req.variationCode) throw new Error("a data payment needs a bundle");
+      Object.assign(body, { billersCode: req.ref, variation_code: req.variationCode });
+    }
+    if (req.kind === "electricity") Object.assign(body, { billersCode: req.ref, variation_code: req.meterType ?? "prepaid" });
+    try {
+      const res = await this.post("pay", body);
+      return withToken(vtpassOutcome(res.status, res.body), res.body);
+    } catch (err) {
+      return { kind: "unknown", detail: (err as Error).message };
+    }
+  }
+
   async lookup(provider: CableProvider, smartcard: string): Promise<DecoderLookup> {
     let res;
     try {
@@ -139,7 +223,7 @@ export class Vtpass implements CableVending {
   async requery(requestId: string): Promise<VendOutcome> {
     try {
       const res = await this.post("requery", { request_id: requestId });
-      return vtpassOutcome(res.status, res.body);
+      return withToken(vtpassOutcome(res.status, res.body), res.body);
     } catch (err) {
       return { kind: "unknown", detail: (err as Error).message };
     }

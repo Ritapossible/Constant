@@ -36,6 +36,8 @@ const app = await buildApp({
   secrets: new Secrets(keysFromEnv(env)),
   webOrigins: need("WEB_ORIGINS").split(",").map((s) => s.trim()),
   vtpassWebhookToken: need("VTPASS_WEBHOOK_TOKEN"),
+  // Sign-in sessions (D-080): defaults 7 days unused, 30 days in all.
+  sessions: { idleDays: Number(env.SESSION_IDLE_DAYS ?? 7), maxDays: Number(env.SESSION_MAX_DAYS ?? 30) },
   fundingEmailDomain: env.FUNDING_EMAIL_DOMAIN ?? "users.constant.ng",
   ...(env.OPS_TOKEN ? { opsToken: env.OPS_TOKEN } : {}),
   ...(env.PAYCREST_API_KEY && env.PAYCREST_API_SECRET ? { offramp: new PaycrestSender(env.PAYCREST_API_KEY, env.PAYCREST_API_SECRET) } : {}),

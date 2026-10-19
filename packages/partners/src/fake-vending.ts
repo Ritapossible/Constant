@@ -1,5 +1,5 @@
 import { localParts } from "@constant/rules";
-import type { CablePlan, CableProvider, CableVending, DecoderLookup, VendOutcome } from "./types.js";
+import type { CablePlan, CableProvider, CableVending, DataPlan, DecoderLookup, MeterLookup, MeterType, VendOutcome, VendRequest } from "./types.js";
 
 /**
  * In-memory cable partner for tests and local dev. Scripted outcomes let tests walk every path:
@@ -13,7 +13,18 @@ export class FakeCableVending implements CableVending {
   /** Outcomes returned by successive requery calls; when empty, requery echoes the last known state. */
   requeryScript: VendOutcome[] = [];
   lookupUnreachable = false;
-  readonly calls: { renew: { requestId: string; smartcard: string; amountMinor: bigint }[]; requery: string[] } = { renew: [], requery: [] };
+  /** Meters that look up, by number. */
+  meters = new Map<string, { customerName: string; address: string | null }>();
+  /** Data bundles per network; a test can change a price or remove a bundle. */
+  plansByNetwork = new Map<string, DataPlan[]>([
+    ["mtn", [{ code: "mtn-1gb", name: "MTN 1GB - 30 days", amountMinor: 100_000n }, { code: "mtn-2gb", name: "MTN 2GB - 30 days", amountMinor: 200_000n }]],
+    ["airtel", [{ code: "airtel-1gb", name: "Airtel 1GB - 30 days", amountMinor: 100_000n }]],
+    ["glo", [{ code: "glo-1gb", name: "Glo 1GB - 30 days", amountMinor: 100_000n }]],
+    ["9mobile", [{ code: "9m-1gb", name: "T2 1GB - 30 days", amountMinor: 100_000n }]],
+  ]);
+  /** Outcomes returned by successive vend calls (data, airtime, electricity); when empty, vend delivers. */
+  vendScript: (VendOutcome | "throw")[] = [];
+  readonly calls: { renew: { requestId: string; smartcard: string; amountMinor: bigint }[]; requery: string[]; vend: VendRequest[] } = { renew: [], requery: [], vend: [] };
   private readonly state = new Map<string, VendOutcome>();
 
   /** Local dev: a few decoders that look up, ending tomorrow, so a renewal runs straight away. */
@@ -31,6 +42,30 @@ export class FakeCableVending implements CableVending {
       { code: "compact", name: "Compact", amountMinor: 1_995_000n },
       { code: "padi", name: "Padi", amountMinor: 440_000n },
     ];
+  }
+
+  async dataPlans(network: string): Promise<DataPlan[]> {
+    if (this.lookupUnreachable) throw new Error("unreachable");
+    return this.plansByNetwork.get(network) ?? [];
+  }
+
+  async lookupMeter(_provider: string, meter: string, meterType: MeterType): Promise<MeterLookup> {
+    if (this.lookupUnreachable) return { ok: false, reason: "unreachable" };
+    const m = this.meters.get(meter);
+    return m ? { ok: true, customerName: m.customerName, address: m.address, meterType } : { ok: false, reason: "not_found" };
+  }
+
+  async vend(req: VendRequest): Promise<VendOutcome> {
+    if (req.kind === "tv") return this.renew({ requestId: req.requestId, provider: req.provider as CableProvider, smartcard: req.ref, amountMinor: req.amountMinor, phone: req.phone });
+    this.calls.vend.push(req);
+    const token = req.kind === "electricity" && req.meterType !== "postpaid" ? "1234-5678-9012-3456-7890" : null;
+    const next = this.vendScript.shift() ?? { kind: "delivered", partnerTxnId: `V${this.calls.vend.length}`, ...(token ? { token, units: "45.2" } : {}) };
+    if (next === "throw") {
+      this.state.set(req.requestId, { kind: "delivered", partnerTxnId: "V-crash", ...(token ? { token, units: "45.2" } : {}) });
+      throw new Error("simulated crash after send");
+    }
+    this.state.set(req.requestId, next);
+    return next;
   }
 
   async lookup(_provider: CableProvider, smartcard: string): Promise<DecoderLookup> {

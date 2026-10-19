@@ -22,11 +22,13 @@ export class Privy implements Identity {
     this.f = c.fetch ?? fetch;
   }
 
-  async verify(accessToken: string): Promise<string | null> {
+  async verify(accessToken: string): Promise<{ did: string; sid: string | null } | null> {
     try {
       this.key ??= importSPKI(this.c.verificationKey.replace(/\\n/g, "\n"), "ES256");
       const { payload } = await jwtVerify(accessToken, await this.key, { issuer: "privy.io", audience: this.c.appId, algorithms: ["ES256"] });
-      return typeof payload.sub === "string" && payload.sub.startsWith("did:privy:") ? payload.sub : null;
+      if (typeof payload.sub !== "string" || !payload.sub.startsWith("did:privy:")) return null;
+      // Privy puts the session id in `sid`; a new sign-in is a new session, a token refresh keeps it (D-080).
+      return { did: payload.sub, sid: typeof payload.sid === "string" && payload.sid ? payload.sid : null };
     } catch {
       return null;
     }
@@ -66,11 +68,13 @@ export function contactFromPrivyUser(did: string, body: unknown): IdentityUser {
   return { did, email, phoneE164, wallets };
 }
 
-/** Tests and local dev: a token is "fake:<did>". */
+/** Tests and local dev: a token is "fake:<did>", or "fake:<did>#<sid>" to name the session. */
 export class FakeIdentity implements Identity {
   users = new Map<string, IdentityUser>();
-  async verify(accessToken: string): Promise<string | null> {
-    return accessToken.startsWith("fake:did:privy:") ? accessToken.slice(5) : null;
+  async verify(accessToken: string): Promise<{ did: string; sid: string | null } | null> {
+    if (!accessToken.startsWith("fake:did:privy:")) return null;
+    const [did, sid] = accessToken.slice(5).split("#") as [string, string | undefined];
+    return { did, sid: sid ?? `fake-session-${did}` };
   }
   async user(did: string): Promise<IdentityUser> {
     return this.users.get(did) ?? { did, email: `${did.slice(10)}@example.com`, phoneE164: null, wallets: [] };
