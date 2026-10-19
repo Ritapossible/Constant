@@ -10,6 +10,7 @@ import { reconcileBooks } from "./reconcile.js";
 import { processWithdrawals } from "./withdrawals.js";
 import { processOrders, recover, scanRenewals, sendNotices, type Deps } from "./jobs.js";
 import { jsonLog } from "./log.js";
+import { newBeats, startHealthServer } from "./health.js";
 
 const log = jsonLog("worker");
 const dollars = dollarsFromEnv();
@@ -17,6 +18,9 @@ const offramp = dollars ? offrampFromEnv() : undefined;
 const deps: Deps = { ...fromEnv(), log, now: () => new Date(), ...(dollars ? { dollars } : {}) };
 const chainDeps = { db: deps.db, log, ...chainsFromEnv() };
 let stopping = false;
+const beats = newBeats();
+// Hosts that need every service to answer on a port (Pxxl) set PORT; Render's worker doesn't (D-078).
+const health = process.env.PORT ? startHealthServer(Number(process.env.PORT), beats, () => new Date()) : null;
 
 /** Runs `fn` every `ms`, never overlapping itself, until shutdown. */
 async function every(name: string, ms: number, fn: () => Promise<unknown>) {
@@ -24,6 +28,7 @@ async function every(name: string, ms: number, fn: () => Promise<unknown>) {
     const started = Date.now();
     try {
       await fn();
+      beats.last.set(name, new Date());
     } catch (err) {
       log.error(`${name} failed`, { err: (err as Error).message });
     }
@@ -38,6 +43,7 @@ async function main() {
     throw new Error("ARC_AUTOPAY is on but the Spend Permission Manager isn't deployed on Arc: run scripts/arc/deploy-spend-permissions.mjs first");
   }
   await recover(deps);
+  beats.startedAt = new Date();
   log.info("worker started", { vending: deps.vending.name, chains: chainDeps.readers.map((r) => r.chain), anchoring: chainDeps.anchorer?.network ?? "off", dollarAutopay: dollars ? dollars.chain.spender : "off", arcAutopay: dollars?.arc ? "on" : "off" });
   await Promise.all([
     every("renewal scan", 5 * 60_000, () => scanRenewals(deps)),
@@ -55,6 +61,7 @@ async function main() {
     ...(dollars?.arc ? [every("arc bridge", 2 * 60_000, () => bridgeStep(deps, dollars))] : []),
   ]);
   await deps.db.end();
+  health?.close();
   log.info("worker stopped");
 }
 

@@ -1,0 +1,12 @@
+# Pxxl: the API as its own Web Service (D-078). Pxxl reads this file when the project's base directory is apps/api.
+# The repo is a pnpm workspace, so install and build run from the repository root. Guide: docs/PXXL.md
+version = 1
+
+[build]
+language = "javascript"
+packageManager = "pnpm"
+nodeVersion = "22"
+port = 8080
+installCommand = "cd ../.. && corepack enable && pnpm install --frozen-lockfile"
+buildCommand = "cd ../.. && pnpm --filter './packages/*' --filter @constant/api run build"
+startCommand = "node dist/main.js"

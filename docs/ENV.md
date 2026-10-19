@@ -47,6 +47,8 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | `ARC_AUTOPAY` | USDC on Arc (D-070) | `true` only after the Arc go-live steps; same value on the worker |
 | ☐ | `ARC_RPC_URL` | Signature checks on Arc | Default `https://rpc.mainnet.arc.io` |
 
+> **Testing on Pxxl instead of Render?** Same variables, entered in each Pxxl project's Secrets; the short list is in docs/PXXL.md.
+
 ## Render: constant-worker
 
 | ☐ | Variable | Needed for | Value |
