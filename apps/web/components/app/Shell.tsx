@@ -4,13 +4,14 @@ import type { User } from "@privy-io/react-auth";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/Logo";
-import { usePlan } from "@/lib/app/store";
 import { Account } from "./Account";
 import { Bills } from "./Bills";
 import { Home } from "./Home";
 import { Money } from "./Money";
 import { ServerProvider, useServer } from "./Server";
 import { ToastProvider } from "./Toast";
+import { useAccountStore, type Store } from "./useAccountStore";
+import { useIdleSignOut } from "./useIdleSignOut";
 
 type Tab = "home" | "bills" | "money" | "account";
 
@@ -54,8 +55,21 @@ function useTab(): [Tab, (t: Tab) => void] {
 }
 
 export function Shell({ user }: { user: User }) {
+  return (
+    <MotionConfig reducedMotion="user">
+      <ToastProvider>
+        <ServerProvider>
+          <App user={user} />
+        </ServerProvider>
+      </ToastProvider>
+    </MotionConfig>
+  );
+}
+
+function App({ user }: { user: User }) {
   const [tab, setTab] = useTab();
-  const store = usePlan(user.id);
+  const store = useAccountStore(user.id);
+  useIdleSignOut(user.id);
   const main = useRef<HTMLElement>(null);
   const first = useRef(true);
 
@@ -70,9 +84,6 @@ export function Shell({ user }: { user: User }) {
   }, [tab]);
 
   return (
-    <MotionConfig reducedMotion="user">
-    <ToastProvider>
-    <ServerProvider>
     <div className="ap">
       <aside className="ap-side" aria-label="App navigation">
         <a href="/" className="ap-brand" aria-label="ConstantUnits home">
@@ -130,9 +141,6 @@ export function Shell({ user }: { user: User }) {
         ))}
       </nav>
     </div>
-    </ServerProvider>
-    </ToastProvider>
-    </MotionConfig>
   );
 }
 
@@ -154,7 +162,7 @@ function PreviewNote() {
       <b>Preview</b>
       <span>
         {server.enabled
-          ? "Cable TV bills are saved to your account. Payments switch on with our licensed partner."
+          ? "Your bills are saved to your account. Payments switch on with our licensed partner."
           : "Payments switch on with our licensed partner. Your plan is saved on this device."}
       </span>
     </div>
@@ -169,5 +177,5 @@ export function Icon({ d, size = 20 }: { d: string; size?: number }) {
   );
 }
 
-export type Store = ReturnType<typeof usePlan>;
+export type { Store };
 export type GoTo = (t: Tab) => void;

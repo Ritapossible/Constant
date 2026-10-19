@@ -26,6 +26,17 @@ export type Line = {
   status: "active" | "paused";
   readings: Reading[];
   createdAt: string;
+  /** When it pays, on the server: on a day each month, or when reported low. Absent on the phone: from the kind. */
+  schedule?: "monthly" | "usage" | "none";
+  /** Saved on the ConstantUnits account (D-079), not on this device. `ref` then holds only the last digits. */
+  onServer?: boolean;
+  /** On the server: held while a person checks a payment. */
+  held?: boolean;
+  customerName?: string | null;
+  planName?: string | null;
+  variationCode?: string | null;
+  setupNeeded?: "bundle" | null;
+  nextRunAt?: string | null;
 };
 
 export type Channel = "whatsapp" | "telegram" | "sms" | "email";

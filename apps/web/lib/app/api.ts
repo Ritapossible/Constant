@@ -5,13 +5,27 @@ export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, ""
 export type ServerLine = {
   id: string;
   funding: "naira" | "stables";
-  kind: "tv";
-  provider: "dstv" | "gotv" | "startimes";
+  kind: "tv" | "data" | "airtime" | "electricity" | "subscription";
+  /** dstv, gotv, startimes; mtn, airtel, glo, 9mobile; ikedc…; chatgpt… */
+  provider: string;
+  /** due_date: cable. monthly: on renewDay. usage: when reported low or "top up now". none: tracked only. */
+  schedule: "due_date" | "monthly" | "usage" | "none";
+  renewDay: number | null;
+  amountMinor: string | null;
+  variationCode: string | null;
+  meterType: "prepaid" | "postpaid" | null;
+  threshold: number | null;
+  weeklyCapMinor: string | null;
+  /** "bundle": a data bill moved from the phone that needs a bundle chosen before it can pay. */
+  setupNeeded: "bundle" | null;
+  verified: boolean;
+  readings: { at: string; value: number }[];
+  createdAt: string;
   last4: string;
   customerName: string | null;
   planName: string | null;
   nickname: string;
-  currency: "NGN";
+  currency: "NGN" | "USD";
   capMinor: string;
   status: "active" | "paused" | "frozen" | "cancelled";
   frozenReason: string | null;
@@ -21,6 +35,9 @@ export type ServerLine = {
 };
 
 export type ServerOrder = {
+  /** Electricity: the owner's token, when the payment delivered one. */
+  token: string | null;
+  tokenUnits: string | null;
   id: string;
   lineId: string;
   state: "ready" | "vending" | "token_stored" | "notifying" | "settled" | "failed" | "needs_human";
@@ -33,7 +50,7 @@ export type ServerOrder = {
 };
 
 export type Me = {
-  user: { id: string; displayName: string | null; email: string | null; phone: string | null };
+  user: { id: string; displayName: string | null; email: string | null; phone: string | null; channels: ("whatsapp" | "telegram" | "sms" | "email")[] };
   balance: { currency: "NGN"; ledgerMinor: string; availableMinor: string };
   fundingAccount: { bankName: string; accountNumber: string; accountName: string } | null;
   lines: ServerLine[];
@@ -52,6 +69,10 @@ export type Topup = {
   authorizationUrl: string | null;
   createdAt: string;
 };
+
+export type DataPlan = { code: string; name: string; amountMinor: string };
+export type MeterCheck = { customerName: string; address: string | null; meterType: "prepaid" | "postpaid" };
+export type Session = { current: boolean; device: string; signedInAt: string; lastSeenAt: string };
 
 export type Lookup = { customerName: string; currentPlan: string | null; renewalAmountMinor: string | null; dueAt: string | null };
 

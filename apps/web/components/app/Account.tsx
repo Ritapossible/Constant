@@ -1,7 +1,10 @@
 "use client";
 
 import { usePrivy, type User } from "@privy-io/react-auth";
-import { useEffect, useId, useState } from "react";
+import { SESSION_IDLE_DAYS } from "@constant/rules";
+import { useCallback, useEffect, useId, useState } from "react";
+import type { Session } from "@/lib/app/api";
+import { formatDay } from "@/lib/app/format";
 import type { Channel } from "@/lib/app/store";
 import { displayName, type Store } from "./Shell";
 import { useServer } from "./Server";
@@ -20,7 +23,7 @@ const CHANNELS: { id: Channel; label: string }[] = [
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 export function Account({ user, store }: { user: User; store: Store }) {
-  const { logout, linkEmail, linkPhone, linkGoogle, linkPasskey, linkWallet, exportWallet } = usePrivy();
+  const { linkEmail, linkPhone, linkGoogle, linkPasskey, linkWallet, exportWallet } = usePrivy();
   const notify = useNotify();
   const server = useServer();
   const wallet = useWalletAddress(user);
@@ -39,8 +42,10 @@ export function Account({ user, store }: { user: User; store: Store }) {
   ];
 
   const channels = store.plan.channels;
-  const toggle = (c: Channel) =>
-    store.save((p) => ({ ...p, channels: p.channels.includes(c) ? p.channels.filter((x) => x !== c) : [...p.channels, c] }));
+  const toggle = (c: Channel) => {
+    const next = channels.includes(c) ? channels.filter((x) => x !== c) : [...channels, c];
+    store.setChannels(next).catch((e: Error) => notify(e.message));
+  };
 
   return (
     <div className="ap-page">
@@ -183,15 +188,21 @@ export function Account({ user, store }: { user: User; store: Store }) {
         )}
       </section>
 
+      {server.enabled && <Security />}
+
       <section className="ap-card" aria-labelledby="data-title">
         <h2 id="data-title">Your data</h2>
-        <p className="ap-muted">During the preview your bills are saved on this device only.</p>
+        <p className="ap-muted">
+          {store.onServer
+            ? "Your bills are saved to your ConstantUnits account, so they're the same on every device. Phone, meter and smartcard numbers are stored encrypted."
+            : "During the preview your bills are saved on this device only."}
+        </p>
         <div className="ap-actions">
           <button
             className="btn btn-ghost btn-sm"
             onClick={() => {
               // A readable page (opens on any phone, prints or saves as PDF), not a raw data file.
-              const html = billsDocument(store.plan, server.me?.lines ?? [], server.me?.user.displayName ?? store.plan.name ?? null);
+              const html = billsDocument(store.plan, (server.me?.lines ?? []).filter((l) => l.kind === "tv"), server.me?.user.displayName ?? store.plan.name ?? null);
               const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
               const a = document.createElement("a");
               a.href = url;
@@ -203,12 +214,12 @@ export function Account({ user, store }: { user: User; store: Store }) {
           >
             Download my bills
           </button>
-          {confirmDelete ? (
+          {store.onServer ? null : confirmDelete ? (
             <>
               <button
                 className="btn btn-danger btn-sm"
                 onClick={() => {
-                  store.clear();
+                  store.dropFromDevice();
                   setConfirmDelete(false);
                   notify("Your data was deleted from this device");
                 }}
@@ -227,7 +238,7 @@ export function Account({ user, store }: { user: User; store: Store }) {
         </div>
       </section>
 
-      <button className="btn btn-ghost" style={{ width: "100%" }} onClick={() => logout()}>
+      <button className="btn btn-ghost" style={{ width: "100%" }} onClick={() => server.signOut("manual")}>
         Sign out
       </button>
     </div>
@@ -258,16 +269,11 @@ function Profile({ user, store }: { user: User; store: Store }) {
             return;
           }
           setError(null);
-          store.save((p) => ({ ...p, name: trimmed || undefined }));
           setValue(trimmed);
-          if (server.enabled) {
-            // Also saved to the account, so messages use it too.
-            server
-              .call("/v1/me", { method: "PATCH", body: { displayName: trimmed || null } })
-              .then(() => server.reload())
-              .catch(() => notify("Saved on this device. We'll sync it next time."));
-          }
-          notify(trimmed ? `We'll call you ${trimmed}` : "Name cleared");
+          store
+            .setName(trimmed || null)
+            .then(() => notify(trimmed ? `We'll call you ${trimmed}` : "Name cleared"))
+            .catch((err: Error) => notify(err.message));
         }}
       >
         <div className="ap-field">
@@ -293,6 +299,76 @@ function Profile({ user, store }: { user: User; store: Store }) {
         <span id={`${id}-err`} className="ap-err" role="alert">
           {error}
         </span>
+      )}
+    </section>
+  );
+}
+
+/** Where this account is signed in, and a way out everywhere (D-080). */
+function Security() {
+  const server = useServer();
+  const notify = useNotify();
+  const [sessions, setSessions] = useState<Session[] | null>(null);
+  const [confirm, setConfirm] = useState(false);
+  const { call } = server;
+  const load = useCallback(() => {
+    call<Session[]>("/v1/sessions")
+      .then(setSessions)
+      .catch(() => setSessions([]));
+  }, [call]);
+  useEffect(() => load(), [load]);
+
+  return (
+    <section className="ap-card" aria-labelledby="security-title">
+      <h2 id="security-title">Signed in</h2>
+      <p className="ap-muted">
+        For your safety you&apos;re signed out after {SESSION_IDLE_DAYS} days without opening ConstantUnits, and every 30 days. Your bills keep
+        running while you&apos;re signed out.
+      </p>
+      {sessions === null ? (
+        <div className="ap-inline-state" role="status">
+          <span className="ap-spinner" aria-hidden="true" />
+        </div>
+      ) : (
+        sessions.length > 0 && (
+          <ul className="ap-list ap-list-tight">
+            {sessions.map((s, i) => (
+              <li key={i} className="ap-row">
+                <span className="ap-row-main">
+                  <b>
+                    {s.device}
+                    {s.current && <span className="ap-chip">This device</span>}
+                  </b>
+                  <small>
+                    Signed in {formatDay(new Date(s.signedInAt))} · last used {formatDay(new Date(s.lastSeenAt))}
+                  </small>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )
+      )}
+      {confirm ? (
+        <div className="ap-actions">
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={() => {
+              notify("Signing out everywhere…");
+              void server.signOut("everywhere", { everywhere: true });
+            }}
+          >
+            Yes, sign out everywhere
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setConfirm(false)}>
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div className="ap-actions">
+          <button className="btn btn-ghost btn-sm" onClick={() => setConfirm(true)}>
+            Sign out of all devices
+          </button>
+        </div>
       )}
     </section>
   );

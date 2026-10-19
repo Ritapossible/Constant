@@ -1,13 +1,13 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { MIN_AUTOPAY_MINOR } from "@constant/rules";
 import { feeNote } from "@/lib/pricing";
-import { KINDS, PROVIDERS, QUICK_AMOUNTS, REF_LABEL, UNIT, isUsageLine, maskRef, networkFor, validateRef, type Kind, type MeterType } from "@/lib/app/catalog";
+import { KINDS, PROVIDERS, QUICK_AMOUNTS, REF_LABEL, UNIT, isUsageKind, isUsageLine, maskRef, networkFor, validateRef, type Kind, type MeterType } from "@/lib/app/catalog";
 import { formatDay, formatMoney, toMinor, type Currency } from "@/lib/app/format";
-import { latest, outlook } from "@/lib/app/insights";
+import { latest, nextRenewal, outlook } from "@/lib/app/insights";
 import { newId, type Line } from "@/lib/app/store";
-import type { ServerLine } from "@/lib/app/api";
+import type { DataPlan, MeterCheck, ServerLine, ServerOrder } from "@/lib/app/api";
 import { CableAdd, CableDetail, cableStatus, providerName as cableProviderName } from "./Cable";
 import { outlookText } from "./Home";
 import { Field } from "./Field";
@@ -37,25 +37,25 @@ export function Bills({ store }: { store: Store }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const now = useMemo(() => new Date(), []);
   const server = useServer();
-  const serverLines = server.me?.lines ?? [];
+  const cable = (server.me?.lines ?? []).filter((l) => l.kind === "tv");
   const open = store.plan.lines.find((l) => l.id === openId) ?? null;
-  const openServer = serverLines.find((l) => l.id === openId) ?? null;
+  const openServer = cable.find((l) => l.id === openId) ?? null;
+  const orders = server.me?.orders ?? [];
 
-  const update = (next: Line) => store.save((p) => ({ ...p, lines: p.lines.map((l) => (l.id === next.id ? next : l)) }));
-
-  const remove = (line: Line) => {
-    const index = store.plan.lines.findIndex((l) => l.id === line.id);
-    store.save((p) => ({ ...p, lines: p.lines.filter((l) => l.id !== line.id) }));
+  const remove = async (line: Line) => {
+    if (line.onServer) {
+      try {
+        await store.remove(line);
+        setOpenId(null);
+        notify(`${line.nickname} removed`);
+      } catch (e) {
+        notify((e as Error).message);
+      }
+      return;
+    }
+    await store.remove(line);
     setOpenId(null);
-    notify(`${line.nickname} removed`, {
-      label: "Undo",
-      run: () =>
-        store.save((p) => {
-          const lines = [...p.lines];
-          lines.splice(Math.max(0, index), 0, line);
-          return { ...p, lines };
-        }),
-    });
+    notify(`${line.nickname} removed`, { label: "Undo", run: () => void store.add(line) });
   };
 
   return (
@@ -79,15 +79,17 @@ export function Bills({ store }: { store: Store }) {
         </div>
       )}
 
-      {serverLines.length > 0 && (
-        <ul className="ap-list" aria-label="Paid automatically">
-          {serverLines.map((l) => (
+      {store.unmoved.length > 0 && <Unmoved store={store} />}
+
+      {cable.length > 0 && (
+        <ul className="ap-list" aria-label="Cable TV">
+          {cable.map((l) => (
             <ServerRow key={l.id} line={l} onOpen={() => setOpenId(l.id)} />
           ))}
         </ul>
       )}
 
-      {store.plan.lines.length === 0 && serverLines.length === 0 ? (
+      {store.plan.lines.length === 0 && cable.length === 0 ? (
         <div className="ap-empty">
           <p>
             <b>No bills yet.</b>
@@ -101,7 +103,7 @@ export function Bills({ store }: { store: Store }) {
       ) : store.plan.lines.length === 0 ? null : (
         <ul className="ap-list" aria-label="Your bills">
           {store.plan.lines.map((l) => {
-            const t = outlookText(l, outlook(l, now));
+            const t = lineStatus(l, now);
             return (
               <li key={l.id}>
                 <button className="ap-row ap-row-btn" onClick={() => setOpenId(l.id)} aria-label={`${l.nickname}, ${t.right}, ${t.sub}. Open details`}>
@@ -109,7 +111,7 @@ export function Bills({ store }: { store: Store }) {
                   <span className="ap-row-main">
                     <b>
                       {l.nickname}
-                      {l.status === "paused" && <span className="ap-chip">Paused</span>}
+                      {l.held ? <span className="ap-chip">On hold</span> : l.setupNeeded ? <span className="ap-chip">Choose a bundle</span> : l.status === "paused" && <span className="ap-chip">Paused</span>}
                     </b>
                     <small>{t.sub}</small>
                     <small>
@@ -129,29 +131,59 @@ export function Bills({ store }: { store: Store }) {
 
       <Sheet open={adding} onClose={() => setAdding(false)} title="Add a bill">
         <AddBill
-          isFirst={store.plan.lines.length + serverLines.length === 0}
+          isFirst={store.plan.lines.length + cable.length === 0}
           serverTv={server.enabled && server.me !== null}
+          onServer={store.onServer}
           onServerSaved={(line) => {
             setAdding(false);
             notify(`${line.nickname} added. It renews automatically.`);
           }}
-          onSave={(line) => {
-            store.save((p) => ({ ...p, lines: [...p.lines, line] }));
+          onSave={async (line, extra) => {
+            await store.add(line, extra);
             setAdding(false);
-            notify(`${line.nickname} added`);
+            notify(store.onServer ? `${line.nickname} saved to your account` : `${line.nickname} added`);
           }}
         />
       </Sheet>
 
       <Sheet open={open !== null} onClose={() => setOpenId(null)} title={open?.nickname ?? ""}>
-        {open && <BillDetail line={open} onChange={update} onDelete={() => remove(open)} />}
+        {open && <BillDetail line={open} store={store} orders={orders.filter((o) => o.lineId === open.id)} onDelete={() => remove(open)} />}
       </Sheet>
 
       <Sheet open={openServer !== null} onClose={() => setOpenId(null)} title={openServer?.nickname ?? ""}>
-        {openServer && (
-          <CableDetail line={openServer} orders={(server.me?.orders ?? []).filter((o) => o.lineId === openServer.id)} onClose={() => setOpenId(null)} />
-        )}
+        {openServer && <CableDetail line={openServer} orders={orders.filter((o) => o.lineId === openServer.id)} onClose={() => setOpenId(null)} />}
       </Sheet>
+    </div>
+  );
+}
+
+/** A bill's line in the list: the next payment for a dated bill, the forecast or state for a top-up bill. */
+function lineStatus(l: Line, now: Date): { right: string; sub: string } {
+  if (l.held) return { right: "On hold", sub: "We're checking a payment" };
+  if (l.setupNeeded) return { right: "Set up", sub: "Choose a bundle to turn it on" };
+  if (l.status === "paused") return { right: "Paused", sub: "Nothing is paid until you resume" };
+  if (l.kind === "subscription") return { right: formatDay(nextRenewal(l.renewDay ?? 1, now)), sub: "renews (reminder only)" };
+  if (l.onServer && !isUsageLine(l) && l.nextRunAt) return { right: formatDay(new Date(l.nextRunAt)), sub: "paid automatically" };
+  return outlookText(l, outlook(l, now));
+}
+
+/** Bills from the preview that the account didn't accept: say why, and let the person drop them. */
+function Unmoved({ store }: { store: Store }) {
+  return (
+    <div className="ap-warn" role="alert">
+      <p style={{ margin: "0 0 8px" }}>
+        <b>Some bills saved on this phone couldn&apos;t move to your account.</b> They aren&apos;t paid until you add them again.
+      </p>
+      <ul className="ap-unmoved">
+        {store.unmoved.map((u) => (
+          <li key={u.line.id}>
+            <b>{u.line.nickname}</b> — {u.reason}
+          </li>
+        ))}
+      </ul>
+      <button className="btn btn-ghost btn-sm" onClick={() => store.dropFromDevice(store.unmoved.map((u) => u.line.id))}>
+        Remove them from this phone
+      </button>
     </div>
   );
 }
@@ -183,7 +215,21 @@ function ServerRow({ line, onOpen }: { line: ServerLine; onOpen: () => void }) {
   );
 }
 
-function AddBill({ onSave, serverTv, onServerSaved, isFirst }: { onSave: (l: Line) => void; serverTv: boolean; onServerSaved: (l: ServerLine) => void; isFirst: boolean }) {
+type SaveBill = (l: Line, extra?: { variationCode?: string | null }) => Promise<void> | void;
+
+function AddBill({
+  onSave,
+  serverTv,
+  onServer,
+  onServerSaved,
+  isFirst,
+}: {
+  onSave: SaveBill;
+  serverTv: boolean;
+  onServer: boolean;
+  onServerSaved: (l: ServerLine) => void;
+  isFirst: boolean;
+}) {
   const [kind, setKind] = useState<Kind | null>(null);
   if (!kind) {
     return (
@@ -198,9 +244,9 @@ function AddBill({ onSave, serverTv, onServerSaved, isFirst }: { onSave: (l: Lin
       </div>
     );
   }
-  // Cable TV is the first bill paid for real, on the server. The rest stay on this device for now.
+  // Cable looks the decoder up first; every other bill is saved through the form, to the account when it's on.
   if (kind === "tv" && serverTv) return <CableAdd onBack={() => setKind(null)} onDone={onServerSaved} isFirst={isFirst} />;
-  return <BillForm kind={kind} onBack={() => setKind(null)} onSave={onSave} isFirst={isFirst} />;
+  return <BillForm kind={kind} onBack={() => setKind(null)} onSave={onSave} isFirst={isFirst} onServer={onServer} />;
 }
 
 /* ── Form (add and edit) ─────────────────────────────────── */
@@ -222,13 +268,16 @@ function BillForm({
   onBack,
   onSave,
   isFirst = false,
+  onServer = false,
 }: {
   kind: Kind;
   initial?: Line;
   onBack?: () => void;
-  onSave: (l: Line) => void;
-  /** No other bill yet: this one is the free bill on autopay (D-076). */
+  onSave: SaveBill;
+  /** No other bill yet: its first delivered payment is free (D-077). */
   isFirst?: boolean;
+  /** Saved to the account (D-079): the network sells bundles, meters are checked, and it pays on a day or when low. */
+  onServer?: boolean;
 }) {
   const providers = PROVIDERS[kind];
   const mobile = MOBILE(kind);
@@ -245,7 +294,16 @@ function BillForm({
   const [provider, setProvider] = useState(initial?.provider ?? (mobile ? "" : ""));
   const [pickedByHand, setPickedByHand] = useState(Boolean(initial));
   const [meterType, setMeterType] = useState<MeterType>(initial?.meterType ?? "prepaid");
-  const usage = isUsageLine({ kind, meterType });
+  // On the account, data, airtime and prepaid power can pay on a day each month (fully automatic) or when the person
+  // reports it low. The phone preview only knew "when low".
+  const canChoose = onServer && !initial && isUsageKind(kind) && !(kind === "electricity" && meterType === "postpaid");
+  const [when, setWhen] = useState<"monthly" | "usage">(initial?.schedule === "usage" ? "usage" : "monthly");
+  const usage = initial?.schedule ? initial.schedule === "usage" : onServer ? canChoose && when === "usage" : isUsageLine({ kind, meterType });
+  const refLocked = Boolean(initial?.onServer);
+  const bundlesOn = onServer && kind === "data";
+  const [variation, setVariation] = useState<string | null>(initial?.variationCode ?? null);
+  const [busy, setBusy] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [ref, setRef] = useState(initial?.ref ?? "");
   const [nickname, setNickname] = useState(initial?.nickname ?? "");
   const [amount, setAmount] = useState(initial ? minorToInput(initial.amountMinor) : "");
@@ -257,11 +315,14 @@ function BillForm({
   const [cap, setCap] = useState(initial && initial.weeklyCapMinor !== initial.amountMinor ? minorToInput(initial.weeklyCapMinor) : "");
   const [tried, setTried] = useState(false);
 
-  const detected = mobile ? networkFor(ref) : null;
+  const detected = mobile && !refLocked ? networkFor(ref) : null;
   // Follow the number until the person picks a network themselves (ported numbers keep their old prefix).
   const effectiveProvider = mobile && !pickedByHand ? (detected ?? provider) : provider;
+  const bundles = useBundles(bundlesOn ? effectiveProvider : null);
+  const bundle = bundles.plans?.find((b) => b.code === variation) ?? null;
+  const meter = useMeterCheck(onServer && kind === "electricity" && !initial ? { provider: effectiveProvider, ref, meterType } : null);
 
-  const amountMinor = toMinor(amount);
+  const amountMinor = bundlesOn ? (bundle ? BigInt(bundle.amountMinor) : variation && initial ? BigInt(initial.amountMinor) : null) : toMinor(amount);
   const capMinor = cap ? toMinor(cap) : amountMinor;
   const thresholdNum = Number(threshold);
   const currentNum = current ? Number(current) : null;
@@ -271,9 +332,11 @@ function BillForm({
   const minAuto = (MIN_AUTOPAY_MINOR as Record<string, bigint | undefined>)[kind];
   const errors = {
     provider: !effectiveProvider ? (mobile ? "Choose the network" : "Choose a provider") : null,
-    ref: validateRef(kind, ref),
+    ref: refLocked ? null : validateRef(kind, ref),
     amount:
-      amountMinor === null || amountMinor <= 0n
+      bundlesOn && !variation
+        ? "Choose a bundle"
+        : amountMinor === null || amountMinor <= 0n
         ? "Enter an amount, e.g. 5000"
         : currency === "NGN" && minAuto && amountMinor < minAuto
           ? `Automatic top-ups start at ${formatMoney(minAuto, "NGN")}`
@@ -293,9 +356,10 @@ function BillForm({
   const chosen = providers.find((p) => p.id === effectiveProvider);
   const pName = chosen?.name ?? "";
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     setTried(true);
+    setApiError(null);
     if (!ok || amountMinor === null) {
       // Take the person straight to the first thing to fix.
       setTimeout(() => formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), 0);
@@ -303,7 +367,9 @@ function BillForm({
     }
     const now = new Date().toISOString();
     const readings = initial?.readings ?? [];
-    onSave({
+    setBusy(true);
+    try {
+    await onSave({
       id: initial?.id ?? newId(),
       kind,
       provider: effectiveProvider,
@@ -316,9 +382,16 @@ function BillForm({
       ...(kind === "electricity" ? { meterType } : {}),
       weeklyCapMinor: (capMinor ?? amountMinor).toString(),
       status: initial?.status ?? "active",
-      readings: usage && currentNum !== null ? [...readings, { at: now, value: currentNum }] : readings,
+      readings: usage && currentNum !== null && !onServer ? [...readings, { at: now, value: currentNum }] : readings,
       createdAt: initial?.createdAt ?? now,
-    });
+      ...(onServer ? { schedule: kind === "subscription" ? ("none" as const) : usage ? ("usage" as const) : ("monthly" as const) } : {}),
+      ...(initial?.onServer ? { onServer: true, variationCode: initial.variationCode ?? null } : {}),
+    }, { variationCode: bundlesOn ? variation : null });
+    } catch (err) {
+      setApiError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   // ── Choosing the provider (electricity, TV, subscriptions) ──
@@ -382,7 +455,8 @@ function BillForm({
                 id={phoneId}
                 inputMode="tel"
                 autoComplete="tel"
-                value={ref}
+                value={refLocked ? maskRef(kind, ref) : ref}
+                disabled={refLocked}
                 onChange={(e) => setRef(e.target.value)}
                 placeholder="0803 123 4567"
                 aria-invalid={Boolean(show(errors.ref))}
@@ -396,6 +470,7 @@ function BillForm({
             )}
           </div>
 
+          {!refLocked && (
           <fieldset className="ap-field">
             <legend>Network</legend>
             <NetworkPicker
@@ -430,6 +505,7 @@ function BillForm({
               </button>
             )}
           </fieldset>
+          )}
         </>
       ) : (
         <Field label={REF_LABEL[kind]} error={show(errors.ref)}>
@@ -438,7 +514,8 @@ function BillForm({
               {...a}
               inputMode={kind === "subscription" ? "email" : "numeric"}
               autoComplete={kind === "subscription" ? "email" : "off"}
-              value={ref}
+              value={refLocked ? maskRef(kind, ref) : ref}
+              disabled={refLocked}
               onChange={(e) => setRef(e.target.value)}
               placeholder={kind === "subscription" ? "you@example.com" : kind === "electricity" ? "45012345678" : "7012345678"}
             />
@@ -446,6 +523,32 @@ function BillForm({
         </Field>
       )}
 
+      {meter.state !== "idle" && (
+        <p className={meter.state === "error" ? "ap-err" : "ap-hint"} role="status" aria-live="polite">
+          {meter.state === "checking" ? "Checking the meter…" : meter.state === "found" ? (
+            <span className="ap-meter-ok">
+              <b>{meter.found.customerName}</b>
+              {meter.found.address ? ` · ${meter.found.address}` : ""}
+            </span>
+          ) : meter.message}
+        </p>
+      )}
+      {initial?.customerName && (
+        <p className="ap-hint">
+          Meter in the name of <b>{initial.customerName}</b>
+        </p>
+      )}
+
+      {bundlesOn ? (
+        <BundleList
+          network={effectiveProvider}
+          state={bundles}
+          value={variation}
+          invalid={Boolean(show(errors.amount))}
+          error={show(errors.amount)}
+          onPick={setVariation}
+        />
+      ) : (
       <div className="ap-field">
         <label htmlFor={amountId}>{usage ? "Each top-up" : kind === "electricity" ? "Each payment" : "Each renewal"}</label>
         <div className="ap-amount" data-invalid={Boolean(show(errors.amount))}>
@@ -475,9 +578,26 @@ function BillForm({
           </div>
         )}
       </div>
+      )}
 
       <section className="ap-form-section" aria-label={usage ? "When to top up" : kind === "electricity" ? "When it's paid" : "When it renews"}>
         <h4>{usage ? "When to top up" : kind === "electricity" ? "When it's paid" : "When it renews"}</h4>
+        {canChoose && (
+          <div className="ap-tabs" role="tablist" aria-label="When to pay">
+            {(["monthly", "usage"] as const).map((w) => (
+              <button key={w} type="button" role="tab" aria-selected={when === w} className="ap-tab" data-on={when === w} onClick={() => setWhen(w)}>
+                {w === "monthly" ? "On a day each month" : "When it runs low"}
+              </button>
+            ))}
+          </div>
+        )}
+        {canChoose && (
+          <p className="ap-hint" style={{ margin: 0 }}>
+            {when === "monthly"
+              ? "Fully automatic: paid on the same day every month."
+              : `Tell ConstantUnits what's left (log a reading) or tap "Top up now", and it tops up at your level.`}
+          </p>
+        )}
         <div className="ap-grid-2">
           {usage ? (
             <Field label={`Top up at (${UNIT[kind]})`} error={show(errors.threshold)}>
@@ -488,7 +608,7 @@ function BillForm({
               {(a) => <input {...a} inputMode="numeric" value={renewDay} onChange={(e) => setRenewDay(e.target.value)} />}
             </Field>
           )}
-          {usage ? (
+          {usage && onServer ? null : usage ? (
             <Field label={`${initial ? "New reading" : "Left now"} (${UNIT[kind]})`} error={show(errors.current)} hint="Optional">
               {(a) => <input {...a} inputMode="decimal" value={current} onChange={(e) => setCurrent(e.target.value)} />}
             </Field>
@@ -537,12 +657,22 @@ function BillForm({
         </p>
       )}
 
-      <button className="btn btn-primary" type="submit">
-        {initial ? "Save changes" : "Save bill"}
+      {apiError && (
+        <p className="ap-err" role="alert">
+          {apiError}
+        </p>
+      )}
+
+      <button className="btn btn-primary" type="submit" disabled={busy}>
+        {busy ? "Saving…" : initial ? "Save changes" : "Save bill"}
       </button>
       {!initial && (
         <p className="ap-fine">
-          Nothing is paid now. Before the first payment, ConstantUnits checks the {REF_LABEL[kind].toLowerCase()} and shows you the name on it.{" "}
+          {onServer
+            ? kind === "subscription"
+              ? "Saved to your account as a reminder. Paying subscriptions opens later. "
+              : `Nothing is paid now. ${kind === "electricity" ? "The meter is checked before it's saved. " : ""}Saved to your account, with the ${REF_LABEL[kind].toLowerCase()} encrypted. `
+            : `Nothing is paid now. Before the first payment, ConstantUnits checks the ${REF_LABEL[kind].toLowerCase()} and shows you the name on it. `}
           {feeNote(kind, isFirst)}
         </p>
       )}
@@ -550,28 +680,181 @@ function BillForm({
   );
 }
 
+/* ── Data bundles and meter checks (on the account) ─────── */
+
+type BundlesState = { plans: DataPlan[] | null; error: string | null; loading: boolean };
+
+/** The network's bundles at today's prices, from the API (which asks the partner). */
+function useBundles(network: string | null): BundlesState {
+  const { call } = useServer();
+  const [state, setState] = useState<BundlesState>({ plans: null, error: null, loading: false });
+  useEffect(() => {
+    if (!network) {
+      setState({ plans: null, error: null, loading: false });
+      return;
+    }
+    let live = true;
+    setState({ plans: null, error: null, loading: true });
+    call<DataPlan[]>(`/v1/data-plans?network=${encodeURIComponent(network)}`)
+      .then((plans) => live && setState({ plans, error: null, loading: false }))
+      .catch((e: Error) => live && setState({ plans: null, error: e.message, loading: false }));
+    return () => {
+      live = false;
+    };
+  }, [network, call]);
+  return state;
+}
+
+const MIN_DATA = (MIN_AUTOPAY_MINOR as Record<string, bigint | undefined>).data ?? 0n;
+
+function BundleList({
+  network,
+  state,
+  value,
+  onPick,
+  invalid,
+  error,
+}: {
+  network: string;
+  state: BundlesState;
+  value: string | null;
+  onPick: (code: string) => void;
+  invalid: boolean;
+  error: string | null;
+}) {
+  const [q, setQ] = useState("");
+  const id = useId();
+  const plans = state.plans ?? [];
+  const shown = q.trim() ? plans.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase())) : plans;
+  return (
+    <fieldset className="ap-field">
+      <legend>Bundle</legend>
+      {!network ? (
+        <span className="ap-hint">Enter the number first; the bundles follow its network.</span>
+      ) : state.loading ? (
+        <div className="ap-inline-state" role="status">
+          <span className="ap-spinner" aria-hidden="true" />
+          <span className="ap-muted">Loading today&apos;s bundles…</span>
+        </div>
+      ) : state.error ? (
+        <span className="ap-err">{state.error}</span>
+      ) : (
+        <>
+          {plans.length > 8 && (
+            <div className="ap-search">
+              <label htmlFor={id} className="sr-only">
+                Search bundles
+              </label>
+              <input id={id} type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search, e.g. 1GB or 30 days" autoComplete="off" />
+            </div>
+          )}
+          <div className="ap-plans" role="radiogroup" aria-label="Bundle" data-invalid={invalid || undefined}>
+            {shown.map((p) => {
+              const price = BigInt(p.amountMinor);
+              const tooSmall = price < MIN_DATA;
+              return (
+                <button
+                  key={p.code}
+                  type="button"
+                  role="radio"
+                  aria-checked={value === p.code}
+                  className="ap-plan"
+                  data-on={value === p.code}
+                  disabled={tooSmall}
+                  onClick={() => onPick(p.code)}
+                >
+                  <span>{p.name}</span>
+                  <b>{tooSmall ? "From ₦500" : formatMoney(price, "NGN")}</b>
+                </button>
+              );
+            })}
+            {shown.length === 0 && <span className="ap-hint">No bundle matches.</span>}
+          </div>
+        </>
+      )}
+      {error && <span className="ap-err">{error}</span>}
+      <span className="ap-hint">Priced by the network today. If a bundle costs more later than your limit, we ask before paying.</span>
+    </fieldset>
+  );
+}
+
+type MeterState = { state: "idle" } | { state: "checking" } | { state: "found"; found: MeterCheck } | { state: "error"; message: string };
+
+/** Looks the meter up as soon as the number is complete, so the person sees the name on it before saving. */
+function useMeterCheck(q: { provider: string; ref: string; meterType: MeterType } | null): MeterState {
+  const { call } = useServer();
+  const [st, setSt] = useState<MeterState>({ state: "idle" });
+  const meter = q ? q.ref.replace(/[\s-]/g, "") : "";
+  const ready = Boolean(q && q.provider && /^\d{11,13}$/.test(meter));
+  const provider = q?.provider ?? "";
+  const meterType = q?.meterType ?? "prepaid";
+  useEffect(() => {
+    if (!ready) {
+      setSt({ state: "idle" });
+      return;
+    }
+    let live = true;
+    const t = setTimeout(() => {
+      setSt({ state: "checking" });
+      call<MeterCheck>("/v1/meters/lookup", { method: "POST", body: { provider, meter, meterType } })
+        .then((found) => live && setSt({ state: "found", found }))
+        .catch((e: Error) => live && setSt({ state: "error", message: e.message }));
+    }, 600);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [ready, provider, meter, meterType, call]);
+  return st;
+}
+
 /* ── Detail ──────────────────────────────────────────────── */
 
-function BillDetail({ line, onChange, onDelete }: { line: Line; onChange: (l: Line) => void; onDelete: () => void }) {
+const ORDER_STATE: Record<ServerOrder["state"], string> = {
+  ready: "Starting",
+  vending: "In progress",
+  token_stored: "Paid",
+  notifying: "Paid",
+  settled: "Paid",
+  failed: "Not paid, nothing taken",
+  needs_human: "Being checked",
+};
+
+function BillDetail({ line, store, orders, onDelete }: { line: Line; store: Store; orders: ServerOrder[]; onDelete: () => void }) {
   const notify = useNotify();
   const usage = isUsageLine(line);
   const [editing, setEditing] = useState(false);
   const [reading, setReading] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const readingId = useId();
-  const t = outlookText(line, outlook(line, new Date()));
+  const t = lineStatus(line, new Date());
   const last = latest(line.readings);
   const value = Number(reading);
   const readingOk = reading.trim() !== "" && Number.isFinite(value) && value >= 0;
+  const withToken = orders.find((o) => o.token);
+
+  const run = async (label: string, f: () => Promise<void>, done: string) => {
+    setBusy(label);
+    try {
+      await f();
+      notify(done);
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   if (editing) {
     return (
       <BillForm
         kind={line.kind}
         initial={line}
+        onServer={Boolean(line.onServer)}
         onBack={() => setEditing(false)}
-        onSave={(next) => {
-          onChange(next);
+        onSave={async (next, extra) => {
+          await store.update(next, extra);
           setEditing(false);
           notify("Changes saved");
         }}
@@ -589,6 +872,44 @@ function BillDetail({ line, onChange, onDelete }: { line: Line; onChange: (l: Li
         </div>
       </div>
 
+      {line.setupNeeded === "bundle" && (
+        <div className="ap-confirm">
+          <span className="ap-row-main">
+            <b>Choose a bundle to turn this on</b>
+            <small>It moved from your phone with an amount, but the network sells data as bundles.</small>
+          </span>
+          <button className="btn btn-primary btn-sm" onClick={() => setEditing(true)}>
+            Choose
+          </button>
+        </div>
+      )}
+
+      {withToken?.token && (
+        <section className="ap-token-box" aria-label="Your latest token">
+          <small>Latest token · {formatDay(new Date(withToken.createdAt))}</small>
+          <b className="mono">{withToken.token}</b>
+          <span className="ap-row-main">
+            <small>
+              {formatMoney(BigInt(withToken.amountMinor), "NGN")}
+              {withToken.tokenUnits ? ` · ${withToken.tokenUnits} kWh` : ""}
+            </small>
+          </span>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(withToken.token!.replace(/-/g, ""));
+                notify("Token copied");
+              } catch {
+                notify("Couldn't copy. Type it from the screen.");
+              }
+            }}
+          >
+            Copy token
+          </button>
+        </section>
+      )}
+
       <dl className="ap-dl">
         <div>
           <dt>Provider</dt>
@@ -604,21 +925,33 @@ function BillDetail({ line, onChange, onDelete }: { line: Line; onChange: (l: Li
           <dt>{REF_LABEL[line.kind]}</dt>
           <dd>{maskRef(line.kind, line.ref)}</dd>
         </div>
+        {line.customerName && (
+          <div>
+            <dt>Name on it</dt>
+            <dd>{line.customerName}</dd>
+          </div>
+        )}
+        {line.kind === "data" && line.onServer && (
+          <div>
+            <dt>Bundle</dt>
+            <dd>{line.planName ?? "Not chosen"}</dd>
+          </div>
+        )}
         <div>
-          <dt>{usage ? "Each top-up" : "Each renewal"}</dt>
+          <dt>{usage ? "Each top-up" : "Each payment"}</dt>
           <dd>{formatMoney(BigInt(line.amountMinor), line.currency)}</dd>
         </div>
         <div>
-          <dt>{usage ? "Tops up at" : "Renews on"}</dt>
+          <dt>{usage ? "Tops up at" : "Paid on"}</dt>
           <dd>{usage ? `${line.threshold} ${UNIT[line.kind]}` : `Day ${line.renewDay} of each month`}</dd>
         </div>
         <div>
-          <dt>{usage ? "Weekly cap" : "Most per renewal"}</dt>
+          <dt>{usage ? "Weekly limit" : "Most per payment"}</dt>
           <dd>{formatMoney(BigInt(line.weeklyCapMinor), line.currency)}</dd>
         </div>
         <div>
           <dt>Status</dt>
-          <dd>{line.status === "active" ? "Active" : "Paused"}</dd>
+          <dd>{line.held ? "On hold: we're checking a payment" : line.status === "active" ? "Active" : "Paused"}</dd>
         </div>
       </dl>
 
@@ -628,13 +961,12 @@ function BillDetail({ line, onChange, onDelete }: { line: Line; onChange: (l: Li
           onSubmit={(e) => {
             e.preventDefault();
             if (!readingOk) return;
-            onChange({ ...line, readings: [...line.readings, { at: new Date().toISOString(), value }].slice(-60) });
+            void run("reading", () => store.addReading(line, value), line.onServer && line.threshold !== undefined && value <= line.threshold ? "Saved. It's low, so a top-up is on its way." : "Reading saved");
             setReading("");
-            notify("Reading saved");
           }}
         >
           <div className="ap-field" style={{ flex: 1 }}>
-            <label htmlFor={readingId}>Log a reading ({UNIT[line.kind]})</label>
+            <label htmlFor={readingId}>What&apos;s left now ({UNIT[line.kind]})</label>
             <input
               id={readingId}
               inputMode="decimal"
@@ -643,7 +975,7 @@ function BillDetail({ line, onChange, onDelete }: { line: Line; onChange: (l: Li
               placeholder={last ? `Last: ${last.value.toLocaleString()}` : "What's left now"}
             />
           </div>
-          <button className="btn btn-primary btn-sm" type="submit" disabled={!readingOk}>
+          <button className="btn btn-primary btn-sm" type="submit" disabled={!readingOk || busy !== null}>
             Save
           </button>
         </form>
@@ -667,20 +999,43 @@ function BillDetail({ line, onChange, onDelete }: { line: Line; onChange: (l: Li
         </section>
       )}
 
+      {orders.length > 0 && (
+        <section aria-label="Recent payments">
+          <h3 className="ap-section-title">Recent payments</h3>
+          <ul className="ap-readings">
+            {orders.slice(0, 5).map((o) => (
+              <li key={o.id}>
+                <span>
+                  {formatDay(new Date(o.createdAt))} · {ORDER_STATE[o.state]}
+                </span>
+                <span className="mono">{formatMoney(BigInt(o.amountMinor), "NGN")}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <div className="ap-actions">
-        <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>
+        {usage && line.onServer && line.status === "active" && !line.held && !line.setupNeeded && (
+          <button className="btn btn-primary btn-sm" disabled={busy !== null} onClick={() => run("now", () => store.topUpNow(line), "Top-up requested. You'll get a message when it lands.")}>
+            {busy === "now" ? "Requesting…" : "Top up now"}
+          </button>
+        )}
+        <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)} disabled={line.held}>
           Edit
         </button>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={() => {
-            const next = line.status === "active" ? "paused" : "active";
-            onChange({ ...line, status: next });
-            notify(next === "paused" ? "Paused. Nothing will be paid until you resume." : "Resumed");
-          }}
-        >
-          {line.status === "active" ? "Pause" : "Resume"}
-        </button>
+        {!line.held && (
+          <button
+            className="btn btn-ghost btn-sm"
+            disabled={busy !== null}
+            onClick={() => {
+              const next = line.status === "active" ? "paused" : "active";
+              void run("pause", () => store.update({ ...line, status: next }), next === "paused" ? "Paused. Nothing will be paid until you resume." : "Resumed");
+            }}
+          >
+            {line.status === "active" ? "Pause" : "Resume"}
+          </button>
+        )}
         {confirmDelete ? (
           <>
             <button className="btn btn-danger btn-sm" onClick={onDelete}>

@@ -3,7 +3,8 @@
 import { useLogin } from "@privy-io/react-auth";
 import { SMS_LOGIN } from "./Providers";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { SIGN_OUT_KEY } from "./Server";
 import { Logo } from "@/components/Logo";
 
 type Method = "google" | "email" | "sms" | "passkey" | "wallet";
@@ -16,8 +17,25 @@ const BUTTONS: { m: Method; label: string; icon: React.ReactNode }[] = [
   { m: "wallet", label: "Continue with a wallet", icon: <Glyph d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4M4 7.5V17a2.5 2.5 0 0 0 2.5 2.5h14V9.5h-14A2.5 2.5 0 0 1 4 7.5Zm12 6.5h1.5" /> },
 ];
 
+const WHY: Record<string, string> = {
+  expired: "For your safety, you were signed out. Sign in again to continue.",
+  idle: "You were signed out after a week without using ConstantUnits, to keep your account safe. Your bills kept running.",
+  everywhere: "You signed out on all your devices. Sign in again on this one to continue.",
+};
+
 export function SignIn() {
   const [busy, setBusy] = useState<Method | null>(null);
+  const [why, setWhy] = useState<string | null>(null);
+  // Said once, then forgotten.
+  useEffect(() => {
+    try {
+      const r = window.sessionStorage.getItem(SIGN_OUT_KEY);
+      if (r) setWhy(WHY[r] ?? null);
+      window.sessionStorage.removeItem(SIGN_OUT_KEY);
+    } catch {
+      /* storage blocked */
+    }
+  }, []);
   const { login } = useLogin({ onComplete: () => setBusy(null), onError: () => setBusy(null) });
 
   return (
@@ -40,6 +58,11 @@ export function SignIn() {
           Set it once. <span className="serif">Never run out.</span>
         </h1>
         <p className="ap-muted">Keep data, light, cable and subscriptions paid, and get warned before anything runs low.</p>
+        {why && (
+          <p className="ap-signin-why" role="status">
+            {why}
+          </p>
+        )}
         <div className="ap-signin-buttons">
           {BUTTONS.filter((b) => b.m !== "sms" || SMS_LOGIN).map((b, i) => (
             <motion.button

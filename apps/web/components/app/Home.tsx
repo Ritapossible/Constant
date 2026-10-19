@@ -38,7 +38,8 @@ export function outlookText(line: Line, o: Outlook): { right: string; sub: strin
 export function Home({ user, store, goTo }: { user: User; store: Store; goTo: GoTo }) {
   const now = useMemo(() => new Date(), []);
   const server = useServer();
-  const serverLines = useMemo(() => (server.me?.lines ?? []).filter((l) => l.status !== "cancelled"), [server.me]);
+  // Cable has its own rows; every other bill is in store.plan (from the account, D-079).
+  const serverLines = useMemo(() => (server.me?.lines ?? []).filter((l) => l.kind === "tv" && l.status !== "cancelled"), [server.me]);
   const serverActive = serverLines.filter((l) => l.status === "active");
   const active = store.plan.lines.filter((l) => l.status === "active");
   const totals = useMemo(() => {
@@ -185,7 +186,7 @@ function sortKey(o: Outlook): number {
 function Checklist({ user, store, goTo }: { user: User; store: Store; goTo: GoTo }) {
   const server = useServer();
   const lines = store.plan.lines;
-  const serverCount = server.me?.lines.length ?? 0;
+  const serverCount = (server.me?.lines ?? []).filter((l) => l.kind === "tv").length;
   const hasBill = lines.length > 0 || serverCount > 0;
   const usage = lines.filter((l) => isUsageLine(l));
   const steps: { done: boolean; locked?: boolean; label: string; sub: string; to: "bills" | "account" }[] = [

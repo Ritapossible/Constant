@@ -263,6 +263,7 @@ const lineView = (l: LineRow, readings: ReadingRow[] = []) => ({
   dueAt: l.due_at?.toISOString() ?? null,
   nextRunAt: l.next_run_at?.toISOString() ?? null,
   lastRenewedAt: l.last_renewed_at?.toISOString() ?? null,
+  createdAt: l.created_at.toISOString(),
 });
 
 const orderView = (o: OrderRow, secrets?: Secrets) => ({

@@ -71,8 +71,12 @@ export function isUsageKind(k: Kind): boolean {
   return k === "data" || k === "airtime" || k === "electricity";
 }
 
-/** A bill tops up on usage, except a postpaid meter, which is a monthly bill paid on a day. */
-export function isUsageLine(l: { kind: Kind; meterType?: "prepaid" | "postpaid" }): boolean {
+/**
+ * A bill tops up on usage, except a postpaid meter, which is a monthly bill paid on a day. A bill on the server
+ * says which it is: data, airtime and prepaid power can also be paid on a day each month.
+ */
+export function isUsageLine(l: { kind: Kind; meterType?: "prepaid" | "postpaid"; schedule?: "monthly" | "usage" | "none" }): boolean {
+  if (l.schedule) return l.schedule === "usage";
   return isUsageKind(l.kind) && !(l.kind === "electricity" && l.meterType === "postpaid");
 }
 
