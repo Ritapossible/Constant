@@ -14,8 +14,9 @@ export interface UserRow {
   email: string | null;
   phone_e164: string | null;
   market_code: string;
-  status: "active" | "frozen";
+  status: "active" | "frozen" | "closed";
   channels: string[];
+  closed_at: Date | null;
   created_at: Date;
 }
 

@@ -16,6 +16,7 @@ Status: ☐ to do · ☑ done (tick them in your own copy).
 | ☐ | `NEXT_PUBLIC_ARC_AUTOPAY` (public) | "USDC on Arc" row under Pay from stablecoins | `true` only after the Arc go-live steps (GO-LIVE "USDC on Arc"); default off |
 | ☐ | `NEXT_PUBLIC_SITE_URL` (public, optional) | Links and previews on a custom domain | `https://your-domain` |
 | ☐ | `NEXT_PUBLIC_SMS_LOGIN` (public, optional) | Phone sign-in | Leave unset. Privy texts only US and Canada numbers on its standard plans; set `true` only after Privy's Scale plan with your own Twilio covers Nigeria and SMS is on in the Privy dashboard |
+| ☐ | `NEXT_PUBLIC_LEGAL_NAME`, `NEXT_PUBLIC_LEGAL_ADDRESS` (public, optional) | Privacy, terms and refund pages (D-081) | The registered company name and postal address, once registered with CAC |
 | ☐ | `NEXT_PUBLIC_CONTACT_EMAIL` (public, optional) | Footer, privacy page, FAQ, /llms.txt | Defaults to `constantunitshq@gmail.com`; set it only to change the address |
 
 Redeploy after changing any `NEXT_PUBLIC_` value.

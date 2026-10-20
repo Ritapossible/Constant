@@ -8,7 +8,9 @@ const LINKS = [
   { href: "#faq", label: "FAQ" },
   { href: "/pricing", label: "Pricing" },
   { href: "/app", label: "Launch app" },
+  { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
+  { href: "/refunds", label: "Refunds" },
 ];
 
 /** Brand marks as each company publishes them (X brand toolkit; Instagram glyph), drawn in the footer's ink. */

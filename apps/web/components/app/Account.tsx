@@ -4,7 +4,10 @@ import { usePrivy, type User } from "@privy-io/react-auth";
 import { SESSION_IDLE_DAYS } from "@constant/rules";
 import { useCallback, useEffect, useId, useState } from "react";
 import type { Session } from "@/lib/app/api";
-import { formatDay } from "@/lib/app/format";
+import { formatDay, formatMoney, formatUnits6 } from "@/lib/app/format";
+import { ApiError } from "@/lib/app/api";
+import { STABLES, readStableBalances } from "@/lib/app/chains";
+import { CONTACT_EMAIL } from "@/lib/site";
 import type { Channel } from "@/lib/app/store";
 import { displayName, type Store } from "./Shell";
 import { useServer } from "./Server";
@@ -241,6 +244,8 @@ export function Account({ user, store }: { user: User; store: Store }) {
       <button className="btn btn-ghost" style={{ width: "100%" }} onClick={() => server.signOut("manual")}>
         Sign out
       </button>
+
+      {server.enabled && <CloseAccount user={user} />}
     </div>
   );
 }
@@ -369,6 +374,129 @@ function Security() {
             Sign out of all devices
           </button>
         </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Closing the account (D-081). Refused while naira is left or stablecoins sit in the ConstantUnits wallet, because
+ * closing deletes the sign-in and the wallet created with it.
+ */
+function CloseAccount({ user }: { user: User }) {
+  const server = useServer();
+  const notify = useNotify();
+  const wallet = useWalletAddress(user);
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [understood, setUnderstood] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [stables, setStables] = useState<{ checked: boolean; held: { label: string; amount: bigint }[]; failed: boolean }>({ checked: false, held: [], failed: false });
+  const id = useId();
+  const naira = BigInt(server.me?.balance.ledgerMinor ?? "0");
+  const addresses = wallet.status === "ready" ? [...new Set([wallet.address, wallet.signer].filter(Boolean) as `0x${string}`[])] : [];
+  const key = addresses.join(",");
+
+  // Look at the wallet only when the person opens this, and only the addresses ConstantUnits created.
+  useEffect(() => {
+    if (!open || !key) return;
+    let live = true;
+    (async () => {
+      const held: { label: string; amount: bigint }[] = [];
+      let failed = false;
+      for (const a of key.split(",") as `0x${string}`[]) {
+        const b = await readStableBalances(a);
+        for (const t of STABLES) {
+          const v = b[t.key];
+          if (v === null || v === undefined) failed = true;
+          else if (v > 0n) held.push({ label: `${t.symbol} on ${t.chain === "base" ? "Base" : "Arc"}`, amount: v });
+        }
+      }
+      if (live) setStables({ checked: true, held, failed });
+    })();
+    return () => {
+      live = false;
+    };
+  }, [open, key]);
+
+  const blocked = naira !== 0n || stables.held.length > 0 || (open && !stables.checked && wallet.status === "ready");
+  const ready = typed.trim() === "DELETE" && understood && !blocked && !busy;
+
+  return (
+    <section className="ap-card ap-danger-zone" aria-labelledby="close-title">
+      <h2 id="close-title">Close account</h2>
+      <p className="ap-muted">
+        Closing stops every bill and erases your details, bill numbers, readings and sign-in. Payment records are kept without your details
+        for five years, as the law requires. This can&apos;t be undone.
+      </p>
+      {!open ? (
+        <div className="ap-actions">
+          <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>
+            Close my account…
+          </button>
+        </div>
+      ) : (
+        <form
+          className="ap-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!ready) return;
+            setBusy(true);
+            setError(null);
+            try {
+              await server.call("/v1/me", { method: "DELETE", body: { confirm: "DELETE" } });
+              notify("Your account is closed");
+              await server.signOut("manual");
+            } catch (err) {
+              setError(err instanceof ApiError ? err.message : "Something went wrong. Nothing was closed.");
+              setBusy(false);
+            }
+          }}
+        >
+          {naira !== 0n && (
+            <div className="ap-warn" role="alert">
+              You have {formatMoney(naira, "NGN")} in ConstantUnits. Write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> to have it
+              sent to a bank account in your name first.
+            </div>
+          )}
+          {stables.held.length > 0 && (
+            <div className="ap-warn" role="alert">
+              Your ConstantUnits wallet holds {stables.held.map((h) => `${formatUnits6(h.amount)} ${h.label}`).join(" and ")}. Move it to
+              another wallet first: closing deletes this wallet.
+            </div>
+          )}
+          {open && wallet.status === "ready" && !stables.checked && (
+            <div className="ap-inline-state" role="status">
+              <span className="ap-spinner" aria-hidden="true" />
+              <span className="ap-muted">Checking your wallet is empty…</span>
+            </div>
+          )}
+          {stables.failed && stables.held.length === 0 && (
+            <p className="ap-hint">We couldn&apos;t check every network. Make sure your wallet is empty before you continue.</p>
+          )}
+          <label className="ap-check-row">
+            <input type="checkbox" checked={understood} onChange={(e) => setUnderstood(e.target.checked)} />
+            <span>I understand my bills stop, and my ConstantUnits wallet and sign-in are deleted.</span>
+          </label>
+          <div className="ap-field">
+            <label htmlFor={id}>Type DELETE to confirm</label>
+            <input id={id} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" autoCapitalize="characters" spellCheck={false} />
+          </div>
+          {error && (
+            <p className="ap-err" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="ap-actions">
+            <button className="btn btn-danger btn-sm" type="submit" disabled={!ready}>
+              {busy ? "Closing…" : "Close my account"}
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)} disabled={busy}>
+              Keep my account
+            </button>
+          </div>
+        </form>
       )}
     </section>
   );

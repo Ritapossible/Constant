@@ -164,6 +164,8 @@ export interface Identity {
   verify(accessToken: string): Promise<{ did: string; sid: string | null } | null>;
   /** Verified contact details from the identity provider, not from the client. */
   user(did: string): Promise<IdentityUser>;
+  /** Deletes the person's sign-in account (and its embedded wallet) at the provider. Idempotent. */
+  deleteUser(did: string): Promise<void>;
 }
 
 export interface Bank {

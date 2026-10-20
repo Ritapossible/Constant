@@ -3,8 +3,7 @@
 import type { User } from "@privy-io/react-auth";
 import QRCode from "qrcode";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPublicClient, erc20Abi, http, type Address } from "viem";
-import { EXPLORER, STABLES, arc, base } from "@/lib/app/chains";
+import { EXPLORER, STABLES, readStableBalances } from "@/lib/app/chains";
 import { formatMoney, formatUnits6 } from "@/lib/app/format";
 import type { Plan } from "@/lib/app/store";
 import { NairaAccount } from "./NairaAccount";
@@ -12,11 +11,6 @@ import { StableDeposits } from "./StableDeposits";
 import { useServer } from "./Server";
 import { useNotify } from "./Toast";
 import { useWalletAddress } from "./useWalletAddress";
-
-const clients = {
-  base: createPublicClient({ chain: base, transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL) }),
-  arc: createPublicClient({ chain: arc, transport: http() }),
-};
 
 type Balances = Record<string, bigint | null>;
 
@@ -34,16 +28,7 @@ export function Money({ user, plan }: { user: User; plan: Plan }) {
   const refresh = useCallback(async () => {
     if (!address) return;
     setLoading(true);
-    const results = await Promise.allSettled(
-      STABLES.map((t) =>
-        clients[t.chain].readContract({ address: t.address, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
-      ),
-    );
-    const next: Balances = {};
-    STABLES.forEach((t, i) => {
-      const r = results[i];
-      next[t.key] = r && r.status === "fulfilled" ? (r.value as bigint) : null;
-    });
+    const next: Balances = await readStableBalances(address);
     setBalances(next);
     setLoadFailed(Object.values(next).every((v) => v === null));
     setLoading(false);

@@ -2211,3 +2211,38 @@ button {
     grid-column: 1 / -1;
   }
 }
+
+/* Legal pages (D-081): the services table stacks on phones. */
+.legal-table {
+  display: grid;
+  margin: 8px 0 20px;
+  border-top: 1px solid var(--line);
+}
+.legal-row {
+  display: grid;
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.legal-row b {
+  display: block;
+  font-size: 16px;
+}
+.legal-row span {
+  display: block;
+  color: var(--ink);
+  font-size: 15.5px;
+}
+.legal-row small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+@media (min-width: 720px) {
+  .legal-row {
+    grid-template-columns: 220px 1fr;
+    gap: 24px;
+  }
+}

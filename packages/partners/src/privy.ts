@@ -46,6 +46,19 @@ export class Privy implements Identity {
     if (res.status !== 200) throw new Error(`privy user lookup failed (${res.status})`);
     return contactFromPrivyUser(did, res.body);
   }
+
+  async deleteUser(did: string): Promise<void> {
+    const res = await fetchJson(this.f, `https://api.privy.io/v1/users/${encodeURIComponent(did)}`, {
+      method: "DELETE",
+      headers: {
+        authorization: `Basic ${Buffer.from(`${this.c.appId}:${this.c.appSecret}`).toString("base64")}`,
+        "privy-app-id": this.c.appId,
+      },
+      timeoutMs: 10_000,
+    });
+    // 404: already gone.
+    if (res.status >= 300 && res.status !== 404) throw new Error(`privy user deletion failed (${res.status})`);
+  }
 }
 
 /** Picks the verified email and phone from a Privy user object. Exported for tests. */
@@ -78,5 +91,9 @@ export class FakeIdentity implements Identity {
   }
   async user(did: string): Promise<IdentityUser> {
     return this.users.get(did) ?? { did, email: `${did.slice(10)}@example.com`, phoneE164: null, wallets: [] };
+  }
+  deleted: string[] = [];
+  async deleteUser(did: string): Promise<void> {
+    this.deleted.push(did);
   }
 }

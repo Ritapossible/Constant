@@ -141,7 +141,14 @@ export function CardTopUp() {
       <button className="btn btn-primary" type="button" onClick={pay} disabled={busy || checking}>
         {busy ? "Opening the payment page…" : quote ? `Pay ${formatMoney(quote.totalMinor, "NGN")}` : "Continue"}
       </button>
-      <p className="ap-fine">The card fee is the payment processor&apos;s (Paystack), passed on at cost. ConstantUnits adds nothing.</p>
+      <p className="ap-fine">
+        The card fee is the payment processor&apos;s (Paystack), passed on at cost. ConstantUnits adds nothing. Charged twice or the top-up
+        failed? See the{" "}
+        <a href="/refunds" target="_blank" rel="noopener">
+          refund policy
+        </a>
+        .
+      </p>
     </div>
   );
 }

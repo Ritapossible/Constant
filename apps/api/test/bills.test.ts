@@ -10,6 +10,8 @@ import { buildApp, deviceName, nigerianMobile } from "../src/index.js";
 let db: Db;
 let drop: () => Promise<void>;
 let app: FastifyInstance;
+const identity = new FakeIdentity();
+const funding = new FakeFunding("whsec");
 const vending = new FakeCableVending();
 const secrets = new Secrets({ encryption: [{ id: "k1", key: Buffer.from(testKeyB64(), "base64") }], hmac: Buffer.from(testKeyB64(), "base64") });
 // 10:00 Lagos on 10 November.
@@ -22,9 +24,9 @@ beforeAll(async () => {
   vending.meters.set("45012345678", { customerName: "ADA OBI", address: "12 Allen Ave, Ikeja" });
   app = await buildApp({
     db,
-    identity: new FakeIdentity(),
+    identity,
     vending,
-    funding: new FakeFunding("whsec"),
+    funding,
     secrets,
     webOrigins: ["https://constant-units.vercel.app"],
     vtpassWebhookToken: "vt-0123456789abcdef",
@@ -202,6 +204,74 @@ describe("sessions (D-080)", () => {
   it("a session id can't be borrowed by another account", async () => {
     expect((await call("GET", "/v1/me", "did:privy:s4#shared")).statusCode).toBe(200);
     expect((await call("GET", "/v1/me", "did:privy:s5#shared")).statusCode).toBe(401);
+  });
+});
+
+describe("closing an account (D-081)", () => {
+  const who = "did:privy:closer";
+  const transfer = (customerCode: string, id: number, amount: number) => {
+    const body = JSON.stringify({ event: "charge.success", data: { id, status: "success", channel: "dedicated_nuban", amount, currency: "NGN", reference: `r${id}`, customer: { customer_code: customerCode } } });
+    return app.inject({ method: "POST", url: "/webhooks/paystack", headers: { "content-type": "application/json", "x-paystack-signature": funding.sign(body) }, payload: body });
+  };
+
+  it("needs the word DELETE, and is refused while money is left or a payment is moving", async () => {
+    clock = START;
+    await call("PATCH", "/v1/me", who, { displayName: "Ada", channels: ["sms"] });
+    await call("POST", "/v1/funding-account", who, { firstName: "Ada", lastName: "Obi", phone: "08031234567" });
+    const line = (await call("POST", "/v1/lines", who, { kind: "electricity", provider: "ikedc", ref: "45012345678", meterType: "prepaid", amountMinor: "500000", renewDay: 3 })).json();
+    await call("POST", `/v1/lines/${line.id}/readings`, who, { value: 3 });
+
+    expect((await call("DELETE", "/v1/me", who, {})).json().error).toBe("confirm");
+
+    const { user_id, customer_code } = (await db.query("SELECT f.user_id, f.customer_code FROM funding_accounts f JOIN users u ON u.id = f.user_id WHERE u.privy_did = $1", [who])).rows[0];
+    expect((await transfer(customer_code, 9001, 200_000)).json().result).toBe("credited");
+    const refused = await call("DELETE", "/v1/me", who, { confirm: "DELETE" });
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json()).toMatchObject({ error: "balance_remaining" });
+    expect(refused.json().message).toContain("₦2,000");
+
+    // The money is returned to the person (by a person, for now), then a payment in progress still blocks closing.
+    await db.query("INSERT INTO ledger_entries (user_id, kind, amount_minor, currency, idempotency_key, actor) VALUES ($1, 'adjust', -200000, 'NGN', 'test:returned', 'ops')", [user_id]);
+    await db.query(
+      `INSERT INTO orders (user_id, line_id, trigger, state, amount_minor, fee_minor, currency, idempotency_key, partner, receipt_id)
+       VALUES ($1, $2, 'scheduled', 'vending', 500000, 0, 'NGN', 'k-closing', 'fake', 'r-closing')`,
+      [user_id, line.id],
+    );
+    expect((await call("DELETE", "/v1/me", who, { confirm: "DELETE" })).json().error).toBe("in_flight");
+    await db.query("UPDATE orders SET state = 'failed' WHERE idempotency_key = 'k-closing'");
+  });
+
+  it("erases the person, their payees, readings, account number and sign-in; keeps the money record without them", async () => {
+    const { id } = (await db.query("SELECT id FROM users WHERE privy_did = $1", [who])).rows[0];
+    const ledgerBefore = (await db.query("SELECT count(*)::int AS n FROM ledger_entries WHERE user_id = $1", [id])).rows[0].n;
+
+    // A fresh session: the earlier tries used up this minute's limit of three on the other one.
+    expect((await call("DELETE", "/v1/me", `${who}#closing`, { confirm: "DELETE" })).statusCode).toBe(204);
+
+    const u = (await db.query("SELECT * FROM users WHERE id = $1", [id])).rows[0];
+    expect(u).toMatchObject({ status: "closed", email: null, phone_e164: null, display_name: null, channels: [] });
+    expect(u.privy_did).toBe(`closed:${id}`);
+    const lines = (await db.query("SELECT * FROM lines WHERE user_id = $1", [id])).rows;
+    expect(lines.every((l) => l.status === "cancelled" && l.ref_ciphertext === "erased" && l.customer_name === null && l.ref_last4 === "")).toBe(true);
+    expect((await db.query("SELECT count(*)::int AS n FROM line_readings WHERE line_id = ANY($1::uuid[])", [lines.map((l) => l.id)])).rows[0].n).toBe(0);
+    expect((await db.query("SELECT count(*)::int AS n FROM funding_accounts WHERE user_id = $1", [id])).rows[0].n).toBe(0);
+    expect((await db.query("SELECT count(*)::int AS n FROM sessions WHERE user_id = $1 AND revoked_at IS NULL", [id])).rows[0].n).toBe(0);
+    expect((await db.query("SELECT count(*)::int AS n FROM ledger_entries WHERE user_id = $1", [id])).rows[0].n).toBe(ledgerBefore);
+    expect(identity.deleted).toContain(who);
+    expect((await db.query("SELECT 1 FROM ops_alerts WHERE kind = 'account_closed_deactivate_number'")).rowCount).toBe(1);
+  });
+
+  it("a transfer to the old account number is held for a person, never credited to the closed account", async () => {
+    const { detail } = (await db.query("SELECT detail FROM ops_alerts WHERE kind = 'account_closed_deactivate_number'")).rows[0];
+    expect((await transfer(detail.customerCode, 9002, 100_000)).json().result).toBe("rejected");
+    const { id } = (await db.query("SELECT id FROM users WHERE privy_did LIKE 'closed:%' LIMIT 1")).rows[0];
+    expect((await db.query("SELECT COALESCE(SUM(amount_minor), 0)::bigint AS s FROM ledger_entries WHERE user_id = $1", [id])).rows[0].s).toBe(0n);
+  });
+
+  it("signing in again starts a new, empty account", async () => {
+    const me = (await call("GET", "/v1/me", `${who}#new-session`)).json();
+    expect(me.lines).toEqual([]);
+    expect(me.user.displayName).toBeNull();
   });
 });
 

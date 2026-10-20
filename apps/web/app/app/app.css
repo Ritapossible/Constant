@@ -1465,3 +1465,22 @@
   color: var(--ink-2);
   font-size: 14px;
 }
+
+/* Close account (D-081): set apart, never one tap away. */
+.ap-danger-zone {
+  border-color: #f5c9c2;
+}
+.ap-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14.5px;
+  color: var(--ink-2);
+}
+.ap-check-row input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex: none;
+  accent-color: var(--ink);
+}

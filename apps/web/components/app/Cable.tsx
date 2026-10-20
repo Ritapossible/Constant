@@ -160,7 +160,10 @@ export function CableAdd({ onBack, onDone, isFirst = false }: { onBack: () => vo
         {busy ? "Saving…" : "Renew this automatically"}
       </button>
       <p className="ap-fine">
-        Nothing is paid now. ConstantUnits renews the day before your plan ends, from your naira balance, and tells you when it&apos;s done. {feeNote("tv", isFirst)}
+        Nothing is paid now. ConstantUnits renews the day before your plan ends, from your naira balance, and tells you when it&apos;s done. {feeNote("tv", isFirst)} If a renewal isn&apos;t delivered, you pay nothing.{" "}
+        <a href="/refunds" target="_blank" rel="noopener">
+          Refund policy
+        </a>
       </p>
     </form>
   );

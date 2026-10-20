@@ -77,6 +77,7 @@ import {
   revokeSession,
   revokeAllSessions,
   activeSessions,
+  closeAccount,
   type ReadingRow,
   updateLine,
   upsertUser,
@@ -372,6 +373,54 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         else if (decision.touch) await touchSession(d.db, verified.sid, t);
       }
     });
+
+    /**
+     * Close the account (D-081): the person's details, payees and sign-in are erased; the money record stays without
+     * them. Refused while money is left or a payment, withdrawal or top-up is still moving, so nothing is stranded.
+     */
+    v1.delete(
+      "/me",
+      { config: { rateLimit: { max: 3, timeWindow: "1 minute", keyGenerator: (req: FastifyRequest) => req.headers.authorization ?? req.ip } } },
+      async (req, reply) => {
+        if (json(req).confirm !== "DELETE") throw bad("confirm", "Type DELETE to confirm");
+        if (req.user.status === "frozen") throw new HttpError(409, "account_on_hold", "Your account is on hold while we check something. Contact ConstantUnits support to close it.");
+        const t = now();
+        const closed = await withTx(d.db, async (tx) => {
+          const user = await lockUser(tx, req.user.id);
+          if (user.status === "closed") return null;
+          const balance = await ledgerSum(tx, user.id);
+          if (balance !== 0n) {
+            const amount = `₦${(balance / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+            throw new HttpError(409, "balance_remaining", `You have ${amount} in ConstantUnits. Write to us to have it sent to a bank account in your name, then close the account.`);
+          }
+          const busy = await tx.query(
+            `SELECT
+               (SELECT count(*) FROM orders WHERE user_id = $1 AND state IN ('ready','vending','token_stored','notifying','needs_human'))::int AS orders,
+               (SELECT count(*) FROM withdrawals WHERE user_id = $1 AND status IN ('requested','sent','needs_human'))::int AS withdrawals,
+               (SELECT count(*) FROM topups WHERE user_id = $1 AND status = 'pending' AND created_at > $2::timestamptz - interval '2 hours')::int AS topups`,
+            [user.id, t],
+          );
+          const b = busy.rows[0] as { orders: number; withdrawals: number; topups: number };
+          if (b.orders + b.withdrawals + b.topups > 0) throw new HttpError(409, "in_flight", "A payment is still in progress. Try again in a few minutes.");
+          const result = await closeAccount(tx, user.id, t);
+          await tx.query("INSERT INTO ops_actions (actor, action, target, detail) VALUES ('user', 'account_closed', $1, '{}')", [user.id]);
+          if (result.fundingCustomerCode) {
+            // The account number still exists at the payment provider: a person deactivates it there.
+            await raiseOpsAlert(tx, "warn", "account_closed_deactivate_number", { userId: user.id, customerCode: result.fundingCustomerCode });
+          }
+          return result;
+        });
+        if (closed) {
+          try {
+            await d.identity.deleteUser(closed.privyDid);
+          } catch (err) {
+            req.log.warn({ err: { message: (err as Error).message } }, "identity deletion failed");
+            await raiseOpsAlert(d.db, "warn", "identity_delete_failed", { userId: req.user.id });
+          }
+        }
+        return reply.status(204).send();
+      },
+    );
 
     /** Sign out here: this session's tokens are refused from now on, whatever the identity provider says. */
     v1.post("/session/end", async (req, reply) => {

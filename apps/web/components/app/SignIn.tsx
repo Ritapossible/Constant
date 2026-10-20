@@ -84,7 +84,7 @@ export function SignIn() {
         </div>
         <p className="ap-fine">
           No seed phrase. A wallet sign-in proves ownership with a signature; it never moves funds. By continuing you agree to
-          our <a href="/privacy">privacy notice</a>.
+          our <a href="/terms">terms</a> and <a href="/privacy">privacy policy</a>.
         </p>
       </motion.section>
     </div>

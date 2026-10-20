@@ -1,4 +1,4 @@
-import { defineChain, type Address } from "viem";
+import { createPublicClient, defineChain, erc20Abi, http, type Address } from "viem";
 import { base } from "viem/chains";
 
 /** Arc mainnet, from docs.arc.io (connect-to-arc, contract-addresses). USDC is the gas token. */
@@ -34,3 +34,21 @@ export const EXPLORER = {
   base: (a: string) => `https://basescan.org/address/${a}`,
   arc: (a: string) => `https://explorer.arc.io/address/${a}`,
 };
+
+const clients = {
+  base: createPublicClient({ chain: base, transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL) }),
+  arc: createPublicClient({ chain: arc, transport: http() }),
+};
+
+/** Each accepted token's balance at `address`, by key; null where the network didn't answer. */
+export async function readStableBalances(address: Address): Promise<Record<string, bigint | null>> {
+  const results = await Promise.allSettled(
+    STABLES.map((t) => clients[t.chain].readContract({ address: t.address, abi: erc20Abi, functionName: "balanceOf", args: [address] })),
+  );
+  const out: Record<string, bigint | null> = {};
+  STABLES.forEach((t, i) => {
+    const r = results[i];
+    out[t.key] = r && r.status === "fulfilled" ? (r.value as bigint) : null;
+  });
+  return out;
+}
