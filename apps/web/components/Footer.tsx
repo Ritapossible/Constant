@@ -12,7 +12,7 @@ const LINKS = [
 ];
 
 /** Brand marks as each company publishes them (X brand toolkit; Instagram glyph), drawn in the footer's ink. */
-const ICONS: Record<(typeof SOCIALS)[number]["name"], React.ReactNode> = {
+const ICONS: Record<"X" | "Instagram", React.ReactNode> = {
   X: (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
       <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
@@ -45,9 +45,15 @@ export function Footer({ base = "" }: { base?: string }) {
                 <ul>
                   {SOCIALS.map((x) => (
                     <li key={x.name}>
-                      <a href={x.url} target="_blank" rel="noopener noreferrer" aria-label={`ConstantUnits on ${x.name} (opens in a new tab)`} title={`@${x.handle} on ${x.name}`}>
-                        {ICONS[x.name]}
-                      </a>
+                      {x.url ? (
+                        <a href={x.url} target="_blank" rel="noopener noreferrer" aria-label={`ConstantUnits on ${x.name} (opens in a new tab)`} title={`@${x.handle} on ${x.name}`}>
+                          {ICONS[x.name]}
+                        </a>
+                      ) : (
+                        <span className="footer-social-soon" role="img" aria-label={`${x.name}, coming soon`} title={`${x.name}: coming soon`}>
+                          {ICONS[x.name]}
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>

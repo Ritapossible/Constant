@@ -1795,7 +1795,8 @@ button {
   padding: 0;
   list-style: none;
 }
-.footer-socials a {
+.footer-socials a,
+.footer-social-soon {
   display: grid;
   place-items: center;
   width: 40px;
@@ -1804,6 +1805,12 @@ button {
   border: 1px solid var(--line-strong);
   color: var(--ink);
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+/* An account not open yet: shown, quieter, and not a link. */
+.footer-social-soon {
+  color: var(--muted);
+  border-color: var(--line);
+  cursor: default;
 }
 .footer-socials a:hover,
 .footer-socials a:focus-visible {
