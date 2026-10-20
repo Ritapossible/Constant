@@ -1775,6 +1775,35 @@ button {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.footer-social {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 6px 16px 6px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--pill);
+  font-size: 14.5px;
+  color: var(--muted);
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+.footer-social b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.footer-social:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.footer-social-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--on-inverse);
+}
 .footer-links {
   display: grid;
   grid-template-columns: 1fr 1fr;

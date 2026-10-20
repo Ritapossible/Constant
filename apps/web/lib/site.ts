@@ -12,3 +12,7 @@ export const SITE_DESCRIPTION =
 
 /** Where people reach ConstantUnits. One address everywhere (footer, privacy, FAQ, /llms.txt). */
 export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL || "constantunitshq@gmail.com";
+
+/** The ConstantUnits account on X, without the @. Used in the footer and in link previews. */
+export const X_HANDLE = "ConstantUnits";
+export const X_URL = `https://x.com/${X_HANDLE}`;

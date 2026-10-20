@@ -5,7 +5,7 @@ import "./globals.css";
 
 import type { Metadata, Viewport } from "next";
 import { SmoothScroll } from "@/components/SmoothScroll";
-import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "@/lib/site";
+import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL, X_HANDLE } from "@/lib/site";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     siteName: "ConstantUnits",
     locale: "en_NG",
   },
-  twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION },
+  twitter: { card: "summary_large_image", site: `@${X_HANDLE}`, creator: `@${X_HANDLE}`, title: SITE_TITLE, description: SITE_DESCRIPTION },
 };
 
 // Tells Google what ConstantUnits is (structured data).
