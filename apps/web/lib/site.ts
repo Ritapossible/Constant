@@ -15,4 +15,9 @@ export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL || "constantu
 
 /** The ConstantUnits account on X, without the @. Used in the footer and in link previews. */
 export const X_HANDLE = "ConstantUnits";
-export const X_URL = `https://x.com/${X_HANDLE}`;
+
+/** Social accounts in the footer, in order. To add or change one, edit this list. */
+export const SOCIALS = [
+  { name: "X", handle: X_HANDLE, url: `https://x.com/${X_HANDLE}` },
+  { name: "Instagram", handle: "constantunits", url: "https://www.instagram.com/constantunits" },
+] as const;

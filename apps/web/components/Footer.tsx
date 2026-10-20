@@ -1,4 +1,4 @@
-import { CONTACT_EMAIL, X_HANDLE, X_URL } from "@/lib/site";
+import { CONTACT_EMAIL, SOCIALS } from "@/lib/site";
 import { Logo } from "./Logo";
 
 const LINKS = [
@@ -10,6 +10,22 @@ const LINKS = [
   { href: "/app", label: "Launch app" },
   { href: "/privacy", label: "Privacy" },
 ];
+
+/** Brand marks as each company publishes them (X brand toolkit; Instagram glyph), drawn in the footer's ink. */
+const ICONS: Record<(typeof SOCIALS)[number]["name"], React.ReactNode> = {
+  X: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
+    </svg>
+  ),
+  Instagram: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4.2" />
+      <circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+};
 
 /** `base` is "/" on other pages so section links go back to the home page. */
 export function Footer({ base = "" }: { base?: string }) {
@@ -24,17 +40,18 @@ export function Footer({ base = "" }: { base?: string }) {
               <p className="footer-contact">
                 Questions? <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
               </p>
-              <a className="footer-social" href={X_URL} target="_blank" rel="noopener noreferrer" aria-label={`Follow ConstantUnits on X, @${X_HANDLE} (opens in a new tab)`}>
-                <span className="footer-social-icon" aria-hidden="true">
-                  {/* The X logo, as published in X's brand toolkit. */}
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
-                  </svg>
-                </span>
-                <span>
-                  Follow <b>@{X_HANDLE}</b> for updates
-                </span>
-              </a>
+              <div className="footer-socials">
+                <span className="footer-socials-label">Socials</span>
+                <ul>
+                  {SOCIALS.map((x) => (
+                    <li key={x.name}>
+                      <a href={x.url} target="_blank" rel="noopener noreferrer" aria-label={`ConstantUnits on ${x.name} (opens in a new tab)`} title={`@${x.handle} on ${x.name}`}>
+                        {ICONS[x.name]}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
             <nav className="footer-links" aria-label="Footer">
               <h4>Quick links</h4>
