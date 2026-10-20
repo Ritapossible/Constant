@@ -9,7 +9,7 @@ describe("copy", () => {
     expect(naira(50n)).toBe("₦0.50");
   });
   it.each(KINDS)("%s fits one SMS and names no chain or full number", (kind) => {
-    const m = render(kind, { line: "Living room DSTV", amountMinor: "1995000", capMinor: "2500000", shortMinor: "500000", dueAt: "2026-11-15T06:00:00Z", balanceMinor: "100" });
+    const m = render(kind, { line: "Living room DSTV", amountMinor: "1995000", capMinor: "2500000", shortMinor: "500000", dueAt: "2026-11-15T06:00:00Z", balanceMinor: "100", setAsideMinor: "2500000" });
     expect(m.text.length).toBeLessThanOrEqual(160);
     expect(m.text).not.toMatch(/usdc|crypto|wallet|blockchain|\b\d{10,}\b/i);
   });

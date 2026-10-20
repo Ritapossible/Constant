@@ -53,6 +53,8 @@ export interface NoticeParams {
   token?: string;
   units?: string;
   nextAt?: string;
+  /** Money added: how much went into bill pots (D-084). */
+  setAsideMinor?: string;
 }
 
 /** One message per notice kind. Short enough for one SMS where it may go by SMS. */
@@ -103,7 +105,7 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
     case "funded":
       return {
         subject: `${amt} added`,
-        text: `ConstantUnits: ${amt} added to your account.${p.balanceMinor ? ` Balance ${naira(BigInt(p.balanceMinor))}.` : ""}`,
+        text: `ConstantUnits: ${amt} added to your account.${p.setAsideMinor ? ` ${naira(BigInt(p.setAsideMinor))} set aside for your bills.` : ""}${p.balanceMinor ? ` Balance ${naira(BigInt(p.balanceMinor))}.` : ""}`,
       };
     case "withdrawal_sent":
       return {

@@ -54,3 +54,37 @@ describe("pots (D-083)", () => {
     );
   });
 });
+
+describe("filling pots when money arrives (D-084)", () => {
+  it("fills pots to their levels in order, and leaves the rest free", async () => {
+    const { planAutoFill } = await import("../src/index.js");
+    const pots = [
+      { lineId: "light", potMinor: 100n, targetMinor: 500n },
+      { lineId: "tv", potMinor: 900n, targetMinor: 800n },
+      { lineId: "data", potMinor: 0n, targetMinor: null },
+      { lineId: "air", potMinor: 0n, targetMinor: 300n },
+    ];
+    expect(planAutoFill(1000n, pots)).toEqual([
+      { lineId: "light", amountMinor: 400n },
+      { lineId: "air", amountMinor: 300n },
+    ]);
+    expect(planAutoFill(250n, pots)).toEqual([{ lineId: "light", amountMinor: 250n }]);
+    expect(planAutoFill(0n, pots)).toEqual([]);
+  });
+
+  it("never moves more than arrived, never fills a pot past its level", async () => {
+    const { planAutoFill } = await import("../src/index.js");
+    const pot = fc.record({ lineId: fc.uuid(), potMinor: amt, targetMinor: fc.option(amt, { nil: null }) });
+    fc.assert(
+      fc.property(amt, fc.array(pot, { maxLength: 8 }), (incoming, pots) => {
+        const moves = planAutoFill(incoming, pots);
+        expect(moves.reduce((s, m) => s + m.amountMinor, 0n)).toBeLessThanOrEqual(incoming);
+        for (const m of moves) {
+          const p = pots.find((x) => x.lineId === m.lineId)!;
+          expect(m.amountMinor > 0n).toBe(true);
+          expect(p.potMinor + m.amountMinor).toBeLessThanOrEqual(p.targetMinor!);
+        }
+      }),
+    );
+  });
+});

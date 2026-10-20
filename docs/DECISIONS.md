@@ -441,3 +441,8 @@ When the VTpass balance drops below `FLOAT_LOW_NGN`, charged USDC on the spender
 - **Rules:** `packages/rules/src/pots.ts` (`splitDraw`, `freeCommitted`, `availableForBill`, `decidePotMove`), property-tested. Moves need the user locked; a pot can't be emptied while its bill's payment is in progress; removing a bill returns its pot to free money; withdrawals use free money only. Bills paid from stablecoins don't touch the pot (their naira arrives for that payment).
 - **App:** each bill shows what is set aside, how short it is of the next payment, a one-tap "Set aside ₦X for the next payment", and Add / Move back. Money shows how much is in pots and how much is free.
 - **Later:** filling pots automatically when money arrives (a split chosen by the person), and a pot that renews by itself every month.
+
+### D-084 Pots fill themselves when money arrives — *founder's request, 2026-10-20; follows D-083*
+- **What:** each bill may have a level ("keep ₦X set aside"). When a bank transfer or card top-up is credited, the new money fills pots up to their levels, the bill due soonest first; whatever is left stays free. Money already free stays where the person left it, and stablecoin naira credited for a payment never fills pots.
+- **How:** `planAutoFill` in `packages/rules/src/pots.ts` (never moves more than arrived, never fills a pot past its level; property-tested), applied in the same transaction that credits the money, keyed by the payment's id so a replayed webhook fills nothing twice. The "money added" message says how much was set aside.
+- **App:** on each bill's pot, "Fill this pot automatically when money arrives" → a level, suggested from the next payment; Change or Turn off.

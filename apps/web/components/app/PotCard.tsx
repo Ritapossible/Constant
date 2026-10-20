@@ -9,7 +9,20 @@ import { useNotify } from "./Toast";
  * A bill's pot (D-083): money set aside that only this bill can use. It pays this bill first; free money covers the
  * rest. Moves go through the API, which checks there is enough.
  */
-export function PotCard({ lineId, potMinor, needMinor, label }: { lineId: string; potMinor: bigint; needMinor: bigint | null; label: string }) {
+export function PotCard({
+  lineId,
+  potMinor,
+  needMinor,
+  targetMinor,
+  label,
+}: {
+  lineId: string;
+  potMinor: bigint;
+  needMinor: bigint | null;
+  /** The level new money fills this pot to (D-084). */
+  targetMinor: bigint | null;
+  label: string;
+}) {
   const server = useServer();
   const notify = useNotify();
   const id = useId();
@@ -77,6 +90,84 @@ export function PotCard({ lineId, potMinor, needMinor, label }: { lineId: string
           {error}
         </p>
       )}
+      <AutoFill lineId={lineId} targetMinor={targetMinor} suggestMinor={needMinor} />
     </section>
+  );
+}
+
+/** "When money arrives, keep ₦X set aside for this bill" (D-084). */
+function AutoFill({ lineId, targetMinor, suggestMinor }: { lineId: string; targetMinor: bigint | null; suggestMinor: bigint | null }) {
+  const server = useServer();
+  const notify = useNotify();
+  const id = useId();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const minor = toMinor(value);
+
+  const save = async (v: bigint | null) => {
+    setBusy(true);
+    try {
+      await server.call(`/v1/lines/${lineId}`, { method: "PATCH", body: { potTargetMinor: v === null ? null : v.toString() } });
+      await server.reload();
+      setEditing(false);
+      notify(v === null ? "Automatic set-aside turned off" : `New money will keep ${formatMoney(v, "NGN")} set aside here`);
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div className="ap-pot-auto">
+        <span className="ap-hint">
+          {targetMinor ? (
+            <>
+              When money arrives, keep <b>{formatMoney(targetMinor, "NGN")}</b> set aside here.
+            </>
+          ) : (
+            "Fill this pot automatically when money arrives."
+          )}
+        </span>
+        <button
+          type="button"
+          className="ap-link"
+          onClick={() => {
+            setValue(targetMinor ? (targetMinor / 100n).toString() : suggestMinor ? ((suggestMinor + 99n) / 100n).toString() : "");
+            setEditing(true);
+          }}
+        >
+          {targetMinor ? "Change" : "Set up"}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="ap-pot-auto-edit">
+      <label htmlFor={id} className="ap-hint">
+        When money arrives, keep this much set aside for this bill. Bills due soonest are filled first; the rest stays free.
+      </label>
+      <div className="ap-pot-move">
+        <div className="ap-amount">
+          <span aria-hidden="true">₦</span>
+          <input id={id} inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0" />
+        </div>
+        <button type="button" className="btn btn-primary btn-sm" disabled={busy || !minor || minor <= 0n} onClick={() => minor && save(minor)}>
+          Save
+        </button>
+      </div>
+      <div className="ap-actions">
+        {targetMinor && (
+          <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => save(null)}>
+            Turn off
+          </button>
+        )}
+        <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }

@@ -1534,3 +1534,20 @@
 .ap-pot .btn-primary {
   justify-self: start;
 }
+.ap-pot-auto {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.ap-pot-auto b {
+  color: var(--ink);
+}
+.ap-pot-auto-edit {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}

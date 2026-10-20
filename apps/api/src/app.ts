@@ -84,6 +84,7 @@ import {
   freeCommittedToOpenOrders,
   movePot,
   emptyPot,
+  autoFillPots,
   createTelegramLink,
   useTelegramLink,
   userByTelegramChat,
@@ -257,6 +258,8 @@ const usd = (micro: bigint) => formatUnits6(micro);
 const lineView = (l: LineRow, readings: ReadingRow[] = [], pots: Map<string, bigint> = new Map()) => ({
   /** Money set aside for this bill only (D-083). */
   potMinor: (pots.get(l.id) ?? 0n).toString(),
+  /** The level new money fills this pot to (D-084); null: filled by hand only. */
+  potTargetMinor: l.pot_target_minor?.toString() ?? null,
   funding: l.funding,
   schedule: l.schedule,
   renewDay: l.renew_day,
@@ -786,6 +789,15 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       return line;
     };
 
+    /** A pot level (D-084): null clears it; otherwise a positive naira amount, for a bill paid in naira. */
+    const potTarget = (v: unknown, line: LineRow): bigint | null => {
+      if (v === null) return null;
+      if (line.kind === "subscription" || line.currency !== "NGN") throw bad("invalid", "Pots hold naira for bills ConstantUnits pays");
+      const t = minor(v, "potTargetMinor");
+      if (t <= 0n || t > MAX_CAP_MINOR) throw bad("invalid", "That amount doesn't look right");
+      return t;
+    };
+
     const ownBill = async (req: FastifyRequest) => {
       const { id } = req.params as { id: string };
       if (!UUID.test(id)) throw new HttpError(404, "not_found", "No such bill");
@@ -856,6 +868,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       if (line.kind !== "tv") return viewOf(await patchBill(req, line, b));
       const patch: Parameters<typeof updateLine>[2] = {};
       if (b.nickname !== undefined) patch.nickname = str(b.nickname, "nickname", 40);
+      if (b.potTargetMinor !== undefined) patch.pot_target_minor = potTarget(b.potTargetMinor, line);
       if (b.capMinor !== undefined) {
         const cap = minor(b.capMinor, "capMinor");
         if (cap <= 0n || cap > MAX_CAP_MINOR) throw bad("invalid", "That limit doesn't look right");
@@ -868,7 +881,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         patch.paused_by = b.status === "paused" ? "user" : null;
       }
       await updateLine(d.db, id, patch);
-      return lineView((await getLine(d.db, id, req.user.id))!);
+      return viewOf((await getLine(d.db, id, req.user.id))!);
     });
 
     /** Changes to a data, airtime, electricity or subscription bill. The payee and provider never change. */
@@ -877,6 +890,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       const t = now();
       const patch: Parameters<typeof updateLine>[2] = {};
       if (b.nickname !== undefined) patch.nickname = str(b.nickname, "nickname", 40);
+      if (b.potTargetMinor !== undefined) patch.pot_target_minor = potTarget(b.potTargetMinor, line);
       let amount = line.amount_minor;
       if (b.variationCode !== undefined && line.kind === "data") {
         let plans: DataPlan[];
@@ -1352,6 +1366,12 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
    * Settles a checkout top-up from a signed webhook or a verify call, once. Credits exactly what was quoted, only
    * when Paystack says success in naira for at least the quoted total; anything else paid is held for a person.
    */
+  /** For the "money added" message: how much went into pots (D-084). */
+  const setAside = (filled: { amountMinor: bigint }[]) => {
+    const total = filled.reduce((a, m) => a + m.amountMinor, 0n);
+    return total > 0n ? { setAsideMinor: total.toString() } : {};
+  };
+
   async function settleTopup(r: CheckoutResult): Promise<string> {
     return withTx(d.db, async (tx) => {
       const t = await lockTopupByReference(tx, r.reference);
@@ -1383,11 +1403,12 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       });
       await updateTopup(tx, t.id, { ...facts, status: "credited", error: null });
       if (credited === "credited") {
+        const filled = await autoFillPots(tx, t.user_id, t.credit_minor, `ledger:pot:fill:${t.provider}:${r.eventId}`);
         await queueNotice(tx, {
           key: `notice:funded:${t.provider}:${r.eventId}`,
           userId: t.user_id,
           kind: "funded",
-          params: { amountMinor: t.credit_minor.toString(), balanceMinor: (await ledgerSum(tx, t.user_id)).toString() },
+          params: { amountMinor: t.credit_minor.toString(), balanceMinor: (await ledgerSum(tx, t.user_id)).toString(), ...setAside(filled) },
         });
       }
       return "credited";
@@ -1426,11 +1447,12 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         ...(decision.kind === "reject" ? { reason: decision.reason } : credit.currency !== "NGN" ? { reason: "currency" } : {}),
       });
       if (r === "credited" && userId) {
+        const filled = await autoFillPots(tx, userId, credit.amountMinor, `ledger:pot:fill:${d.funding.name}:${credit.eventId}`);
         await queueNotice(tx, {
           key: `notice:funded:${d.funding.name}:${credit.eventId}`,
           userId,
           kind: "funded",
-          params: { amountMinor: credit.amountMinor.toString(), balanceMinor: (await ledgerSum(tx, userId)).toString() },
+          params: { amountMinor: credit.amountMinor.toString(), balanceMinor: (await ledgerSum(tx, userId)).toString(), ...setAside(filled) },
         });
       }
       if (r === "rejected") await raiseOpsAlert(tx, "page", "funding_unmatched", { eventId: credit.eventId, reason: decision.kind === "reject" ? decision.reason : "currency" });

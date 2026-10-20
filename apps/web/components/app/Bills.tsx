@@ -920,6 +920,7 @@ function BillDetail({ line, store, orders, onDelete }: { line: Line; store: Stor
           lineId={line.id}
           label={line.nickname}
           potMinor={BigInt(line.potMinor ?? "0")}
+          targetMinor={line.potTargetMinor ? BigInt(line.potTargetMinor) : null}
           needMinor={line.setupNeeded ? null : BigInt(line.amountMinor) + feeForKind(line.kind)}
         />
       )}

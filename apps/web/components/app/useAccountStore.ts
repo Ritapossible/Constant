@@ -54,6 +54,7 @@ export function fromServer(l: ServerLine): Line {
     setupNeeded: l.setupNeeded,
     nextRunAt: l.nextRunAt,
     potMinor: l.potMinor,
+    potTargetMinor: l.potTargetMinor,
   };
 }
 

@@ -145,6 +145,7 @@ export interface LineRow {
   threshold: string | null;
   weekly_cap_minor: bigint | null;
   setup_needed: "bundle" | null;
+  pot_target_minor: bigint | null;
   created_at: Date;
 }
 
@@ -229,7 +230,7 @@ export async function updateLine(
   patch: Partial<{
     status: LineStatus; frozen_reason: string | null; cap_minor: bigint; nickname: string; due_at: Date | null; next_run_at: Date | null;
     last_renewed_at: Date; plan_name: string | null; renew_day: number | null; amount_minor: bigint | null; variation_code: string | null;
-    threshold: number | null; weekly_cap_minor: bigint | null; setup_needed: "bundle" | null; paused_by: "user" | "stop" | null;
+    threshold: number | null; weekly_cap_minor: bigint | null; setup_needed: "bundle" | null; paused_by: "user" | "stop" | null; pot_target_minor: bigint | null;
   }>,
 ): Promise<void> {
   const keys = Object.keys(patch) as (keyof typeof patch)[];

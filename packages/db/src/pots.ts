@@ -2,7 +2,7 @@
  * Pots (D-083). Balances come from the ledger: a pot is the sum of its entries, free money the sum of the user's
  * entries in no pot. Writes expect the user locked (withTx + lockUser).
  */
-import { freeCommitted } from "@constant/rules";
+import { freeCommitted, planAutoFill } from "@constant/rules";
 import { insertLedger } from "./repo.js";
 import type { Q, Tx } from "./pool.js";
 
@@ -54,4 +54,31 @@ export async function emptyPot(tx: Tx, userId: string, lineId: string, currency:
   const left = await potBalance(tx, lineId);
   if (left > 0n) await movePot(tx, { userId, lineId, amountMinor: -left, currency, key: `ledger:pot:empty:${lineId}`, actor });
   return left;
+}
+
+/**
+ * New money has arrived (a bank transfer or a card top-up): fill pots up to their levels, soonest bill first (D-084).
+ * Call in the transaction that credited it, with the user locked. `key` makes it happen once per credit.
+ */
+export async function autoFillPots(tx: Tx, userId: string, incomingMinor: bigint, key: string): Promise<{ lineId: string; amountMinor: bigint }[]> {
+  const lines = (
+    await tx.query<{ id: string; currency: string; pot_target_minor: bigint }>(
+      `SELECT id, currency, pot_target_minor FROM lines
+       WHERE user_id = $1 AND pot_target_minor IS NOT NULL AND status IN ('active', 'paused') AND funding = 'naira'
+         AND currency = 'NGN' AND kind <> 'subscription'
+       ORDER BY next_run_at ASC NULLS LAST, created_at`,
+      [userId],
+    )
+  ).rows;
+  if (lines.length === 0) return [];
+  const pots = await potBalances(tx, userId);
+  const plan = planAutoFill(
+    incomingMinor,
+    lines.map((l) => ({ lineId: l.id, potMinor: pots.get(l.id) ?? 0n, targetMinor: l.pot_target_minor })),
+  );
+  const done: { lineId: string; amountMinor: bigint }[] = [];
+  for (const m of plan) {
+    if (await movePot(tx, { userId, lineId: m.lineId, amountMinor: m.amountMinor, currency: "NGN", key: `${key}:${m.lineId}`, actor: "autofill" })) done.push(m);
+  }
+  return done;
 }

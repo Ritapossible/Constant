@@ -39,6 +39,7 @@ export type Line = {
   nextRunAt?: string | null;
   /** On the server: money set aside for this bill only (D-083). */
   potMinor?: string;
+  potTargetMinor?: string | null;
 };
 
 export type Channel = "whatsapp" | "telegram" | "sms" | "email";

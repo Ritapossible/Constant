@@ -51,3 +51,27 @@ export function decidePotMove(i: {
   if (i.amountMinor > i.potMinor) return { kind: "refuse", reason: "not_enough_in_pot" };
   return { kind: "move", amountMinor: i.amountMinor };
 }
+
+/**
+ * Filling pots when money arrives (D-084). Each bill may have a level to keep its pot at; new money fills pots up to
+ * their levels, soonest bill first, and whatever is left stays free. Only the new money is used: free money already
+ * there stays where the person left it.
+ */
+export function planAutoFill(
+  incomingMinor: Minor,
+  pots: readonly { lineId: string; potMinor: Minor; targetMinor: Minor | null }[],
+): { lineId: string; amountMinor: Minor }[] {
+  if (incomingMinor <= 0n) return [];
+  let left = incomingMinor;
+  const moves: { lineId: string; amountMinor: Minor }[] = [];
+  for (const p of pots) {
+    if (left === 0n) break;
+    if (p.targetMinor === null || p.targetMinor <= 0n) continue;
+    const gap = p.targetMinor - (p.potMinor > 0n ? p.potMinor : 0n);
+    if (gap <= 0n) continue;
+    const amount = gap < left ? gap : left;
+    moves.push({ lineId: p.lineId, amountMinor: amount });
+    left -= amount;
+  }
+  return moves;
+}

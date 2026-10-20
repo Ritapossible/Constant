@@ -322,6 +322,36 @@ describe("pots (D-083)", () => {
   });
 });
 
+describe("filling pots when money arrives (D-084)", () => {
+  const who = "did:privy:autofill";
+  it("a transfer fills pots to their levels, soonest bill first, once; the rest stays free", async () => {
+    clock = START;
+    await call("POST", "/v1/funding-account", who, { firstName: "Ada", lastName: "Fill", phone: "08031230099" });
+    const soon = (await call("POST", "/v1/lines", who, { kind: "airtime", provider: "mtn", ref: "08036660001", amountMinor: "100000", renewDay: 12 })).json();
+    const later = (await call("POST", "/v1/lines", who, { kind: "airtime", provider: "glo", ref: "08056660001", amountMinor: "100000", renewDay: 20 })).json();
+    expect((await call("PATCH", `/v1/lines/${later.id}`, who, { potTargetMinor: "300000" })).json().potTargetMinor).toBe("300000");
+    expect((await call("PATCH", `/v1/lines/${soon.id}`, who, { potTargetMinor: "150000" })).json().potTargetMinor).toBe("150000");
+    expect((await call("PATCH", `/v1/lines/${soon.id}`, who, { potTargetMinor: "0" })).statusCode).toBe(400);
+
+    const { customer_code, user_id } = (await db.query("SELECT f.customer_code, f.user_id FROM funding_accounts f JOIN users u ON u.id = f.user_id WHERE u.privy_did = $1", [who])).rows[0];
+    const body = JSON.stringify({ event: "charge.success", data: { id: 7101, status: "success", channel: "dedicated_nuban", amount: 400_000, currency: "NGN", reference: "r7101", customer: { customer_code } } });
+    const send = () => app.inject({ method: "POST", url: "/webhooks/paystack", headers: { "content-type": "application/json", "x-paystack-signature": funding.sign(body) }, payload: body });
+    expect((await send()).json().result).toBe("credited");
+    expect((await send()).json().result).toBe("duplicate");
+
+    const me = (await call("GET", "/v1/me", who)).json();
+    const pot = (id: string) => me.lines.find((l: { id: string }) => l.id === id).potMinor;
+    // ₦4,000: ₦1,500 to the bill due on the 12th, ₦2,500 of the ₦3,000 level to the one on the 20th, nothing left free.
+    expect(pot(soon.id)).toBe("150000");
+    expect(pot(later.id)).toBe("250000");
+    expect(me.balance).toMatchObject({ ledgerMinor: "400000", potsMinor: "400000", freeMinor: "0" });
+    const notice = (await db.query("SELECT params FROM notices WHERE user_id = $1 AND kind = 'funded'", [user_id])).rows[0];
+    expect(notice.params.setAsideMinor).toBe("400000");
+
+    expect((await call("PATCH", `/v1/lines/${soon.id}`, who, { potTargetMinor: null })).json().potTargetMinor).toBeNull();
+  });
+});
+
 describe("Telegram (D-082)", () => {
   const who = "did:privy:tg";
   const update = (chatId: number, text: string, secret = TG_SECRET) =>

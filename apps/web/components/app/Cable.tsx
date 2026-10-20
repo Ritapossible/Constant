@@ -223,7 +223,7 @@ export function CableDetail({ line, orders, onClose }: { line: ServerLine; order
       )}
 
       {line.funding === "naira" && (
-        <PotCard lineId={line.id} label={line.nickname} potMinor={BigInt(line.potMinor)} needMinor={BigInt(line.capMinor) + feeForKind("tv")} />
+        <PotCard lineId={line.id} label={line.nickname} potMinor={BigInt(line.potMinor)} targetMinor={line.potTargetMinor ? BigInt(line.potTargetMinor) : null} needMinor={BigInt(line.capMinor) + feeForKind("tv")} />
       )}
 
       <dl className="ap-dl">

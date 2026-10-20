@@ -6,6 +6,8 @@ export type ServerLine = {
   id: string;
   /** Money set aside for this bill only (D-083), in kobo. */
   potMinor: string;
+  /** New money fills the pot up to this level (D-084); null: by hand only. */
+  potTargetMinor: string | null;
   funding: "naira" | "stables";
   kind: "tv" | "data" | "airtime" | "electricity" | "subscription";
   /** dstv, gotv, startimes; mtn, airtel, glo, 9mobile; ikedc…; chatgpt… */
