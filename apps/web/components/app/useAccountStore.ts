@@ -53,6 +53,7 @@ export function fromServer(l: ServerLine): Line {
     variationCode: l.variationCode,
     setupNeeded: l.setupNeeded,
     nextRunAt: l.nextRunAt,
+    potMinor: l.potMinor,
   };
 }
 

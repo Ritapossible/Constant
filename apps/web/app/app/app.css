@@ -1484,3 +1484,53 @@
   flex: none;
   accent-color: var(--ink);
 }
+
+/* A bill's pot (D-083). */
+.ap-pot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-2);
+}
+.ap-pot-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ap-pot-head small {
+  display: block;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.ap-pot-head b {
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+.ap-pot-need {
+  font-size: 13px;
+}
+.ap-pot-move {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ap-pot-move .ap-amount {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 48px;
+}
+.ap-pot-move .ap-amount input {
+  width: 100%;
+}
+.ap-pot-move .ap-amount input {
+  font-size: 18px;
+}
+.ap-pot .btn-primary {
+  justify-self: start;
+}

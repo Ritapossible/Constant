@@ -2,7 +2,7 @@
  * Repositories. Plain SQL, small functions, each taking whatever can run a query.
  * Functions that move money expect to be called inside withTx with the user row locked.
  */
-import { feeLedgerKey, fundLedgerKey, nextOrderState, vendLedgerKey, type OrderEvent, type OrderState } from "@constant/rules";
+import { feeLedgerKey, fundLedgerKey, nextOrderState, splitDraw, vendLedgerKey, type OrderEvent, type OrderState } from "@constant/rules";
 import type { Q, Tx } from "./pool.js";
 
 // ── Users ────────────────────────────────────────────────────────────────────
@@ -275,11 +275,13 @@ export async function spentLast7Days(q: Q, lineId: string, now: Date): Promise<b
 
 // ── Ledger ───────────────────────────────────────────────────────────────────
 
-export type LedgerKind = "fund" | "vend" | "fee" | "refund" | "adjust" | "reversal" | "withdrawal";
+export type LedgerKind = "fund" | "vend" | "fee" | "refund" | "adjust" | "reversal" | "withdrawal" | "pot";
 
 export interface LedgerInsert {
   userId: string;
   lineId?: string | null;
+  /** The bill whose pot this entry is in; absent: free money (D-083). */
+  potLineId?: string | null;
   orderId?: string | null;
   kind: LedgerKind;
   amountMinor: bigint;
@@ -293,9 +295,9 @@ export interface LedgerInsert {
 export async function insertLedger(q: Q, e: LedgerInsert): Promise<boolean> {
   if (e.amountMinor === 0n) return false;
   const r = await q.query(
-    `INSERT INTO ledger_entries (user_id, line_id, order_id, kind, amount_minor, currency, idempotency_key, external_ref, actor)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (idempotency_key) DO NOTHING`,
-    [e.userId, e.lineId ?? null, e.orderId ?? null, e.kind, e.amountMinor, e.currency, e.idempotencyKey, e.externalRef ?? null, e.actor],
+    `INSERT INTO ledger_entries (user_id, line_id, order_id, kind, amount_minor, currency, idempotency_key, external_ref, actor, pot_line_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (idempotency_key) DO NOTHING`,
+    [e.userId, e.lineId ?? null, e.orderId ?? null, e.kind, e.amountMinor, e.currency, e.idempotencyKey, e.externalRef ?? null, e.actor, e.potLineId ?? null],
   );
   return r.rowCount === 1;
 }
@@ -471,29 +473,40 @@ export async function touchOrder(q: Q, id: string, patch: { next_check_at?: Date
   await q.query(`UPDATE orders SET ${sets}, updated_at = now() WHERE id = $1`, [id, ...keys.map((k) => patch[k])]);
 }
 
-/** The vend and fee entries for a delivered order, once, in the caller's transaction. */
+/**
+ * The vend and fee entries for a delivered order, once, in the caller's transaction. Each is drawn from the bill's pot
+ * first and the rest from free money (D-083); the first entry keeps the original key, a second one gets ":free".
+ */
 export async function writeVendEntries(tx: Tx, o: OrderRow, partnerRef: string): Promise<void> {
-  await insertLedger(tx, {
-    userId: o.user_id,
-    lineId: o.line_id,
-    orderId: o.id,
-    kind: "vend",
-    amountMinor: -o.amount_minor,
-    currency: o.currency,
-    idempotencyKey: vendLedgerKey(o.id),
-    externalRef: partnerRef,
-    actor: "worker",
-  });
-  await insertLedger(tx, {
-    userId: o.user_id,
-    lineId: o.line_id,
-    orderId: o.id,
-    kind: "fee",
-    amountMinor: -o.fee_minor,
-    currency: o.currency,
-    idempotencyKey: feeLedgerKey(o.id),
-    actor: "worker",
-  });
+  // Paid from stablecoins: their naira was credited to free money just for this order, so the pot isn't touched.
+  const pot =
+    o.funding === "stables"
+      ? 0n
+      : (await tx.query<{ s: bigint }>("SELECT COALESCE(SUM(amount_minor), 0)::bigint AS s FROM ledger_entries WHERE pot_line_id = $1", [o.line_id])).rows[0]!.s;
+  const vendDraw = splitDraw(o.amount_minor, pot);
+  const draw = { vend: vendDraw, fee: splitDraw(o.fee_minor, pot - vendDraw.fromPot) };
+  const write = async (kind: "vend" | "fee", key: string, d: { fromPot: bigint; fromFree: bigint }, ref: string | null) => {
+    const parts = [
+      { amount: d.fromPot, pot: o.line_id },
+      { amount: d.fromFree, pot: null },
+    ].filter((p) => p.amount > 0n);
+    for (const [i, p] of parts.entries()) {
+      await insertLedger(tx, {
+        userId: o.user_id,
+        lineId: o.line_id,
+        potLineId: p.pot,
+        orderId: o.id,
+        kind,
+        amountMinor: -p.amount,
+        currency: o.currency,
+        idempotencyKey: i === 0 ? key : `${key}:free`,
+        externalRef: ref,
+        actor: "worker",
+      });
+    }
+  };
+  await write("vend", vendLedgerKey(o.id), draw.vend, partnerRef);
+  await write("fee", feeLedgerKey(o.id), draw.fee, null);
 }
 
 // ── Funding ──────────────────────────────────────────────────────────────────

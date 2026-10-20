@@ -10,6 +10,8 @@ import { ProviderGrid } from "./ProviderPicker";
 import { useServer } from "./Server";
 import { useNotify } from "./Toast";
 import { StablesAutopay } from "./StablesAutopay";
+import { PotCard } from "./PotCard";
+import { feeForKind } from "@constant/rules";
 
 const PROVIDERS = [
   { id: "dstv", name: "DStv", digits: "10" },
@@ -218,6 +220,10 @@ export function CableDetail({ line, orders, onClose }: { line: ServerLine; order
         <div className="ap-warn" role="note">
           A payment for this bill needs a person to confirm it. Nothing more will be paid until we've checked. We'll message you.
         </div>
+      )}
+
+      {line.funding === "naira" && (
+        <PotCard lineId={line.id} label={line.nickname} potMinor={BigInt(line.potMinor)} needMinor={BigInt(line.capMinor) + feeForKind("tv")} />
       )}
 
       <dl className="ap-dl">

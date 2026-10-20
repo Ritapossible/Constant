@@ -78,6 +78,12 @@ import {
   revokeAllSessions,
   activeSessions,
   closeAccount,
+  potBalances,
+  potBalance,
+  freeBalance,
+  freeCommittedToOpenOrders,
+  movePot,
+  emptyPot,
   createTelegramLink,
   useTelegramLink,
   userByTelegramChat,
@@ -118,6 +124,7 @@ import {
   SESSION_MAX_DAYS,
   decideSession,
   monthlyRunAt,
+  decidePotMove,
 } from "@constant/rules";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
@@ -247,7 +254,9 @@ function maskedEmail(email: string): string {
 }
 const usd = (micro: bigint) => formatUnits6(micro);
 
-const lineView = (l: LineRow, readings: ReadingRow[] = []) => ({
+const lineView = (l: LineRow, readings: ReadingRow[] = [], pots: Map<string, bigint> = new Map()) => ({
+  /** Money set aside for this bill only (D-083). */
+  potMinor: (pots.get(l.id) ?? 0n).toString(),
   funding: l.funding,
   schedule: l.schedule,
   renewDay: l.renew_day,
@@ -478,12 +487,21 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         getMarket(d.db, u.market_code),
       ]);
       const readings = await recentReadings(d.db, lines.filter((l) => l.kind !== "tv").map((l) => l.id));
+      const [pots, free, freeCommitted] = await Promise.all([potBalances(d.db, u.id), freeBalance(d.db, u.id), freeCommittedToOpenOrders(d.db, u.id)]);
+      const inPots = [...pots.values()].reduce((a, b) => a + b, 0n);
       return {
         user: { id: u.id, displayName: u.display_name, email: u.email, phone: u.phone_e164, channels: u.channels, telegram: u.telegram_chat_id !== null },
         telegramBot: d.telegram ? d.telegram.botUsername : null,
-        balance: { currency: market.currency, ledgerMinor: sum.toString(), availableMinor: availableBalance(sum, committed).toString() },
+        balance: {
+          currency: market.currency,
+          ledgerMinor: sum.toString(),
+          availableMinor: availableBalance(sum, committed).toString(),
+          // Free money: not in any pot and not spoken for by a payment in progress. It can pay any bill or fill a pot.
+          freeMinor: (free - freeCommitted > 0n ? free - freeCommitted : 0n).toString(),
+          potsMinor: inPots.toString(),
+        },
         fundingAccount: account && { bankName: account.bank_name, accountNumber: account.account_number, accountName: account.account_name },
-        lines: lines.map((l) => lineView(l, readings)),
+        lines: lines.map((l) => lineView(l, readings, pots)),
         orders: orders.map((o) => orderView(o, d.secrets)),
         payments: enabled ? "on" : "paused",
         cardTopUps: Boolean(d.checkout),
@@ -606,7 +624,8 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     v1.get("/lines", async (req) => {
       const lines = await listLines(d.db, req.user.id);
       const readings = await recentReadings(d.db, lines.filter((l) => l.kind !== "tv").map((l) => l.id));
-      return lines.map((l) => lineView(l, readings));
+      const pots = await potBalances(d.db, req.user.id);
+      return lines.map((l) => lineView(l, readings, pots));
     });
 
     v1.get("/data-plans", async (req) => {
@@ -774,7 +793,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       if (!line || line.status === "cancelled") throw new HttpError(404, "not_found", "No such bill");
       return line;
     };
-    const viewOf = async (line: LineRow) => lineView(line, await recentReadings(d.db, [line.id]));
+    const viewOf = async (line: LineRow) => lineView(line, await recentReadings(d.db, [line.id]), new Map([[line.id, await potBalance(d.db, line.id)]]));
 
     v1.post("/lines", async (req, reply) => {
       const b = json(req);
@@ -947,11 +966,66 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       },
     );
 
+    /**
+     * Set money aside for one bill, or move it back (D-083). Body: direction "in" | "out", amountMinor. A pot pays only
+     * its own bill; it can't be emptied while that bill's payment is in progress.
+     */
+    v1.post(
+      "/lines/:id/pot",
+      { config: { rateLimit: { max: 30, timeWindow: "1 minute", keyGenerator: (req: FastifyRequest) => req.headers.authorization ?? req.ip } } },
+      async (req) => {
+        const line = await ownBill(req);
+        if (line.kind === "subscription" || line.currency !== "NGN") throw bad("invalid", "Pots hold naira for bills ConstantUnits pays");
+        const b = json(req);
+        if (b.direction !== "in" && b.direction !== "out") throw bad("invalid", "direction must be in or out");
+        const amount = minor(b.amountMinor, "amountMinor");
+        const result = await withTx(d.db, async (tx) => {
+          await lockUser(tx, req.user.id);
+          const pot = await potBalance(tx, line.id);
+          const free = (await freeBalance(tx, req.user.id)) - (await freeCommittedToOpenOrders(tx, req.user.id));
+          const decision = decidePotMove({
+            direction: b.direction as "in" | "out",
+            amountMinor: amount,
+            freeAvailableMinor: free,
+            potMinor: pot,
+            billOpen: line.status !== "cancelled",
+            paymentInProgress: await hasOpenOrder(tx, line.id),
+          });
+          if (decision.kind === "refuse") return decision;
+          await movePot(tx, {
+            userId: req.user.id,
+            lineId: line.id,
+            amountMinor: b.direction === "in" ? decision.amountMinor : -decision.amountMinor,
+            currency: line.currency,
+            key: `ledger:pot:${randomUUID()}`,
+            actor: "user",
+          });
+          return { kind: "moved" as const };
+        });
+        if (result.kind === "refuse") {
+          const msg = {
+            non_positive: "Enter an amount",
+            not_enough_free: "There isn't that much free money. Add money first.",
+            not_enough_in_pot: "There isn't that much in this pot.",
+            payment_in_progress: "This bill is being paid right now. Try again in a few minutes.",
+            bill_closed: "This bill was removed.",
+          }[result.reason];
+          throw new HttpError(result.reason === "payment_in_progress" ? 409 : 400, result.reason, msg);
+        }
+        return viewOf((await getLine(d.db, line.id))!);
+      },
+    );
+
     v1.delete("/lines/:id", async (req, reply) => {
       const { id } = req.params as { id: string };
       const line = await ownBill(req);
       if (await hasOpenOrder(d.db, id)) throw new HttpError(409, "in_flight", "A renewal is in progress. Try again in a few minutes.");
-      await updateLine(d.db, id, { status: "cancelled", next_run_at: null });
+      await withTx(d.db, async (tx) => {
+        await lockUser(tx, req.user.id);
+        await updateLine(tx, id, { status: "cancelled", next_run_at: null });
+        // What was set aside for this bill goes back to free money (D-083).
+        await emptyPot(tx, req.user.id, id, line.currency, "user");
+      });
       for (const perm of await livePermissions(d.db, id)) await updatePermission(d.db, perm.id, perm.status === "signed" ? { status: "revoked" } : { status: "revoke_pending", tx_hash: null, tx_raw: null });
       return reply.status(204).send();
     });
@@ -1012,11 +1086,10 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       const account = await getPayoutAccount(d.db, req.user.id);
       const result = await withTx(d.db, async (tx) => {
         await lockUser(tx, req.user.id);
-        const sum = await ledgerSum(tx, req.user.id);
-        const committed = await committedToOpenOrders(tx, req.user.id);
+        // Only free money can be withdrawn: a pot is for its bill until it's moved back (D-083).
         const decision = decideWithdrawal({
-          balanceMinor: sum,
-          committedMinor: committed,
+          balanceMinor: await freeBalance(tx, req.user.id),
+          committedMinor: await freeCommittedToOpenOrders(tx, req.user.id),
           amountMinor: amount,
           payoutVerified: Boolean(account && payoutAccountUsable(account.updated_at, now())),
           payoutsEnabled: await flag(tx, "payouts_enabled"),

@@ -37,6 +37,8 @@ export type Line = {
   variationCode?: string | null;
   setupNeeded?: "bundle" | null;
   nextRunAt?: string | null;
+  /** On the server: money set aside for this bill only (D-083). */
+  potMinor?: string;
 };
 
 export type Channel = "whatsapp" | "telegram" | "sms" | "email";

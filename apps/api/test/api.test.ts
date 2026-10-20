@@ -58,7 +58,7 @@ describe("auth", () => {
     const r = await call("GET", "/v1/me", "did:privy:alice");
     expect(r.statusCode).toBe(200);
     expect(r.json().user.email).toBe("alice@example.com");
-    expect(r.json().balance).toEqual({ currency: "NGN", ledgerMinor: "0", availableMinor: "0" });
+    expect(r.json().balance).toEqual({ currency: "NGN", ledgerMinor: "0", availableMinor: "0", freeMinor: "0", potsMinor: "0" });
     expect(r.json().payments).toBe("paused");
   });
 

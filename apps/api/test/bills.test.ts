@@ -278,6 +278,50 @@ describe("closing an account (D-081)", () => {
   });
 });
 
+describe("pots (D-083)", () => {
+  const who = "did:privy:pots";
+  const fund = async (amount: bigint, key: string) => {
+    const { id } = (await db.query("SELECT id FROM users WHERE privy_did = $1", [who])).rows[0];
+    await db.query("INSERT INTO ledger_entries (user_id, kind, amount_minor, currency, idempotency_key, actor) VALUES ($1, 'fund', $2, 'NGN', $3, 'test')", [id, amount, key]);
+  };
+
+  it("moves free money into a bill's pot and back, never more than is there", async () => {
+    clock = START;
+    await call("GET", "/v1/me", who);
+    await fund(500_000n, "test:potfund");
+    const line = (await call("POST", "/v1/lines", who, { kind: "airtime", provider: "mtn", ref: "08037770001", amountMinor: "100000", renewDay: 5 })).json();
+
+    const into = await call("POST", `/v1/lines/${line.id}/pot`, who, { direction: "in", amountMinor: "200000" });
+    expect(into.json().potMinor).toBe("200000");
+    let me = (await call("GET", "/v1/me", who)).json();
+    expect(me.balance).toMatchObject({ ledgerMinor: "500000", freeMinor: "300000", potsMinor: "200000" });
+
+    expect((await call("POST", `/v1/lines/${line.id}/pot`, who, { direction: "in", amountMinor: "300001" })).json().error).toBe("not_enough_free");
+    expect((await call("POST", `/v1/lines/${line.id}/pot`, who, { direction: "out", amountMinor: "200001" })).json().error).toBe("not_enough_in_pot");
+    expect((await call("POST", `/v1/lines/${line.id}/pot`, who, { direction: "out", amountMinor: "50000" })).json().potMinor).toBe("150000");
+
+    // A payment in progress keeps its pot.
+    const { user_id } = (await db.query("SELECT user_id FROM lines WHERE id = $1", [line.id])).rows[0];
+    await db.query(
+      `INSERT INTO orders (user_id, line_id, trigger, state, amount_minor, fee_minor, currency, idempotency_key, partner, receipt_id)
+       VALUES ($1, $2, 'scheduled', 'vending', 100000, 3000, 'NGN', 'k-pot', 'fake', 'r-pot')`,
+      [user_id, line.id],
+    );
+    expect((await call("POST", `/v1/lines/${line.id}/pot`, who, { direction: "out", amountMinor: "1" })).statusCode).toBe(409);
+    await db.query("UPDATE orders SET state = 'failed' WHERE idempotency_key = 'k-pot'");
+
+    // Removing the bill returns its pot to free money; the total never changes.
+    expect((await call("DELETE", `/v1/lines/${line.id}`, who)).statusCode).toBe(204);
+    me = (await call("GET", "/v1/me", who)).json();
+    expect(me.balance).toMatchObject({ ledgerMinor: "500000", freeMinor: "500000", potsMinor: "0" });
+  });
+
+  it("someone else's bill can't be used", async () => {
+    const line = (await call("POST", "/v1/lines", who, { kind: "airtime", provider: "glo", ref: "08057770001", amountMinor: "100000", renewDay: 5 })).json();
+    expect((await call("POST", `/v1/lines/${line.id}/pot`, "did:privy:stranger", { direction: "in", amountMinor: "1000" })).statusCode).toBe(404);
+  });
+});
+
 describe("Telegram (D-082)", () => {
   const who = "did:privy:tg";
   const update = (chatId: number, text: string, secret = TG_SECRET) =>

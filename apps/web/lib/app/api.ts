@@ -4,6 +4,8 @@ export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, ""
 
 export type ServerLine = {
   id: string;
+  /** Money set aside for this bill only (D-083), in kobo. */
+  potMinor: string;
   funding: "naira" | "stables";
   kind: "tv" | "data" | "airtime" | "electricity" | "subscription";
   /** dstv, gotv, startimes; mtn, airtel, glo, 9mobile; ikedc…; chatgpt… */
@@ -53,7 +55,8 @@ export type Me = {
   user: { id: string; displayName: string | null; email: string | null; phone: string | null; channels: ("whatsapp" | "telegram" | "sms" | "email")[]; telegram: boolean };
   /** The bot's username when Telegram is on (D-082); null when it isn't. */
   telegramBot: string | null;
-  balance: { currency: "NGN"; ledgerMinor: string; availableMinor: string };
+  /** freeMinor: not in a pot and not held for a payment in progress. potsMinor: everything set aside for bills (D-083). */
+  balance: { currency: "NGN"; ledgerMinor: string; availableMinor: string; freeMinor: string; potsMinor: string };
   fundingAccount: { bankName: string; accountNumber: string; accountName: string } | null;
   lines: ServerLine[];
   orders: ServerOrder[];

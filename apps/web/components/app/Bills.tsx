@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
-import { MIN_AUTOPAY_MINOR } from "@constant/rules";
+import { MIN_AUTOPAY_MINOR, feeForKind } from "@constant/rules";
 import { feeNote } from "@/lib/pricing";
 import { KINDS, PROVIDERS, QUICK_AMOUNTS, REF_LABEL, UNIT, isUsageKind, isUsageLine, maskRef, networkFor, validateRef, type Kind, type MeterType } from "@/lib/app/catalog";
 import { formatDay, formatMoney, toMinor, type Currency } from "@/lib/app/format";
@@ -14,6 +14,7 @@ import { Field } from "./Field";
 import { KindIcon } from "./KindIcon";
 import { ProviderLogo } from "./ProviderLogo";
 import { NetworkPicker, ProviderGrid } from "./ProviderPicker";
+import { PotCard } from "./PotCard";
 import type { Store } from "./Shell";
 import { useServer } from "./Server";
 import { Sheet } from "./Sheet";
@@ -121,6 +122,7 @@ export function Bills({ store }: { store: Store }) {
                   <span className="ap-row-right">
                     <span className="mono">{t.right}</span>
                     <small>{formatMoney(BigInt(l.amountMinor), l.currency)}</small>
+                    {l.potMinor && BigInt(l.potMinor) > 0n && <small>{formatMoney(BigInt(l.potMinor), "NGN")} set aside</small>}
                   </span>
                 </button>
               </li>
@@ -911,6 +913,15 @@ function BillDetail({ line, store, orders, onDelete }: { line: Line; store: Stor
             Copy token
           </button>
         </section>
+      )}
+
+      {line.onServer && line.currency === "NGN" && line.kind !== "subscription" && line.kind !== "tv" && (
+        <PotCard
+          lineId={line.id}
+          label={line.nickname}
+          potMinor={BigInt(line.potMinor ?? "0")}
+          needMinor={line.setupNeeded ? null : BigInt(line.amountMinor) + feeForKind(line.kind)}
+        />
       )}
 
       <dl className="ap-dl">

@@ -6,7 +6,9 @@
  */
 import { render, type NoticeKind } from "@constant/copy";
 import {
-  committedToOpenOrders,
+  freeBalance,
+  freeCommittedToOpenOrders,
+  potBalance,
   claimNotice,
   claimableOrderIds,
   dueLineIds,
@@ -17,7 +19,6 @@ import {
   getUser,
   hasOpenOrder,
   insertOrder,
-  ledgerSum,
   lockLine,
   lockOrder,
   lockUser,
@@ -45,7 +46,7 @@ import {
   DEFAULT_MIN_DAYS_BETWEEN_RENEWALS,
   MONTHLY_MIN_DAYS_BETWEEN_PAYMENTS,
   USAGE_MIN_DAYS_BETWEEN_TOPUPS,
-  availableBalance,
+  availableForBill,
   decideRenewal,
   nextDueAfter,
   nextMonthlyRunAt,
@@ -165,7 +166,12 @@ async function renewLine(d: Deps, lineId: string): Promise<boolean> {
       quote,
       capMinor: line.cap_minor,
       feeMinor: await feeForLine(tx, market.code, line),
-      availableMinor: availableBalance(await ledgerSum(tx, user.id), await committedToOpenOrders(tx, user.id)),
+      // Its own pot plus free money nothing else has claimed; never another bill's pot (D-083).
+      availableMinor: availableForBill({
+        potMinor: await potBalance(tx, line.id),
+        freeMinor: await freeBalance(tx, user.id),
+        freeCommittedMinor: await freeCommittedToOpenOrders(tx, user.id),
+      }),
       hasOpenOrder: await hasOpenOrder(tx, line.id),
       lastRenewedAt: line.last_renewed_at,
       minDaysBetweenRenewals: line.schedule === "usage" ? USAGE_MIN_DAYS_BETWEEN_TOPUPS : line.schedule === "monthly" ? MONTHLY_MIN_DAYS_BETWEEN_PAYMENTS : DEFAULT_MIN_DAYS_BETWEEN_RENEWALS,

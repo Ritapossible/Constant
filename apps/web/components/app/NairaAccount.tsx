@@ -74,7 +74,12 @@ export function NairaAccount() {
         <span className="ap-hero-num" style={{ color: "var(--ink)" }} aria-live="polite">
           {formatMoney(available, "NGN")}
         </span>
-        {held > 0n && <p className="ap-muted">{formatMoney(held, "NGN")} is set aside for a renewal in progress.</p>}
+        {BigInt(me.balance.potsMinor) > 0n && (
+          <p className="ap-muted">
+            {formatMoney(BigInt(me.balance.potsMinor), "NGN")} set aside in bill pots · {formatMoney(BigInt(me.balance.freeMinor), "NGN")} free
+          </p>
+        )}
+        {held > 0n && <p className="ap-muted">{formatMoney(held, "NGN")} is being used for a payment in progress.</p>}
       </div>
 
       {acct ? (

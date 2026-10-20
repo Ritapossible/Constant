@@ -2,7 +2,7 @@
  * Data, airtime and electricity on the server (D-079): monthly bills, top-ups when a line is reported low,
  * the weekly cap, data bundle prices, and electricity tokens (encrypted, sent only to the owner).
  */
-import { Secrets, freshDatabase, insertLedger, insertLine, ledgerSum, setChannels, setVendingEnabled, testKeyB64, upsertUser, type Db, type NewLine } from "@constant/db";
+import { Secrets, freeBalance, freshDatabase, insertLedger, insertLine, ledgerSum, movePot, potBalance, withTx, setChannels, setVendingEnabled, testKeyB64, upsertUser, type Db, type NewLine } from "@constant/db";
 import { FakeCableVending, FakeMessaging } from "@constant/partners";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { CHECK_BACKOFF_MIN, clearPlanCache, processOrders, scanRenewals, sendNotices, silentLog, type Deps } from "../src/index.js";
@@ -225,6 +225,36 @@ describe("usage top-ups", () => {
     expect(await scanRenewals(deps)).toBe(0);
     expect((await noticeRows(u.id)).map((x) => x.kind)).toContain("weekly_cap");
     expect(vending.calls.vend).toHaveLength(2);
+  });
+});
+
+describe("pots (D-083)", () => {
+  it("a bill is paid from its own pot first, then free money, and the totals still add up", async () => {
+    const u = await user(300_000n); // ₦3,000
+    const l = await line(u.id, { kind: "airtime", provider: "mtn", schedule: "monthly", renewDay: 5, amountMinor: 200_000n }, "08039990001");
+    await withTx(db, (tx) => movePot(tx, { userId: u.id, lineId: l.id, amountMinor: 150_000n, currency: "NGN", key: "test:pot1", actor: "test" }));
+    expect(await potBalance(db, l.id)).toBe(150_000n);
+    expect(await ledgerSum(db, u.id)).toBe(300_000n);
+
+    await scanRenewals(deps);
+    await processOrders(deps);
+    // ₦2,000 + ₦30 fee: ₦1,500 from the pot, ₦530 from free money.
+    expect(await potBalance(db, l.id)).toBe(0n);
+    expect(await freeBalance(db, u.id)).toBe(300_000n - 150_000n - 53_000n);
+    expect(await ledgerSum(db, u.id)).toBe(300_000n - 203_000n);
+  });
+
+  it("money in one bill's pot never pays another bill", async () => {
+    const u = await user(300_000n);
+    const saved = await line(u.id, { kind: "electricity", provider: "ikedc", schedule: "monthly", renewDay: 20, amountMinor: 300_000n, meterType: "prepaid", nextRunAt: null }, "45099990001");
+    await withTx(db, (tx) => movePot(tx, { userId: u.id, lineId: saved.id, amountMinor: 250_000n, currency: "NGN", key: "test:pot2", actor: "test" }));
+    const other = await line(u.id, { kind: "airtime", provider: "glo", schedule: "monthly", renewDay: 5, amountMinor: 100_000n }, "08059990001");
+    // ₦3,000 in the account, but only ₦500 is free: the ₦1,000 airtime is not paid.
+    expect(await scanRenewals(deps)).toBe(0);
+    expect(vending.calls.vend).toHaveLength(0);
+    expect((await noticeRows(u.id)).map((x) => x.kind)).toContain("insufficient");
+    expect(await potBalance(db, saved.id)).toBe(250_000n);
+    void other;
   });
 });
 
