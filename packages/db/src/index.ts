@@ -13,3 +13,4 @@ export * from "./bridges.js";
 export * from "./topups.js";
 export * from "./sessions.js";
 export * from "./closure.js";
+export * from "./telegram.js";

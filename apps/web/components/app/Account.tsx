@@ -107,6 +107,7 @@ export function Account({ user, store }: { user: User; store: Store }) {
           })}
         </div>
         {channels.length === 0 && <p className="ap-hint">Nothing selected: tokens will come by SMS.</p>}
+        {server.me?.telegramBot && <TelegramConnect />}
       </section>
 
       <section className="ap-card" aria-labelledby="wallet-title">
@@ -499,5 +500,73 @@ function CloseAccount({ user }: { user: User }) {
         </form>
       )}
     </section>
+  );
+}
+
+/** Connect a Telegram chat (D-082): a one-time link opens the bot, which confirms in the chat. */
+function TelegramConnect() {
+  const server = useServer();
+  const notify = useNotify();
+  const linked = Boolean(server.me?.user.telegram);
+  const [url, setUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  if (linked) {
+    return (
+      <div className="ap-row ap-row-flat">
+        <span className="ap-row-main">
+          <b>Telegram connected</b>
+          <small>Send STOP in the chat to pause every bill, START to resume.</small>
+        </span>
+        <button
+          className="btn btn-ghost btn-sm"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await server.call("/v1/telegram", { method: "DELETE" });
+              await server.reload();
+              notify("Telegram disconnected");
+            } catch (e) {
+              notify((e as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Disconnect
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="ap-row ap-row-flat">
+      <span className="ap-row-main">
+        <b>Get tokens on Telegram</b>
+        <small>{url ? "Tap Open, then Start in Telegram. The link works once, for 15 minutes." : "Receipts and tokens in a chat with the ConstantUnits bot."}</small>
+      </span>
+      {url ? (
+        <a className="btn btn-primary btn-sm" href={url} target="_blank" rel="noopener noreferrer">
+          Open Telegram
+        </a>
+      ) : (
+        <button
+          className="btn btn-ghost btn-sm"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              setUrl((await server.call<{ url: string }>("/v1/telegram/link", { method: "POST" })).url);
+            } catch (e) {
+              notify((e as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Connect
+        </button>
+      )}
+    </div>
   );
 }

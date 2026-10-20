@@ -1,6 +1,6 @@
 import { BasePermissionChain, CctpBridge, EvmPermissionChain, FakeAnchorer, StellarAnchorer, ViemReader, evmAddress, type Anchorer, type EvmReader } from "@constant/chains";
 import { Secrets, createPool, keysFromEnv, type Db } from "@constant/db";
-import { CircleScreener, FakeCableVending, FakeMessaging, HttpMessaging, PaycrestRates, PaycrestSender, Paystack, Vtpass, type CableVending, type Messaging, type Payouts } from "@constant/partners";
+import { CircleScreener, FakeCableVending, FakeMessaging, HttpMessaging, PaycrestRates, PaycrestSender, Paystack, Telegram, Vtpass, withTelegram, type CableVending, type Messaging, type Payouts } from "@constant/partners";
 import type { OfframpDeps } from "./offramp.js";
 import type { Hex } from "viem";
 import type { DollarDeps } from "./dollars.js";
@@ -29,9 +29,11 @@ export function fromEnv(env: NodeJS.ProcessEnv = process.env): { db: Db; vending
           ...(env.RESEND_API_KEY ? { resend: { apiKey: env.RESEND_API_KEY, from: need(env, "EMAIL_FROM"), ...(env.EMAIL_REPLY_TO ? { replyTo: env.EMAIL_REPLY_TO } : {}) } } : {}),
           ...(env.TERMII_API_KEY ? { termii: { apiKey: env.TERMII_API_KEY, senderId: env.TERMII_SENDER_ID ?? "ConstUnits", ...(env.TERMII_BASE_URL ? { baseUrl: env.TERMII_BASE_URL } : {}) } } : {}),
         });
+  // Telegram (D-082) works alongside real or fake email and SMS, so it can be used before an email domain exists.
+  const messagingWithTelegram = env.TELEGRAM_BOT_TOKEN ? withTelegram(messaging, new Telegram({ botToken: env.TELEGRAM_BOT_TOKEN })) : messaging;
   // Withdrawals go out through Paystack transfers when its key is set (still gated by payouts_enabled).
   const payouts = env.PAYSTACK_SECRET_KEY ? new Paystack({ secretKey: env.PAYSTACK_SECRET_KEY, preferredBank: env.PAYSTACK_PREFERRED_BANK ?? "wema-bank" }) : undefined;
-  return { db, vending, messaging, secrets: new Secrets(keysFromEnv(env)), fallbackPhone: need(env, "VEND_FALLBACK_PHONE"), ...(payouts ? { payouts } : {}) };
+  return { db, vending, messaging: messagingWithTelegram, secrets: new Secrets(keysFromEnv(env)), fallbackPhone: need(env, "VEND_FALLBACK_PHONE"), ...(payouts ? { payouts } : {}) };
 }
 
 /**

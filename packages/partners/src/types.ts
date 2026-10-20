@@ -138,7 +138,7 @@ export interface Checkout {
   parseCheckout(rawBody: string): CheckoutResult | null;
 }
 
-export type MessageChannel = "email" | "sms";
+export type MessageChannel = "email" | "sms" | "telegram";
 
 export interface Messaging {
   readonly channels: readonly MessageChannel[];

@@ -108,6 +108,25 @@ number from the API.
 - **Paystack** (Settings → API Keys & Webhooks, *test* mode): webhook URL `https://<your-api>/webhooks/paystack`.
 - **VTpass** sandbox callback: `https://<your-api>/webhooks/vtpass/<VTPASS_WEBHOOK_TOKEN>`.
 
+## Telegram (works before you have an email domain)
+
+1. In Telegram, open **@BotFather** → `/newbot`. Name: `ConstantUnits`. Username: e.g. `ConstantUnitsBot` (must end in
+   `bot`). BotFather gives you a **token**: treat it like a password.
+2. Optional, in BotFather: `/setdescription`, `/setuserpic` (use `brand/out/avatar-400.png`).
+3. **API** project in Pxxl, add:
+
+| Name | Value |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | the token from BotFather |
+| `TELEGRAM_BOT_USERNAME` | the bot's username, without @ |
+| `TELEGRAM_WEBHOOK_SECRET` | a new random string, letters and numbers only (`openssl rand -hex 32`) |
+| `API_PUBLIC_URL` | `https://constant.pxxlspace.cv` |
+
+4. **Worker** project: add `TELEGRAM_BOT_TOKEN` (the same token).
+5. Redeploy both. The API's log shows `telegram webhook set`.
+6. In the app: Account → Where tokens and receipts go → **Connect** → **Open Telegram** → Start. The bot replies
+   "Connected". Send `STOP` and `START` to try them.
+
 ## 7. Check it works
 
 - `https://<your-api>/health` → `{"ok":true}`.

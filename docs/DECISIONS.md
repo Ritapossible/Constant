@@ -426,3 +426,11 @@ When the VTpass balance drops below `FLOAT_LOW_NGN`, charged USDC on the spender
 - **No cookie banner:** the app stores only what it needs to work and has no analytics or advertising. Adding any would need a banner first.
 - **Closing an account:** in the app, after typing DELETE. Refused while money is left or moving, and while stablecoins sit in the ConstantUnits wallet (closing deletes it with the sign-in). Erases identifying data, keeps the money record without it for five years, cuts the sign-in link, and detaches the account number so a later transfer is held for a person rather than credited to a closed account. Details: docs/LEGAL.md.
 - **Business details:** shown from `NEXT_PUBLIC_LEGAL_NAME` and `NEXT_PUBLIC_LEGAL_ADDRESS` once the company is registered; until then the pages say they will be published before payments open.
+
+### D-082 Telegram for tokens and receipts, STOP and START; SMS backs up tokens — *founder's request, 2026-10-20*
+- **Why:** the website promises tokens "where you already are" and "send STOP". Telegram bots are free and need no business verification, so it is the first chat channel; WhatsApp follows Meta's business verification.
+- **Linking:** Account → Connect makes a one-time code (15 minutes, single use) and opens `t.me/<bot>?start=<code>`. Only that code links a chat, so nobody can attach someone else's account; a chat belongs to one account at a time. Connecting puts Telegram first in the person's channel order; disconnecting removes it.
+- **Webhook:** `/webhooks/telegram`, checked against `X-Telegram-Bot-Api-Secret-Token` in constant time and stored raw like every webhook. The API registers it at start when `API_PUBLIC_URL` is set.
+- **STOP** pauses every active bill (marked `paused_by = 'stop'`); **START** resumes only those, monthly bills on their next day, never a missed one. Bills the person paused in the app stay paused. Telegram's automatic `/start` only greets.
+- **Delivery:** the worker sends on the first channel in the person's order that works today (Telegram, email, SMS). An electricity token sent anywhere but SMS is also sent by SMS when a number and SMS are available.
+- **Still to build for the website's promises:** WhatsApp (Meta verification), pots per bill, phone sign-in (Privy SMS for Nigeria, or our own OTP), reading the data balance and meter (the Android app).

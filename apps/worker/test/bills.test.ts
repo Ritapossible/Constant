@@ -240,6 +240,28 @@ describe("messages", () => {
     expect(messaging.sent[0]).toMatchObject({ channel: "sms", to: "+2348031234567" }); // WhatsApp isn't connected yet
   });
 
+  it("go to the linked Telegram chat, and an electricity token is also sent by SMS as the backup", async () => {
+    const tgSent: { chatId: string; text: string }[] = [];
+    const tg = { channels: [...messaging.channels, "telegram"] as const, send: async (channel: string, to: string, subject: string, text: string) => {
+      if (channel === "telegram") {
+        tgSent.push({ chatId: to, text });
+        return { providerId: "tg" };
+      }
+      return messaging.send(channel as "email" | "sms", to, subject, text);
+    } };
+    const u = await upsertUser(db, { privyDid: "did:privy:tgworker", email: "t@example.com", phoneE164: "+2348031230000" });
+    await db.query("UPDATE users SET telegram_chat_id = '4242', channels = '{telegram,sms}' WHERE id = $1", [u.id]);
+    await insertLedger(db, { userId: u.id, kind: "fund", amountMinor: 2_000_000n, currency: "NGN", idempotencyKey: "test:tgfund", actor: "test" });
+    await line(u.id, { kind: "electricity", provider: "ikedc", schedule: "monthly", renewDay: 5, amountMinor: 500_000n, meterType: "prepaid" }, "45012349999");
+    await scanRenewals(deps);
+    await processOrders(deps);
+    await sendNotices({ ...deps, messaging: tg as unknown as Deps["messaging"] });
+    expect(tgSent).toHaveLength(1);
+    expect(tgSent[0]).toMatchObject({ chatId: "4242" });
+    expect(tgSent[0]!.text).toContain("1234-5678-9012-3456-7890");
+    expect(messaging.sent).toEqual([expect.objectContaining({ channel: "sms", to: "+2348031230000" })]);
+  });
+
   it("subscriptions are tracked, never paid", async () => {
     const u = await user();
     await line(u.id, { kind: "subscription", provider: "chatgpt", schedule: "none", currency: "USD", capMinor: 2_000n, nextRunAt: T0 }, "a@example.com");

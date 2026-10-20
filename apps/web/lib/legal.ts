@@ -48,6 +48,12 @@ export const SERVICES: Service[] = [
     data: "Your email address and the message",
   },
   {
+    name: "Telegram",
+    where: "Telegram · United Arab Emirates",
+    why: "Sending you receipts, tokens and reminders, and taking STOP and START, if you connect it",
+    data: "Your Telegram chat ID and the messages between you and the ConstantUnits bot",
+  },
+  {
     name: "Termii",
     where: "Termii · Nigeria",
     why: "Sending you receipts, tokens and reminders by SMS, when SMS is on",

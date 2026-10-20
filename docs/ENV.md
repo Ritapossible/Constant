@@ -38,6 +38,8 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | `PAYSTACK_SECRET_KEY` | Naira accounts, webhook signatures | Paystack → Settings → API Keys |
 | ☐ | `PAYSTACK_PREFERRED_BANK` | Naira accounts | `test-bank` in test; `wema-bank` or `titan-paystack` live |
 | ☐ | `SESSION_IDLE_DAYS`, `SESSION_MAX_DAYS` (optional) | Sign-in sessions (D-080) | Defaults `7` and `30`; leave unset |
+| ☐ | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET` (optional) | Telegram tokens, receipts, STOP and START (D-082) | From @BotFather; the username without @; any random letters-and-numbers string of 32+ characters |
+| ☐ | `API_PUBLIC_URL` (optional) | Registers the Telegram webhook at start | This API's public address, e.g. `https://constant.pxxlspace.cv` |
 | ☐ | `CARD_TOPUPS` (optional) | Card, USSD and QR top-ups (D-075) | `true` to open them; off by default. Same Paystack key and webhook |
 | ☐ | `TOPUP_CALLBACK_URL` (optional) | Where Paystack sends people back | Default: the first `WEB_ORIGINS` + `/app` |
 | ☐ | `FUNDING_EMAIL_DOMAIN` (optional) | Phone-only users at Paystack | Default `users.constant.ng` |
@@ -74,6 +76,7 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | `FLOAT_MARGIN_NGN` (optional) | Naira kept at VTpass beyond each order | Default `50000` |
 | ☐ | `SWEEP_MIN_USD` (optional) | Sweep threshold | Default `50` |
 | ☐ | `BASE_CONFIRMATIONS` (optional) | Charge safety | Default `5` |
+| ☐ | `TELEGRAM_BOT_TOKEN` (optional) | Messages on Telegram (D-082) | The same bot token as the API |
 | ☐ | `OPS_EMAIL` | Alerts emailed to a person | Your ops inbox (needs `RESEND_API_KEY`) |
 | ☐ | `PAYSTACK_SECRET_KEY`, `PAYSTACK_PREFERRED_BANK` | Withdrawals (still off until `payouts_enabled`) | Same as the API |
 | ☐ | `PAYCREST_API_KEY`, `PAYCREST_API_SECRET` | Off-ramp: charged USDC → naira float | Paycrest Sender Dashboard |

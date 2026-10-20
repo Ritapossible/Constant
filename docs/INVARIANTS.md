@@ -131,3 +131,4 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 90 | An electricity token is stored only encrypted, sent only to the line's owner and shown only to them; it is never written to a log or a notice's stored parameters. | worker · api |
 | 91 | A session unused for 7 days or older than 30 is refused, stays refused, and can't be used by another account; signing out ends it on the server. | rules (property) · api |
 | 92 | An account closes only with a zero balance and nothing in flight; closing erases identifying data and the sign-in link but never a ledger entry, and money sent to a closed account's old number is never credited to it. | api |
+| 93 | A Telegram chat is linked to an account only by a single-use code under 15 minutes old made by that signed-in account; STOP pauses every active bill and START resumes only what STOP paused, never on a missed day. | api |

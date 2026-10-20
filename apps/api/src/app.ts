@@ -78,6 +78,12 @@ import {
   revokeAllSessions,
   activeSessions,
   closeAccount,
+  createTelegramLink,
+  useTelegramLink,
+  userByTelegramChat,
+  unlinkTelegram,
+  stopAllLines,
+  linesPausedByStop,
   type ReadingRow,
   updateLine,
   upsertUser,
@@ -90,6 +96,7 @@ import {
   type Secrets,
   type UserRow,
 } from "@constant/db";
+import { parseTelegramUpdate, type Telegram } from "@constant/partners";
 import type { CableProvider, CableVending, Checkout, CheckoutResult, DataPlan, Funding, Identity, MeterType, Payouts, RateSource, StableSymbol } from "@constant/partners";
 import {
   TOPUP_MAX_MINOR,
@@ -112,7 +119,7 @@ import {
   decideSession,
   monthlyRunAt,
 } from "@constant/rules";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { registerOps } from "./ops.js";
 
@@ -131,6 +138,8 @@ export interface ApiDeps {
   fundingEmailDomain: string;
   now?: () => Date;
   logger?: boolean;
+  /** Telegram bot (D-082): linking, and STOP / START. Absent: the routes answer 503 and the webhook 404. */
+  telegram?: { client: Pick<Telegram, "sendMessage">; botUsername: string; webhookSecret: string };
   /** Sign-in sessions end after this many days unused, or this many days after sign-in (D-080). */
   sessions?: { idleDays: number; maxDays: number };
   /** Paycrest off-ramp webhooks (D-068). Absent: the route answers 404. */
@@ -422,6 +431,23 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       },
     );
 
+    /** A one-time link that opens the bot and connects this account's messages to that Telegram chat (D-082). */
+    v1.post(
+      "/telegram/link",
+      { config: { rateLimit: { max: 5, timeWindow: "1 minute", keyGenerator: (req: FastifyRequest) => req.headers.authorization ?? req.ip } } },
+      async (req) => {
+        if (!d.telegram) throw new HttpError(503, "telegram_off", "Telegram isn't connected yet.");
+        const code = randomBytes(18).toString("base64url");
+        await createTelegramLink(d.db, req.user.id, code, now());
+        return { url: `https://t.me/${d.telegram.botUsername}?start=${code}` };
+      },
+    );
+
+    v1.delete("/telegram", async (req, reply) => {
+      await unlinkTelegram(d.db, req.user.id);
+      return reply.status(204).send();
+    });
+
     /** Sign out here: this session's tokens are refused from now on, whatever the identity provider says. */
     v1.post("/session/end", async (req, reply) => {
       if (req.sid) await revokeSession(d.db, req.sid, "signed_out", now());
@@ -453,7 +479,8 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       ]);
       const readings = await recentReadings(d.db, lines.filter((l) => l.kind !== "tv").map((l) => l.id));
       return {
-        user: { id: u.id, displayName: u.display_name, email: u.email, phone: u.phone_e164, channels: u.channels },
+        user: { id: u.id, displayName: u.display_name, email: u.email, phone: u.phone_e164, channels: u.channels, telegram: u.telegram_chat_id !== null },
+        telegramBot: d.telegram ? d.telegram.botUsername : null,
         balance: { currency: market.currency, ledgerMinor: sum.toString(), availableMinor: availableBalance(sum, committed).toString() },
         fundingAccount: account && { bankName: account.bank_name, accountNumber: account.account_number, accountName: account.account_name },
         lines: lines.map((l) => lineView(l, readings)),
@@ -819,6 +846,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         if (b.status !== "active" && b.status !== "paused") throw bad("invalid", "status must be active or paused");
         if (line.status === "frozen") throw new HttpError(409, "frozen", "This bill is paused while we check a payment. We'll message you.");
         patch.status = b.status;
+        patch.paused_by = b.status === "paused" ? "user" : null;
       }
       await updateLine(d.db, id, patch);
       return lineView((await getLine(d.db, id, req.user.id))!);
@@ -873,6 +901,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         if (b.status !== "active" && b.status !== "paused") throw bad("invalid", "status must be active or paused");
         if (line.status === "frozen") throw new HttpError(409, "frozen", "This bill is paused while we check a payment. We'll message you.");
         patch.status = b.status;
+        patch.paused_by = b.status === "paused" ? "user" : null;
       }
       // A monthly bill moved to another day, or resumed after a pause, runs on its next day: never on a missed one.
       const resumed = patch.status === "active" && line.status === "paused";
@@ -1349,6 +1378,75 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     if (ev && ev.status !== "pending") {
       await d.db.query("UPDATE offramps SET status = $2, updated_at = now() WHERE provider_order = $1 AND status = 'funded'", [ev.orderId, ev.status]);
     }
+    return { ok: true };
+  });
+
+  // ── Telegram (D-082) ────────────────────────────────────────────────────────
+  const HELP =
+    "ConstantUnits sends your tokens, receipts and warnings here.\n\nSTOP pauses every bill. START resumes the bills STOP paused.\n\nTo connect this chat, open the ConstantUnits app: Account, then Telegram.";
+
+  /** Telegram's secret header, compared in constant time. */
+  const telegramSecretOk = (h: unknown) => {
+    if (!d.telegram || typeof h !== "string") return false;
+    const a = Buffer.from(h);
+    const b = Buffer.from(d.telegram.webhookSecret);
+    return a.length === b.length && timingSafeEqual(a, b);
+  };
+
+  app.post("/webhooks/telegram", { config: { rateLimit: { max: 600, timeWindow: "1 minute" } } }, async (req, reply) => {
+    if (!d.telegram) return reply.status(404).send({ error: "not_found" });
+    const ok = telegramSecretOk(req.headers["x-telegram-bot-api-secret-token"]);
+    await saveInboundWebhook(d.db, "telegram", ok, raw(req));
+    if (!ok) return reply.status(401).send({ error: "bad_secret" });
+    const msg = parseTelegramUpdate(raw(req));
+    if (!msg) return { ok: true };
+    const say = (text: string) => d.telegram!.client.sendMessage(msg.chatId, text).catch((err: Error) => req.log.warn({ err: { message: err.message } }, "telegram reply failed"));
+    const t = now();
+    const [cmd = "", arg] = msg.text.split(/\s+/, 2);
+    const word = cmd.toLowerCase().replace(/^\//, "").replace(/@.*$/, "");
+
+    if (word === "start" && arg) {
+      const userId = await withTx(d.db, (tx) => useTelegramLink(tx, arg, msg.chatId, t));
+      await say(
+        userId
+          ? "Connected. Your ConstantUnits tokens, receipts and warnings will come here.\n\nSend STOP to pause every bill, START to resume."
+          : "That link has expired or was already used. Open the ConstantUnits app (Account, then Telegram) for a new one.",
+      );
+      return { ok: true };
+    }
+    const user = await userByTelegramChat(d.db, msg.chatId);
+    // "/start" is what Telegram sends when someone first opens the bot: a greeting, never a command to resume bills.
+    if (cmd.toLowerCase().startsWith("/start")) {
+      await say(user ? "This chat is connected to ConstantUnits.\n\nSTOP pauses every bill. START resumes the bills STOP paused." : HELP);
+      return { ok: true };
+    }
+    if (word === "stop" || word === "start" || word === "resume") {
+      if (!user || user.status === "closed") {
+        await say(HELP);
+        return { ok: true };
+      }
+      if (word === "stop") {
+        const n = await withTx(d.db, (tx) => stopAllLines(tx, user.id));
+        await say(n ? `Paused ${n} bill${n === 1 ? "" : "s"}. Nothing will be paid until you send START or resume them in the app.` : "Nothing to pause: no bill is active.");
+        return { ok: true };
+      }
+      const market = await getMarket(d.db, "NG");
+      const n = await withTx(d.db, async (tx) => {
+        const lines = await linesPausedByStop(tx, user.id);
+        for (const l of lines) {
+          // A monthly bill resumes on its next day, never on one it missed while paused.
+          await updateLine(tx, l.id, {
+            status: "active",
+            paused_by: null,
+            ...(l.schedule === "monthly" && l.renew_day ? { next_run_at: monthlyRunAt(l.renew_day, t, market.time_zone) } : {}),
+          });
+        }
+        return lines.length;
+      });
+      await say(n ? `Resumed ${n} bill${n === 1 ? "" : "s"}. ConstantUnits will pay them on schedule again.` : "Nothing to resume: no bill was paused by STOP.");
+      return { ok: true };
+    }
+    await say(HELP);
     return { ok: true };
   });
 

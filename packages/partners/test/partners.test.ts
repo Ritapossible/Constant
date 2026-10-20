@@ -1,7 +1,7 @@
 import { createHmac, generateKeyPairSync } from "node:crypto";
 import { SignJWT, importPKCS8 } from "jose";
 import { describe, expect, it } from "vitest";
-import { HttpMessaging, cleanToken, vtpassToken, Paystack, Privy, Vtpass, contactFromPrivyUser, nairaToMinor, parseDueDate, vtpassOutcome, type Fetch } from "../src/index.js";
+import { HttpMessaging, FakeMessaging, Telegram, parseTelegramUpdate, withTelegram, cleanToken, vtpassToken, Paystack, Privy, Vtpass, contactFromPrivyUser, nairaToMinor, parseDueDate, vtpassOutcome, type Fetch } from "../src/index.js";
 
 function stubFetch(responses: { status?: number; body: unknown }[], seen: { url: string; init: RequestInit }[] = []): Fetch {
   return (async (url: string, init: RequestInit) => {
@@ -350,5 +350,34 @@ describe("email (Resend)", () => {
     await m.send("email", "b@example.com", "s", "t");
     expect(JSON.parse(seen[0]!.init.body as string)).not.toHaveProperty("reply_to");
     await expect(m.send("email", "b@example.com", "s", "t")).rejects.toThrow("email failed (422)");
+  });
+});
+
+describe("Telegram (D-082)", () => {
+  it("sends to the chat, and an error never repeats the bot token", async () => {
+    const seen: { url: string; init: RequestInit }[] = [];
+    const tg = new Telegram({ botToken: "123:SECRETPART", fetch: stubFetch([{ body: { ok: true, result: { message_id: 42 } } }, { status: 403, body: { ok: false, description: "Forbidden: bot was blocked by the user" } }], seen) });
+    expect(await tg.sendMessage("555", "hello")).toEqual({ messageId: "42" });
+    expect(seen[0]!.url).toBe("https://api.telegram.org/bot123:SECRETPART/sendMessage");
+    expect(JSON.parse(seen[0]!.init.body as string)).toMatchObject({ chat_id: "555", text: "hello" });
+    const err = await tg.sendMessage("555", "x").catch((e: Error) => e.message);
+    expect(err).toContain("blocked by the user");
+    expect(err).not.toContain("SECRETPART");
+  });
+
+  it("reads private text messages only", () => {
+    expect(parseTelegramUpdate(JSON.stringify({ message: { chat: { id: 555, type: "private" }, text: " STOP " } }))).toEqual({ chatId: "555", text: "STOP" });
+    expect(parseTelegramUpdate(JSON.stringify({ message: { chat: { id: -1, type: "group" }, text: "STOP" } }))).toBeNull();
+    expect(parseTelegramUpdate(JSON.stringify({ edited_message: {} }))).toBeNull();
+    expect(parseTelegramUpdate("nope")).toBeNull();
+  });
+
+  it("adds Telegram next to email and SMS", async () => {
+    const base = new FakeMessaging();
+    const m = withTelegram(base, new Telegram({ botToken: "t", fetch: stubFetch([{ body: { ok: true, result: { message_id: 7 } } }]) }));
+    expect(m.channels).toEqual(["email", "sms", "telegram"]);
+    expect(await m.send("telegram", "555", "s", "t")).toEqual({ providerId: "7" });
+    await m.send("email", "a@example.com", "s", "t");
+    expect(base.sent).toHaveLength(1);
   });
 });

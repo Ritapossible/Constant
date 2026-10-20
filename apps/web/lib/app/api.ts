@@ -50,7 +50,9 @@ export type ServerOrder = {
 };
 
 export type Me = {
-  user: { id: string; displayName: string | null; email: string | null; phone: string | null; channels: ("whatsapp" | "telegram" | "sms" | "email")[] };
+  user: { id: string; displayName: string | null; email: string | null; phone: string | null; channels: ("whatsapp" | "telegram" | "sms" | "email")[]; telegram: boolean };
+  /** The bot's username when Telegram is on (D-082); null when it isn't. */
+  telegramBot: string | null;
   balance: { currency: "NGN"; ledgerMinor: string; availableMinor: string };
   fundingAccount: { bankName: string; accountNumber: string; accountName: string } | null;
   lines: ServerLine[];

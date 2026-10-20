@@ -43,7 +43,7 @@ export async function closeAccount(tx: Tx, userId: string, now: Date): Promise<C
   // The person: no contact details, and the sign-in link is cut, so signing in again starts a new, empty account.
   await tx.query(
     `UPDATE users SET status = 'closed', closed_at = $2, email = NULL, phone_e164 = NULL, display_name = NULL,
-       channels = '{}', privy_did = 'closed:' || id::text, frozen_reason = NULL, updated_at = now()
+       channels = '{}', telegram_chat_id = NULL, privy_did = 'closed:' || id::text, frozen_reason = NULL, updated_at = now()
      WHERE id = $1`,
     [userId, now],
   );

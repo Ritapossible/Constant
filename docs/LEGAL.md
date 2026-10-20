@@ -24,6 +24,7 @@ update that list in the same commit.
 | Paystack | Name, email, phone, amounts, payout bank account (cards stay with Paystack) | api, worker |
 | VTpass | Phone, meter and smartcard numbers, amounts, a contact phone | api, worker |
 | Resend | Email address, message | worker |
+| Telegram | Chat ID, messages with the bot (only if the person connects it) | api, worker |
 | Termii | Phone number, message | worker |
 | Circle | Wallet addresses (sanctions screening) | worker |
 | Vercel, Pxxl, Neon | Hosting and database; IP and browser in logs | all |
@@ -57,7 +58,7 @@ use a public RPC URL there, or one with a key restricted to the site's domain.
 **Server only (API and worker env, never in the repo, never in Vercel):** `DATABASE_URL`, `REF_ENCRYPTION_KEY`,
 `REF_HMAC_KEY`, `PRIVY_APP_SECRET`, `PAYSTACK_SECRET_KEY`, `VTPASS_API_KEY`, `VTPASS_SECRET_KEY`, `VTPASS_PUBLIC_KEY`,
 `VTPASS_WEBHOOK_TOKEN`, `RESEND_API_KEY`, `TERMII_API_KEY`, `CIRCLE_API_KEY`, `PAYCREST_API_KEY`, `PAYCREST_API_SECRET`,
-`OPS_TOKEN`, `SPENDER_PRIVATE_KEY`, `STELLAR_SECRET`, `QIE_DEPLOYER_KEY`. Full list with where each comes from: ENV.md.
+`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `OPS_TOKEN`, `SPENDER_PRIVATE_KEY`, `STELLAR_SECRET`, `QIE_DEPLOYER_KEY`. Full list with where each comes from: ENV.md.
 
 **Audit (2026-10-20):** the live site's JavaScript contains no secret keys; the repository and its history contain none
 (`scripts/guard.sh` checks every CI run). GitGuardian's alert on commit cbc0590 was a made-up electricity token in a

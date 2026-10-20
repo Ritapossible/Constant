@@ -1,6 +1,6 @@
 import { Secrets, createPool, keysFromEnv, migrate } from "@constant/db";
 import { BasePermissionVerifier, EvmPermissionVerifier, evmAddress } from "@constant/chains";
-import { FakeCableVending, FakeFunding, FakeIdentity, PaycrestRates, PaycrestSender, Paystack, Privy, Vtpass } from "@constant/partners";
+import { FakeCableVending, FakeFunding, FakeIdentity, PaycrestRates, PaycrestSender, Paystack, Privy, Telegram, Vtpass } from "@constant/partners";
 import { buildApp } from "./app.js";
 
 function need(name: string): string {
@@ -14,6 +14,12 @@ const fake = env.PARTNERS === "fake";
 if (fake && env.NODE_ENV === "production") throw new Error("PARTNERS=fake is not allowed in production");
 
 const db = createPool(need("DATABASE_URL"));
+
+// Telegram (D-082): on when all three are set. The webhook is (re)registered at start when API_PUBLIC_URL is set.
+const telegram =
+  env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_BOT_USERNAME && env.TELEGRAM_WEBHOOK_SECRET
+    ? { client: new Telegram({ botToken: env.TELEGRAM_BOT_TOKEN }), botUsername: env.TELEGRAM_BOT_USERNAME.replace(/^@/, ""), webhookSecret: env.TELEGRAM_WEBHOOK_SECRET }
+    : undefined;
 await migrate(db, (m) => console.log(JSON.stringify({ msg: m })));
 
 const app = await buildApp({
@@ -36,6 +42,7 @@ const app = await buildApp({
   secrets: new Secrets(keysFromEnv(env)),
   webOrigins: need("WEB_ORIGINS").split(",").map((s) => s.trim()),
   vtpassWebhookToken: need("VTPASS_WEBHOOK_TOKEN"),
+  ...(telegram ? { telegram } : {}),
   // Sign-in sessions (D-080): defaults 7 days unused, 30 days in all.
   sessions: { idleDays: Number(env.SESSION_IDLE_DAYS ?? 7), maxDays: Number(env.SESSION_MAX_DAYS ?? 30) },
   fundingEmailDomain: env.FUNDING_EMAIL_DOMAIN ?? "users.constant.ng",
@@ -59,6 +66,12 @@ const app = await buildApp({
 
 const port = Number(env.PORT ?? 8080);
 await app.listen({ port, host: "0.0.0.0" });
+if (telegram && env.API_PUBLIC_URL) {
+  await telegram.client
+    .setWebhook(`${env.API_PUBLIC_URL.replace(/\/$/, "")}/webhooks/telegram`, telegram.webhookSecret)
+    .then(() => console.log(JSON.stringify({ msg: "telegram webhook set" })))
+    .catch((err: Error) => console.error(JSON.stringify({ msg: "telegram webhook not set", err: err.message })));
+}
 for (const sig of ["SIGTERM", "SIGINT"] as const) {
   process.on(sig, () => {
     app.close().then(() => db.end()).finally(() => process.exit(0));

@@ -11,6 +11,8 @@ let db: Db;
 let drop: () => Promise<void>;
 let app: FastifyInstance;
 const identity = new FakeIdentity();
+const tgSent: { chatId: string; text: string }[] = [];
+const TG_SECRET = "tg-test-secret";
 const funding = new FakeFunding("whsec");
 const vending = new FakeCableVending();
 const secrets = new Secrets({ encryption: [{ id: "k1", key: Buffer.from(testKeyB64(), "base64") }], hmac: Buffer.from(testKeyB64(), "base64") });
@@ -33,6 +35,7 @@ beforeAll(async () => {
     fundingEmailDomain: "users.example",
     now: () => clock,
     logger: false,
+    telegram: { client: { sendMessage: async (chatId: string, text: string) => (tgSent.push({ chatId, text }), { messageId: "1" }) }, botUsername: "ConstantUnitsBot", webhookSecret: TG_SECRET },
   });
 });
 afterAll(async () => {
@@ -272,6 +275,77 @@ describe("closing an account (D-081)", () => {
     const me = (await call("GET", "/v1/me", `${who}#new-session`)).json();
     expect(me.lines).toEqual([]);
     expect(me.user.displayName).toBeNull();
+  });
+});
+
+describe("Telegram (D-082)", () => {
+  const who = "did:privy:tg";
+  const update = (chatId: number, text: string, secret = TG_SECRET) =>
+    app.inject({
+      method: "POST",
+      url: "/webhooks/telegram",
+      headers: { "content-type": "application/json", "x-telegram-bot-api-secret-token": secret },
+      payload: JSON.stringify({ update_id: 1, message: { message_id: 1, chat: { id: chatId, type: "private" }, text } }),
+    });
+  const last = () => tgSent.at(-1)!.text;
+
+  it("refuses an update without the secret", async () => {
+    expect((await update(1, "STOP", "wrong")).statusCode).toBe(401);
+  });
+
+  it("links a chat only through a fresh one-time code from the signed-in app", async () => {
+    clock = START;
+    const { url } = (await call("POST", "/v1/telegram/link", who)).json();
+    expect(url).toMatch(/^https:\/\/t\.me\/ConstantUnitsBot\?start=[A-Za-z0-9_-]{20,}$/);
+    const code = url.split("start=")[1];
+
+    await update(777, "STOP"); // not linked yet
+    expect(last()).toContain("open the ConstantUnits app");
+
+    await update(777, `/start ${code}`);
+    expect(last()).toContain("Connected");
+    const me = (await call("GET", "/v1/me", who)).json();
+    expect(me.user.telegram).toBe(true);
+    expect(me.user.channels[0]).toBe("telegram"); // connecting puts Telegram first
+
+    await update(888, `/start ${code}`); // a code works once
+    expect(last()).toContain("expired or was already used");
+
+    const old = (await call("POST", "/v1/telegram/link", who)).json().url.split("start=")[1];
+    clock = new Date(START.getTime() + 16 * 60_000); // and only for 15 minutes
+    await update(888, `/start ${old}`);
+    expect(last()).toContain("expired");
+    clock = START;
+  });
+
+  it("STOP pauses every bill; START resumes only those, on their next day", async () => {
+    const a = (await call("POST", "/v1/lines", who, { kind: "airtime", provider: "mtn", ref: "08031112222", amountMinor: "100000", renewDay: 5 })).json();
+    const b = (await call("POST", "/v1/lines", who, { kind: "airtime", provider: "glo", ref: "08051112222", amountMinor: "100000", renewDay: 9 })).json();
+    await call("PATCH", `/v1/lines/${b.id}`, who, { status: "paused" }); // paused by the person: START leaves it
+
+    await update(777, "stop");
+    expect(last()).toBe("Paused 1 bill. Nothing will be paid until you send START or resume them in the app.");
+    const status = async (id: string) => (await db.query("SELECT status, paused_by, next_run_at FROM lines WHERE id = $1", [id])).rows[0];
+    expect(await status(a.id)).toMatchObject({ status: "paused", paused_by: "stop" });
+
+    clock = new Date("2026-12-07T09:00:00Z"); // the 5th has passed while stopped
+    await update(777, "START");
+    expect(last()).toContain("Resumed 1 bill");
+    expect(await status(a.id)).toMatchObject({ status: "active", paused_by: null });
+    expect((await status(a.id)).next_run_at.toISOString()).toBe("2027-01-05T06:00:00.000Z");
+    expect(await status(b.id)).toMatchObject({ status: "paused", paused_by: "user" });
+    clock = START;
+  });
+
+  it("the automatic /start greets, never resumes", async () => {
+    await update(777, "STOP");
+    await update(777, "/start");
+    expect(last()).toContain("This chat is connected");
+  });
+
+  it("disconnecting stops messages there", async () => {
+    expect((await call("DELETE", "/v1/telegram", who)).statusCode).toBe(204);
+    expect((await call("GET", "/v1/me", who)).json().user.telegram).toBe(false);
   });
 });
 

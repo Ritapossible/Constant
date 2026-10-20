@@ -40,7 +40,7 @@ import {
   type Secrets,
   type Tx,
 } from "@constant/db";
-import type { CableProvider, CableVending, DataPlan, Messaging, VendOutcome, VendRequest } from "@constant/partners";
+import type { CableProvider, CableVending, DataPlan, MessageChannel, Messaging, VendOutcome, VendRequest } from "@constant/partners";
 import {
   DEFAULT_MIN_DAYS_BETWEEN_RENEWALS,
   MONTHLY_MIN_DAYS_BETWEEN_PAYMENTS,
@@ -473,10 +473,10 @@ export async function sendNotices(d: Deps, max = 20): Promise<number> {
       if (!n) return false;
       const user = await getUser(tx, n.user_id);
       // The user's own order of channels (D-054), then any other that works; only those we can send on today.
-      const reach: Record<string, string | null | undefined> = { email: user?.email, sms: user?.phone_e164 };
-      const order = [...(user?.channels ?? []), "email", "sms"].filter((c, i, all) => all.indexOf(c) === i);
-      const pick = order.find((c) => reach[c] && d.messaging.channels.includes(c as "email" | "sms"));
-      const target = pick ? { channel: pick as "email" | "sms", to: reach[pick]! } : null;
+      const reach: Record<string, string | null | undefined> = { email: user?.email, sms: user?.phone_e164, telegram: user?.telegram_chat_id };
+      const order = [...(user?.channels ?? []), "telegram", "email", "sms"].filter((c, i, all) => all.indexOf(c) === i);
+      const pick = order.find((c) => reach[c] && d.messaging.channels.includes(c as MessageChannel));
+      const target = pick ? { channel: pick as MessageChannel, to: reach[pick]! } : null;
       const params = { ...(n.params as Record<string, string>) };
       if (n.kind === "token" && n.order_id) {
         const o = await getOrder(tx, n.order_id);
@@ -493,6 +493,10 @@ export async function sendNotices(d: Deps, max = 20): Promise<number> {
           await markNotice(tx, n.id, { status: "sent", attempts, channel: target.channel, provider_msg_id: r.providerId });
           ok = true;
           sent += 1;
+          // SMS is the backup for an electricity token: it reaches any phone, even offline from the internet.
+          if (n.kind === "token" && target.channel !== "sms" && reach.sms && d.messaging.channels.includes("sms")) {
+            await d.messaging.send("sms", reach.sms, msg.subject, msg.text).catch((err: Error) => d.log.warn("token sms backup failed", { noticeId: String(n.id), err: err.message }));
+          }
         } catch (err) {
           const done = attempts >= MAX_NOTICE_ATTEMPTS;
           await markNotice(tx, n.id, {
