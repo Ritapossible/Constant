@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ConstantUnits — intro film</title>
+<!--
+  ConstantUnits intro film, 1920×1080. Every frame is a pure function of time: render.mjs calls window.seek(t) and
+  screenshots. Open this file in a browser and press space to preview in real time.
+-->
+<style>
+  @font-face { font-family: "Inter Tight"; src: url("../fonts/inter-tight-latin-wght-normal.woff2") format("woff2"); font-weight: 100 900; }
+  @font-face { font-family: "Instrument Serif"; src: url("../fonts/instrument-serif-latin-400-italic.woff2") format("woff2"); font-style: italic; }
+  @font-face { font-family: "JetBrains Mono"; src: url("../fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2"); font-weight: 100 900; }
+  :root {
+    --ink: #0a0a0a; --paper: #f6f6f4; --muted: #6b6b66; --line: #e4e4df;
+    --amber: #f2b63d; --green: #1f9d55; --red: #d93a2b; --skyline: #15151a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+  body { font-family: "Inter Tight", system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+  #stage { position: absolute; inset: 0; overflow: hidden; background: var(--paper); }
+  .scene { position: absolute; inset: 0; opacity: 0; will-change: opacity, transform; }
+  .abs { position: absolute; }
+  .mono { font-family: "JetBrains Mono", monospace; }
+  .serif { font-family: "Instrument Serif", serif; font-style: italic; font-weight: 400; }
+
+  /* Photos: full-bleed, moved by the camera (Ken Burns) */
+  .ph { position: absolute; inset: -4%; background-size: cover; will-change: transform, filter, opacity; }
+  .shade { position: absolute; inset: 0; pointer-events: none; }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  .tile { background-size: cover; background-position: 50% 35%; filter: grayscale(1) contrast(1.1); will-change: transform, opacity; }
+  .chip { position: absolute; display: flex; gap: 12px; align-items: center; padding: 14px 22px; border-radius: 40px; background: rgba(10,10,10,.72); color: #fff; font-family: "JetBrains Mono", monospace; font-size: 20px; letter-spacing: .08em; backdrop-filter: blur(10px); }
+  .chip .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--red); display: inline-block; }
+
+  /* Captions */
+  .cap { position: absolute; left: 120px; bottom: 110px; max-width: 980px; }
+  .cap .kicker { font-family: "JetBrains Mono", monospace; font-size: 22px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin-bottom: 18px; }
+  .cap h2 { font-size: 76px; line-height: 1.02; letter-spacing: -.045em; font-weight: 650; }
+  .cap .w { display: inline-block; white-space: pre; will-change: transform, opacity; }
+  .dark .cap h2 { color: #fafafa; }
+  .dark .cap .kicker { color: #8f8f8a; }
+
+  /* UI cards */
+  .card { position: absolute; background: #fff; border-radius: 28px; box-shadow: 0 30px 80px rgba(10,10,10,.14), 0 2px 0 rgba(10,10,10,.04); }
+  .notif { position: absolute; display: flex; align-items: center; gap: 18px; padding: 20px 26px 20px 20px; background: rgba(255,255,255,.96); border-radius: 26px; box-shadow: 0 24px 60px rgba(10,10,10,.18); font-size: 24px; min-width: 520px; }
+  .notif .ic { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; flex: none; overflow: hidden; }
+  .notif b { display: block; font-weight: 650; font-size: 25px; letter-spacing: -.01em; }
+  .notif small { display: block; color: var(--muted); font-size: 20px; margin-top: 2px; }
+  .notif.bad .ic { background: #fde7e4; color: var(--red); }
+  .notif.good .ic { background: #e3f5ea; color: var(--green); }
+  .brandic { background: var(--ink); }
+
+  /* Phone (app demo) */
+  .phone { position: absolute; width: 470px; height: 940px; border-radius: 70px; background: #0b0b0b; padding: 16px; box-shadow: 0 50px 120px rgba(0,0,0,.28); }
+  .phone .scr { width: 100%; height: 100%; border-radius: 56px; background: #f6f6f4; overflow: hidden; position: relative; padding: 70px 30px 30px; }
+  .phone .notch { position: absolute; top: 18px; left: 50%; width: 130px; height: 36px; margin-left: -65px; background: #0b0b0b; border-radius: 20px; z-index: 5; }
+  .row { display: flex; align-items: center; gap: 16px; background: #fff; border: 1px solid var(--line); border-radius: 24px; padding: 16px; margin-bottom: 14px; }
+  .row img { width: 54px; height: 54px; border-radius: 15px; object-fit: cover; flex: none; }
+  .row .t { flex: 1; min-width: 0; }
+  .row b { display: block; font-size: 21px; font-weight: 650; letter-spacing: -.01em; }
+  .row small { display: block; font-size: 16px; color: var(--muted); margin-top: 2px; }
+  #feed .row { padding: 10px 14px; margin-bottom: 8px; border-radius: 18px; gap: 12px; }
+  #feed .row img { width: 40px; height: 40px; border-radius: 11px; }
+  #feed .row b { font-size: 18px; }
+  #feed .row small { font-size: 14px; }
+  #feed .row svg { width: 28px; height: 28px; }
+  .row .amt { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .potbar { height: 8px; border-radius: 8px; background: #ececE7; margin-top: 10px; overflow: hidden; }
+  .potbar i { display: block; height: 100%; width: 100%; background: var(--ink); transform-origin: left; }
+  .step { position: absolute; left: 1060px; width: 720px; }
+  .step .n { font-family: "JetBrains Mono", monospace; font-size: 22px; letter-spacing: .16em; color: var(--muted); }
+  .step h3 { font-size: 84px; line-height: 1; letter-spacing: -.05em; font-weight: 650; margin-top: 16px; }
+  .step p { font-size: 32px; color: #3a3a37; margin-top: 22px; line-height: 1.3; max-width: 640px; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- ── S1 · Data dies mid-interview (real photos) ───────────── -->
+  <section class="scene dark" id="s1">
+    <div class="ph" id="p1a" style="background-image:url(assets/wf2.jpg);background-position:70% 30%"></div>
+    <div class="ph" id="p1b" style="background-image:url(assets/wf9.jpg);background-position:50% 40%;opacity:0"></div>
+    <div class="shade" style="background:linear-gradient(90deg,rgba(0,0,0,.72) 0%,rgba(0,0,0,.35) 45%,rgba(0,0,0,0) 70%),linear-gradient(0deg,rgba(0,0,0,.55) 0%,rgba(0,0,0,0) 45%)"></div>
+    <div class="flash" id="f1"></div>
+    <div class="chip" id="call1" style="left:120px;top:96px"><span class="dot" id="rec"></span><span id="callT">FINAL INTERVIEW · LIVE · 09:03</span></div>
+    <div class="card" id="meter1" style="right:110px;bottom:120px;width:520px;padding:24px 28px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:22px;color:var(--muted)">Data left</span><span class="mono" style="font-size:44px;font-weight:600" id="mb">120 MB</span></div>
+      <div style="height:12px;border-radius:12px;background:#eee;margin-top:14px;overflow:hidden"><i id="mbbar" style="display:block;height:100%;background:var(--ink);transform-origin:left"></i></div>
+    </div>
+    <div class="notif bad" id="sms1" style="right:110px;top:96px;opacity:0">
+      <div class="ic"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg></div>
+      <div><b>You have used up your data</b><small>Buy a bundle to continue · 09:04</small></div>
+    </div>
+    <div class="cap" id="cap1"><div class="kicker">Lagos · 09:04</div><h2>Your data runs out<br/>mid-interview.</h2></div>
+  </section>
+
+  <!-- ── S2 · Light goes off mid-match ─────────────────────────── -->
+  <section class="scene dark" id="s2">
+    <div class="ph" id="p2a" style="background-image:url(assets/tv1.jpg);background-position:60% 40%"></div>
+    <div class="ph" id="p2b" style="background-image:url(assets/mf2.jpg);background-position:50% 35%;opacity:0"></div>
+    <div class="shade" style="background:linear-gradient(0deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,0) 50%)"></div>
+    <div class="abs" id="dark" style="inset:0;background:#020203;opacity:0"></div>
+    <div class="flash" id="f2"></div>
+    <div class="chip" id="match" style="right:120px;top:96px"><span class="dot" style="background:#1f9d55"></span>89:12 · NGA 1–1 GHA</div>
+    <div class="card" id="kwh" style="left:120px;top:96px;width:330px;padding:22px 24px;background:#e9e6dc;border-radius:22px">
+      <div class="mono" style="font-size:15px;letter-spacing:.14em;color:#6b6b66">PREPAID METER</div>
+      <div style="margin-top:10px;background:#9fb59a;border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between;align-items:baseline"><span class="mono" id="kwhv" style="font-size:46px;font-weight:600;color:#1f2a1d">03.2</span><span class="mono" style="font-size:18px;color:#1f2a1d">kWh</span></div>
+      <div class="mono" id="low" style="margin-top:10px;font-size:17px;color:var(--red);font-weight:700;opacity:0">● LOW CREDIT</div>
+    </div>
+    <div class="chip" id="out" style="right:120px;top:96px;opacity:0;background:rgba(217,58,43,.92)">POWER OUT · 20:59</div>
+    <div class="cap" id="cap2"><div class="kicker">Abuja · 20:59</div><h2>The light goes off.<br/>Mid-match.</h2></div>
+  </section>
+
+  <!-- ── S3 · The beat ─────────────────────────────────────────── -->
+  <section class="scene dark" id="s3" style="background:#0a0a0a">
+    <div class="abs" style="inset:0;display:grid;grid-template-columns:repeat(3,1fr)">
+      <div class="tile" id="t1" style="background-image:url(assets/mf3.jpg)"></div>
+      <div class="tile" id="t2" style="background-image:url(assets/wf8.jpg)"></div>
+      <div class="tile" id="t3" style="background-image:url(assets/mf4.jpg)"></div>
+    </div>
+    <div class="abs" style="inset:0;background:rgba(5,5,5,.62)"></div>
+    <div class="abs" style="left:0;right:0;top:350px;text-align:center;color:#fafafa">
+      <div id="s3a" style="font-size:104px;font-weight:650;letter-spacing:-.05em">You pay every time.</div>
+      <div id="s3b" style="margin-top:6px;color:#d9d9d4"><span class="serif" style="font-size:128px">You still run out.</span></div>
+    </div>
+  </section>
+
+  <!-- ── S4 · Brand ────────────────────────────────────────────── -->
+  <section class="scene dark" id="s4" style="background:#0a0a0a">
+    <div class="abs" id="s4grid" style="inset:0;background-image:linear-gradient(to right,rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,.05) 1px,transparent 1px);background-size:80px 80px"></div>
+    <div class="abs" style="left:0;right:0;top:300px;display:flex;justify-content:center;align-items:center;gap:40px">
+      <svg id="mark" width="200" height="200" viewBox="0 0 32 32"><rect id="markbg" width="32" height="32" rx="9" fill="#fafafa"/><path id="markc" d="M22.5 10.6A8.5 8.5 0 1 0 22.5 21.4" fill="none" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round" pathLength="1"/><path id="markl" d="M13.5 16H25.5" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round" pathLength="1"/></svg>
+      <div id="wordmark" style="font-size:150px;letter-spacing:-.055em;color:#fafafa;font-weight:650;overflow:hidden;white-space:nowrap">Constant<span style="font-weight:400">Units</span></div>
+    </div>
+    <div class="abs" id="tag" style="left:0;right:0;top:600px;text-align:center;color:#fafafa;font-size:78px;letter-spacing:-.04em;font-weight:600">Set it once. <span class="serif" style="font-size:96px">Never run out.</span></div>
+    <div class="abs mono" id="tag2" style="left:0;right:0;top:760px;text-align:center;color:#8f8f8a;font-size:24px;letter-spacing:.16em">AUTOPAY FOR DATA · AIRTIME · ELECTRICITY · TV</div>
+  </section>
+
+  <!-- ── S5 · How it works ─────────────────────────────────────── -->
+  <section class="scene" id="s5">
+    <div class="abs" style="inset:0;background:var(--paper)"></div>
+    <div class="phone" id="phone" style="left:340px;top:70px"><div class="notch"></div><div class="scr" id="pscr">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px"><div style="display:flex;gap:12px;align-items:center;font-weight:650;font-size:24px;letter-spacing:-.03em"><svg width="34" height="34" viewBox="0 0 32 32"><rect width="32" height="32" rx="9" fill="#0a0a0a"/><path d="M22.5 10.6A8.5 8.5 0 1 0 22.5 21.4" fill="none" stroke="#fafafa" stroke-width="2.4" stroke-linecap="round"/><path d="M13.5 16H25.5" stroke="#fafafa" stroke-width="2.4" stroke-linecap="round"/></svg>Constant<span style="font-weight:400">Units</span></div></div>
+      <div id="hero" style="background:#0a0a0a;color:#fafafa;border-radius:28px;padding:24px 24px;margin-bottom:20px">
+        <div style="font-size:16px;color:#a3a3a0">Set aside for your bills</div>
+        <div class="mono" id="potsum" style="font-size:46px;font-weight:600;margin-top:4px;letter-spacing:-.02em">₦0</div>
+      </div>
+      <div id="rows"></div>
+      <div id="feed" style="position:absolute;left:30px;right:30px;bottom:22px"></div>
+    </div></div>
+    <div class="step" id="st1" style="top:300px"><div class="n">01</div><h3>Add your bills.</h3><p>Data, airtime, your meter, your decoder. Once.</p></div>
+    <div class="step" id="st2" style="top:300px"><div class="n">02</div><h3>Set money aside.</h3><p>A pot for each bill, filled when money arrives. It can't be spent on anything else.</p></div>
+    <div class="step" id="st3" style="top:300px"><div class="n">03</div><h3>It pays on time.</h3><p>Before it runs out. Tokens and receipts come straight to you.</p></div>
+  </section>
+
+  <!-- ── S6 · Stays on (real photos) ──────────────────────────── -->
+  <section class="scene dark" id="s6">
+    <div class="abs" id="s6l" style="left:0;top:0;width:960px;height:1080px;overflow:hidden">
+      <div class="ph" id="p6a" style="background-image:url(assets/wh6.jpg);background-position:45% 35%"></div>
+      <div class="notif good" id="n6a" style="left:70px;top:90px;min-width:0;width:600px">
+        <div class="ic"><img src="assets/mtn.jpg" width="56" height="56" style="object-fit:cover" /></div>
+        <div><b>Data topped up · 1.5 GB</b><small>From your Data pot · 09:03</small></div>
+      </div>
+      <div class="chip" id="live" style="left:70px;bottom:90px"><span class="dot" style="background:#1f9d55"></span>CALL CONNECTED</div>
+    </div>
+    <div class="abs" id="s6r" style="left:960px;top:0;width:960px;height:1080px;overflow:hidden">
+      <div class="ph" id="p6b" style="background-image:url(assets/tv3.jpg);background-position:40% 40%"></div>
+      <div class="notif good" id="n6b" style="right:70px;top:90px;min-width:0;width:600px">
+        <div class="ic"><img src="assets/ikedc.jpg" width="56" height="56" style="object-fit:cover" /></div>
+        <div><b>Token sent · 45.2 kWh</b><small class="mono" style="font-family:'JetBrains Mono'">1234-5678-9012-3456-7890</small></div>
+      </div>
+      <div class="notif good" id="n6c" style="right:70px;top:220px;min-width:0;width:600px">
+        <div class="ic"><img src="assets/dstv.jpg" width="56" height="56" style="object-fit:cover" /></div>
+        <div><b>DStv renewed</b><small>Covered until 14 Jan</small></div>
+      </div>
+    </div>
+    <div class="abs" id="divider" style="left:958px;top:0;width:4px;height:1080px;background:#fafafa"></div>
+    <div class="abs" id="s6full" style="inset:0;overflow:hidden;opacity:0">
+      <div class="ph" id="p6c" style="background-image:url(assets/wh4.jpg);background-position:50% 30%"></div>
+      <div class="shade" style="background:linear-gradient(0deg,rgba(0,0,0,.66) 0%,rgba(0,0,0,0) 55%)"></div>
+      <div class="cap" id="cap6" style="left:0;right:0;max-width:none;text-align:center;bottom:120px"><h2 style="font-size:104px">Now it just <span class="serif" style="font-size:124px">stays on.</span></h2></div>
+    </div>
+  </section>
+
+  <!-- ── S7 · End card ─────────────────────────────────────────── -->
+  <section class="scene dark" id="s7" style="background:#0a0a0a">
+    <div class="abs" style="left:0;right:0;top:250px;display:flex;justify-content:center;align-items:center;gap:30px">
+      <svg width="130" height="130" viewBox="0 0 32 32"><rect width="32" height="32" rx="9" fill="#fafafa"/><path d="M22.5 10.6A8.5 8.5 0 1 0 22.5 21.4" fill="none" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round"/><path d="M13.5 16H25.5" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round"/></svg>
+      <div style="font-size:110px;letter-spacing:-.055em;color:#fafafa;font-weight:650">Constant<span style="font-weight:400">Units</span></div>
+    </div>
+    <div class="abs" id="e1" style="left:0;right:0;top:470px;text-align:center;color:#fafafa;font-size:58px;letter-spacing:-.035em;font-weight:600">Data, light and TV. <span class="serif" style="font-size:70px">Paid before they run out.</span></div>
+    <div class="abs" id="e2" style="left:0;right:0;top:640px;display:flex;justify-content:center;gap:24px">
+      <div style="background:#fafafa;color:#0a0a0a;border-radius:60px;padding:22px 40px;font-size:34px;font-weight:650;letter-spacing:-.02em">constant-units.vercel.app</div>
+      <div style="border:2px solid #3a3a37;color:#fafafa;border-radius:60px;padding:22px 34px;font-size:34px;font-weight:600;display:flex;gap:14px;align-items:center"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z"/></svg>@ConstantUnits</div>
+    </div>
+    <div class="abs mono" id="e3" style="left:0;right:0;top:800px;text-align:center;color:#8f8f8a;font-size:24px;letter-spacing:.16em">EARLY ACCESS · NIGERIA · PAY IN NAIRA OR STABLECOINS</div>
+  </section>
+
+  <!-- film grain + vignette for depth -->
+  <div class="abs" style="inset:0;pointer-events:none;background:radial-gradient(130% 100% at 50% 45%,transparent 60%,rgba(0,0,0,.18) 100%)"></div>
+  <div class="abs" id="fade" style="inset:0;background:#000;pointer-events:none"></div>
+</div>
+
+<script>
+/* ── Timeline helpers ─────────────────────────────────────────── */
+const DURATION = 72;
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const eOut = (k) => 1 - Math.pow(1 - k, 3);
+const eIn = (k) => k * k * k;
+const eIO = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const eBack = (k) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
+const css = (el, s) => { for (const k in s) el.style[k] = s[k]; };
+/** Visible between a and b with a fade of f seconds at each end. */
+const window_ = (t, a, b, f = 0.5) => Math.min(seg(t, a, a + f), 1 - seg(t, b - f, b));
+/** Pop in: opacity + rise + slight scale. */
+function pop(el, t, at, opts = {}) {
+  const k = eOut(seg(t, at, at + (opts.d ?? 0.6)));
+  const out = opts.out != null ? 1 - eIn(seg(t, opts.out, opts.out + 0.4)) : 1;
+  css(el, { opacity: k * out, transform: `translate(${opts.x ?? 0}px, ${(1 - k) * (opts.y ?? 40)}px) scale(${lerp(opts.s ?? 0.96, 1, eBack(seg(t, at, at + (opts.d ?? 0.6))))})` });
+}
+/** Words rise one by one. */
+function words(el, t, at, gap = 0.08) {
+  if (!el.dataset.split) {
+    // Split text into words; an inline element (a serif phrase) rises as one unit.
+    const out = [];
+    el.childNodes.forEach((n) => {
+      if (n.nodeType === 3) n.textContent.split(/(?<=\s)/).forEach((w) => w && out.push(`<span class="w">${w}</span>`));
+      else if (n.nodeName === "BR") out.push("<br/>");
+      else out.push(`<span class="w">${n.outerHTML}</span>`);
+    });
+    el.innerHTML = out.join("");
+    el.dataset.split = "1";
+  }
+  el.querySelectorAll(".w").forEach((w, i) => {
+    const k = eOut(seg(t, at + i * gap, at + i * gap + 0.7));
+    css(w, { opacity: k, transform: `translateY(${(1 - k) * 60}px)` });
+  });
+}
+/** Keyframes of plain-number objects: holds each, eases into the next over `dur`. */
+function kf(keys, t, dur = 0.45) {
+  let i = 0;
+  while (i + 1 < keys.length && t >= keys[i + 1][0]) i++;
+  const cur = keys[i][1];
+  if (i === 0 && t < keys[0][0]) return cur;
+  const prev = i > 0 ? keys[i - 1][1] : cur;
+  const k = i > 0 ? eIO(seg(t, keys[i][0], keys[i][0] + dur)) : 1;
+  const out = {};
+  for (const key in cur) out[key] = Array.isArray(cur[key]) ? cur[key].map((v, j) => lerp(prev[key][j], v, k)) : lerp(prev[key], cur[key], k);
+  return out;
+}
+
+/** Ken Burns: a slow push and drift on a photo. */
+function kb(el, t, a, b, o = {}) {
+  const k = seg(t, a, b);
+  const sc = lerp(o.s0 ?? 1.0, o.s1 ?? 1.08, eIO(k));
+  el.style.transform = `translate(${lerp(o.x0 ?? 0, o.x1 ?? 0, k)}px, ${lerp(o.y0 ?? 0, o.y1 ?? 0, k)}px) scale(${sc})`;
+}
+/** A white flash peaking at `at`, for hard cuts. */
+const flashAt = (t, at, d = 0.35) => Math.max(0, 1 - Math.abs(t - at) / d) * 0.85;
+
+/* S5 rows */
+const BILLS = [
+  { img: "assets/mtn.jpg", name: "MTN data", sub: "0803 ••• 4567 · 1.5 GB", amt: "₦1,000", pot: 0.8 },
+  { img: "assets/ikedc.jpg", name: "Home meter", sub: "Ikeja Electric · prepaid", amt: "₦10,000", pot: 0.65 },
+  { img: "assets/dstv.jpg", name: "Living room DStv", sub: "Compact · renews 14 Dec", amt: "₦19,000", pot: 0.92 },
+];
+$("rows").innerHTML = BILLS.map((b, i) => `<div class="row" id="row${i}"><img src="${b.img}"/><div class="t"><b>${b.name}</b><small>${b.sub}</small><div class="potbar"><i id="pot${i}"></i></div></div><div class="amt">${b.amt}</div></div>`).join("");
+const FEED = [
+  { img: "assets/mtn.jpg", t: "Data topped up · 1.5 GB", s: "From your Data pot" },
+  { img: "assets/ikedc.jpg", t: "Token sent · 45.2 kWh", s: "By SMS and Telegram" },
+  { img: "assets/dstv.jpg", t: "DStv renewed", s: "Covered until 14 Jan" },
+];
+$("feed").innerHTML = FEED.map((f, i) => `<div class="row" id="feed${i}" style="box-shadow:0 14px 40px rgba(0,0,0,.12)"><img src="${f.img}"/><div class="t"><b>${f.t}</b><small>${f.s}</small></div><svg width="34" height="34" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#1f9d55"/><path d="m7 12.5 3.2 3.2L17 9" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`).join("");
+
+/* ── Scenes ───────────────────────────────────────────────────── */
+const S = { s1: [0, 13.4], s2: [12.9, 25.6], s3: [25.2, 30.4], s4: [30, 37.6], s5: [37.2, 55.6], s6: [55.2, 65.6], s7: [65.2, DURATION] };
+
+function seek(t) {
+  for (const k in S) $(k).style.opacity = window_(t, S[k][0], S[k][1], 0.45);
+  $("fade").style.opacity = 1 - seg(t, 0, 0.8) + seg(t, DURATION - 1.2, DURATION);
+
+  /* S1: 0 – 13.4 · data dies mid-interview */
+  if (t < 13.6) {
+    kb($("p1a"), t, 0, 6.4, { s0: 1.0, s1: 1.1, x0: 0, x1: -40 });
+    kb($("p1b"), t, 6.2, 13.4, { s0: 1.12, s1: 1.0 });
+    $("p1b").style.opacity = seg(t, 6.2, 6.3);
+    $("p1b").style.filter = `saturate(${lerp(1, 0.55, seg(t, 6.3, 12))})`;
+    $("f1").style.opacity = flashAt(t, 6.25, 0.25);
+    const mb = Math.max(0, Math.round(lerp(120, 0, eIn(seg(t, 1.2, 5.8)))));
+    $("mb").textContent = `${mb} MB`;
+    $("mb").style.color = mb < 30 ? "#d93a2b" : "#0a0a0a";
+    $("mbbar").style.transform = `scaleX(${mb / 120})`;
+    $("mbbar").style.background = mb < 30 ? "#d93a2b" : "#0a0a0a";
+    pop($("meter1"), t, 0.9, { y: 40, out: 6.0 });
+    pop($("call1"), t, 0.6, { y: -20 });
+    $("rec").style.opacity = Math.floor(t * 2) % 2 ? 1 : 0.3;
+    $("rec").style.background = t > 4.6 ? "#f2b63d" : "#d93a2b";
+    $("callT").textContent = t > 6.2 ? "CALL ENDED · POOR CONNECTION" : t > 4.6 ? "RECONNECTING…" : "FINAL INTERVIEW · LIVE · 09:03";
+    pop($("sms1"), t, 7.0, { y: -40 });
+    words($("cap1").querySelector("h2"), t, 1.4);
+    pop($("cap1").querySelector(".kicker"), t, 1.0, { y: 20 });
+  }
+
+  /* S2: 12.9 – 25.6 · the light goes off mid-match */
+  if (t > 12.7 && t < 25.8) {
+    const l = t - 12.9;
+    kb($("p2a"), l, 0, 7.6, { s0: 1.0, s1: 1.12, x0: 0, x1: -30 });
+    kb($("p2b"), l, 7.4, 12.7, { s0: 1.14, s1: 1.02 });
+    const off = seg(l, 6.5, 6.6);
+    const flick = l > 6.0 && l < 6.5 ? (Math.floor(l * 24) % 3 === 0 ? 0.75 : 0) : 0;
+    $("dark").style.opacity = l < 7.5 ? Math.max(off * 0.93, flick) : 0;
+    $("p2a").style.filter = `brightness(${l > 6.5 ? 0.25 : 1})`;
+    $("p2b").style.opacity = seg(l, 7.5, 7.9);
+    $("p2b").style.filter = "grayscale(1) contrast(1.15)";
+    const kwh = Math.max(0, lerp(3.2, 0, seg(l, 0.6, 6.5)));
+    $("kwhv").textContent = kwh.toFixed(1).padStart(4, "0");
+    $("low").style.opacity = l > 3 ? (Math.floor(l * 3) % 2 ? 1 : 0.2) : 0;
+    pop($("kwh"), t, 13.4, { y: -30, out: 12.9 + 7.4 });
+    pop($("match"), t, 13.6, { y: -20, out: 12.9 + 6.4 });
+    pop($("out"), t, 12.9 + 6.7, { y: -20, s: 0.9 });
+    words($("cap2").querySelector("h2"), t, 12.9 + 7.8);
+    pop($("cap2").querySelector(".kicker"), t, 12.9 + 7.5, { y: 20 });
+  }
+
+  /* S3: 25.2 – 30.4 · the beat */
+  if (t > 25 && t < 30.6) {
+    ["t1", "t2", "t3"].forEach((id, i) => {
+      const k = eOut(seg(t, 25.3 + i * 0.25, 26.3 + i * 0.25));
+      css($(id), { opacity: k, transform: `scale(${lerp(1.15, 1.02, k) + seg(t, 26, 30.4) * 0.05})` });
+    });
+    pop($("s3a"), t, 25.8, { y: 50 });
+    pop($("s3b"), t, 27.2, { y: 50 });
+  }
+
+  /* S4: 30 – 37.6 */
+  if (t > 29.8 && t < 37.8) {
+    const l = t - 30;
+    const m = eBack(seg(l, 0.1, 0.8));
+    $("mark").style.transform = `scale(${m}) rotate(${(1 - eOut(seg(l, 0.1, 0.9))) * -90}deg)`;
+    $("markc").style.strokeDasharray = "1"; $("markc").style.strokeDashoffset = 1 - eOut(seg(l, 0.5, 1.4));
+    $("markl").style.strokeDasharray = "1"; $("markl").style.strokeDashoffset = 1 - eOut(seg(l, 1.2, 1.8));
+    const w = eOut(seg(l, 1.4, 2.4));
+    css($("wordmark"), { maxWidth: `${w * 1000}px`, opacity: w });
+    pop($("tag"), t, 32.9, { y: 40 });
+    pop($("tag2"), t, 34, { y: 20 });
+    $("s4grid").style.transform = `translateY(${l * -14}px)`;
+    $("s4grid").style.opacity = 0.5 + 0.5 * seg(l, 0, 2);
+  }
+
+  /* S5: 37.2 – 55.6 */
+  if (t > 37 && t < 55.8) {
+    const l = t - 37.2;
+    pop($("phone"), t, 37.4, { y: 120, d: 1 });
+    const step = l < 6 ? 1 : l < 12 ? 2 : 3;
+    [1, 2, 3].forEach((n) => {
+      const a = 37.6 + (n - 1) * 6, b = a + 6;
+      const el = $(`st${n}`);
+      const k = eOut(seg(t, a, a + 0.7)) * (n === 3 ? 1 : 1 - eIn(seg(t, b - 0.3, b)));
+      css(el, { opacity: k, transform: `translateY(${(1 - eOut(seg(t, a, a + 0.7))) * 60}px)` });
+    });
+    BILLS.forEach((b, i) => pop($(`row${i}`), t, 38.6 + i * 0.7, { y: 50 }));
+    let sum = 0;
+    BILLS.forEach((b, i) => {
+      const k = eOut(seg(t, 44.2 + i * 0.6, 45.8 + i * 0.6)) * b.pot;
+      $(`pot${i}`).style.transform = `scaleX(${k})`;
+      sum += k * [1000, 10000, 19000][i] * 1.1;
+    });
+    $("potsum").textContent = `₦${Math.round(sum / 100) * 100 > 0 ? (Math.round(sum / 100) * 100).toLocaleString("en-NG") : "0"}`;
+    FEED.forEach((f, i) => pop($(`feed${i}`), t, 50 + i * 1.1, { y: 60 }));
+    $("phone").style.transform += ` rotate(${Math.sin(l * 0.6) * 0.6}deg)`;
+    void step;
+  }
+
+  /* S6: 55.2 – 65.6 · it stays on */
+  if (t > 55 && t < 65.8) {
+    const l = t - 55.2;
+    const split = eIO(seg(l, 0, 0.9));
+    $("s6l").style.transform = `translateX(${(1 - split) * -960}px)`;
+    $("s6r").style.transform = `translateX(${(1 - split) * 960}px)`;
+    $("divider").style.opacity = split * (1 - seg(l, 5.6, 6.0));
+    kb($("p6a"), l, 0, 6.4, { s0: 1.12, s1: 1.0 });
+    kb($("p6b"), l, 0, 6.4, { s0: 1.0, s1: 1.1 });
+    pop($("n6a"), t, 56.4, { y: -50 });
+    pop($("live"), t, 57.0, { y: 20 });
+    pop($("n6b"), t, 57.4, { y: -50 });
+    pop($("n6c"), t, 58.4, { y: -50 });
+    const full = eIO(seg(l, 5.6, 6.3));
+    css($("s6full"), { opacity: full, clipPath: `circle(${full * 120}% at 50% 50%)` });
+    kb($("p6c"), l, 5.6, 10.4, { s0: 1.14, s1: 1.0 });
+    words($("cap6").querySelector("h2"), t, 61.6, 0.09);
+  }
+
+  /* S7: 65.2 – 72 */
+  if (t > 65) {
+    pop($("e1"), t, 66.2, { y: 40 });
+    pop($("e2"), t, 67.0, { y: 40 });
+    pop($("e3"), t, 67.8, { y: 20 });
+  }
+}
+window.seek = seek;
+window.DURATION = DURATION;
+seek(0);
+
+/* Real-time preview: open the file, press space. */
+let playing = false, start = 0;
+addEventListener("keydown", (e) => {
+  if (e.code !== "Space") return;
+  playing = !playing; start = performance.now();
+  const tick = () => { if (!playing) return; const t = (performance.now() - start) / 1000; seek(t % DURATION); requestAnimationFrame(tick); };
+  tick();
+});
+</script>
+</body>
+</html>
