@@ -45,7 +45,8 @@ is required. The privacy page says so.
 Account, then Close account (`DELETE /v1/me`, D-081). Refused while naira is left, a payment, withdrawal or recent
 top-up is moving, or (in the app) stablecoins are in the ConstantUnits wallet. Erases contact details, bill numbers,
 readings, bank and wallet details, sessions, and the Privy user (with its embedded wallet); keeps ledger, orders and
-funding events without them for at least five years. A transfer to the old account number is held for a person
+funding events without them for at least five years, and identity checks (verified name, the BVN's last 4 digits and
+its keyed hash; D-086) for five years. A transfer to the old account number is held for a person
 (`funding_unmatched`), and an ops alert asks for the Paystack dedicated account to be deactivated.
 
 ## Keys and where they live

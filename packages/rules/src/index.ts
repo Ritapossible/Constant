@@ -15,3 +15,4 @@ export * from "./books.js";
 export * from "./pricing.js";
 export * from "./session.js";
 export * from "./pots.js";
+export * from "./kyc.js";

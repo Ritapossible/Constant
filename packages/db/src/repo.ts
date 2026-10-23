@@ -18,6 +18,9 @@ export interface UserRow {
   channels: string[];
   closed_at: Date | null;
   telegram_chat_id: string | null;
+  kyc_tier: number;
+  legal_first_name: string | null;
+  legal_last_name: string | null;
   created_at: Date;
 }
 

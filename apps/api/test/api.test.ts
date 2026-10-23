@@ -8,6 +8,7 @@ import { FakeCableVending, FakeFunding, FakeIdentity, FakeRates } from "@constan
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/index.js";
+import { verifyIdentity } from "./kyc-helper.js";
 
 let db: Db;
 let drop: () => Promise<void>;
@@ -135,11 +136,15 @@ describe("profile", () => {
 
 describe("funding", () => {
   it("gives the user their own account number, once", async () => {
-    const a = await call("POST", "/v1/funding-account", "did:privy:carol", { firstName: "Carol", lastName: "Eze", phone: "08031234567" });
+    // Paystack issues an account number only once the person's identity is verified (D-086).
+    expect((await call("POST", "/v1/funding-account", "did:privy:carol", {})).json()).toMatchObject({ error: "verify_identity", needTier: 1 });
+    await verifyIdentity(app, funding, as("did:privy:carol"), { firstName: "Carol", lastName: "Eze" });
+    const a = await call("POST", "/v1/funding-account", "did:privy:carol", {});
     expect(a.statusCode).toBe(200);
+    expect(a.json().accountName).toBe("CONSTANT/CAROL EZE");
     const b = await call("POST", "/v1/funding-account", "did:privy:carol", {});
     expect(b.json()).toEqual(a.json());
-    expect((await call("POST", "/v1/funding-account", "did:privy:dave", { firstName: "D", lastName: "E", phone: "123" })).json().error).toBe("invalid_phone");
+    expect((await call("POST", "/v1/funding-account", "did:privy:dave", { firstName: "D", lastName: "E", phone: "123" })).json().error).toBe("verify_identity");
   });
 
   it("INV-7: a signed transfer credits once, however often it is replayed; a bad signature credits nothing", async () => {
@@ -151,6 +156,7 @@ describe("funding", () => {
     });
     const send = (sig: string) => app.inject({ method: "POST", url: "/webhooks/paystack", headers: { "content-type": "application/json", "x-paystack-signature": sig }, payload: body });
 
+    const storedBefore = (await db.query("SELECT count(*)::int AS n FROM inbound_webhooks WHERE provider = 'paystack'")).rows[0].n;
     expect((await send("0".repeat(128))).statusCode).toBe(401);
     expect(await ledgerSum(db, me.user.id)).toBe(0n);
 
@@ -159,9 +165,9 @@ describe("funding", () => {
     expect(results.map((r) => r.json().result).sort()).toEqual(["credited", "duplicate", "duplicate", "duplicate", "duplicate"]);
     expect(await ledgerSum(db, me.user.id)).toBe(2_500_000n);
     const stored = await db.query("SELECT count(*)::int AS n FROM inbound_webhooks WHERE provider = 'paystack'");
-    expect(stored.rows[0].n).toBe(6);
-    const notices = await db.query("SELECT kind FROM notices WHERE user_id = $1", [me.user.id]);
-    expect(notices.rows.map((r) => r.kind)).toEqual(["funded"]);
+    expect(stored.rows[0].n - storedBefore).toBe(6);
+    const notices = await db.query("SELECT kind FROM notices WHERE user_id = $1 ORDER BY id", [me.user.id]);
+    expect(notices.rows.map((r) => r.kind)).toEqual(["kyc_verified", "funded"]);
   });
 
   it("a transfer to an unknown account is recorded and paged, not credited", async () => {

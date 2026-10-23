@@ -54,7 +54,8 @@ export type ServerOrder = {
 };
 
 export type Me = {
-  user: { id: string; displayName: string | null; email: string | null; phone: string | null; channels: ("whatsapp" | "telegram" | "sms" | "email")[]; telegram: boolean };
+  /** kycTier: 0 basic, 1 verified (BVN), 2 reviewed (D-086). */
+  user: { id: string; displayName: string | null; email: string | null; phone: string | null; channels: ("whatsapp" | "telegram" | "sms" | "email")[]; telegram: boolean; kycTier: 0 | 1 | 2 };
   /** The bot's username when Telegram is on (D-082); null when it isn't. */
   telegramBot: string | null;
   /** freeMinor: not in a pot and not held for a payment in progress. potsMinor: everything set aside for bills (D-083). */
@@ -66,6 +67,16 @@ export type Me = {
   /** Card, USSD and QR top-ups are open (D-075). */
   cardTopUps: boolean;
 };
+
+/** Identity tier, its limits and the latest check (D-086). Amounts in kobo, as strings. */
+export type Kyc = {
+  current: KycTierView;
+  tiers: KycTierView[];
+  usage: { inLast24hMinor: string; withdrawnLast24hMinor: string; balanceMinor: string };
+  check: { status: "pending" | "verified" | "failed"; reason: string | null; bvnLast4: string | null; accountLast4: string | null; at: string } | null;
+  legalName: string | null;
+};
+export type KycTierView = { tier: 0 | 1 | 2; name: string; dailyInMinor: string; maxBalanceMinor: string | null; dailyWithdrawMinor: string; accountNumber: boolean };
 
 export type Topup = {
   id: string;

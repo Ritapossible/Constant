@@ -46,6 +46,19 @@ import {
   withdrawalByReference,
   DuplicateLine,
   PermissionExists,
+  BvnInUse,
+  getUser,
+  claimIdempotencyKey,
+  completeIdempotencyKey,
+  releaseIdempotencyKey,
+  abandonKycCheck,
+  bvnVerifiedElsewhere,
+  decideKycCheck,
+  kycCustomerCode,
+  kycUsage,
+  latestKycCheck,
+  lockPendingKycByCustomer,
+  startKycCheck,
   StellarAccountTaken,
   createStellarRequest,
   linkStellarAccount,
@@ -140,8 +153,15 @@ import {
   decideSession,
   monthlyRunAt,
   decidePotMove,
+  KYC_TIERS,
+  decideKyc,
+  inboundOverLimit,
+  isBvn,
+  isNuban,
+  type KycDecision,
+  type KycTier,
 } from "@constant/rules";
-import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { registerOps } from "./ops.js";
 
@@ -190,6 +210,8 @@ declare module "fastify" {
     user: UserRow;
     /** The identity provider's session id for this request, when it gave one. */
     sid: string | null;
+    /** The Idempotency-Key this request claimed (D-087), so its answer can be stored. */
+    idem?: string | undefined;
   }
 }
 
@@ -221,6 +243,31 @@ class HttpError extends Error {
 }
 
 const bad = (code: string, message: string) => new HttpError(400, code, message);
+
+/** Requests that move money or create something that does: they honour Idempotency-Key (D-087). */
+const IDEMPOTENT_ROUTES = new Set([
+  "POST /v1/withdrawals",
+  "POST /v1/topups",
+  "POST /v1/funding-account",
+  "POST /v1/kyc/bvn",
+  "POST /v1/lines",
+  "POST /v1/lines/:id/top-up-now",
+  "POST /v1/lines/:id/pot",
+  "PUT /v1/payout-account",
+  "POST /v1/lines/:id/stables",
+  "POST /v1/lines/:id/stellar",
+  "POST /v1/stellar/onboarding/submit",
+]);
+
+/** Paystack's reason for a failed identity check, in words a person can act on. */
+function kycFailure(reason: string | null): string {
+  const r = (reason ?? "").toLowerCase();
+  if (r === "bvn_in_use") return "This BVN is already verified on another ConstantUnits account.";
+  if (/bvn|account number|incorrect|resolve/.test(r)) return "The BVN and account number didn't match. Use an account in your own name, opened with this BVN.";
+  if (/name/.test(r)) return "The name didn't match your BVN. Enter it as it appears at your bank.";
+  if (r === "provider_unreachable") return "We couldn't reach the bank check. Try again.";
+  return "We couldn't verify those details. Check them and try again.";
+}
 
 function str(v: unknown, name: string, max = 80): string {
   if (typeof v !== "string" || !v.trim()) throw bad("invalid", `${name} is required`);
@@ -364,11 +411,11 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
   const json = (req: FastifyRequest) => ((req.body as { json?: Record<string, unknown> } | undefined)?.json ?? {}) as Record<string, unknown>;
   const raw = (req: FastifyRequest) => (req.body as { raw?: string } | undefined)?.raw ?? "";
 
-  await app.register(cors, { origin: d.webOrigins, methods: ["GET", "POST", "PUT", "PATCH", "DELETE"], allowedHeaders: ["authorization", "content-type"], maxAge: 600 });
+  await app.register(cors, { origin: d.webOrigins, methods: ["GET", "POST", "PUT", "PATCH", "DELETE"], allowedHeaders: ["authorization", "content-type", "idempotency-key"], exposedHeaders: ["idempotent-replayed"], maxAge: 600 });
   await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
 
   app.setErrorHandler((err: Error, req, reply) => {
-    if (err instanceof HttpError) return reply.status(err.status).send({ error: err.code, message: err.message });
+    if (err instanceof HttpError) return reply.status(err.status).send({ error: err.code, message: err.message, ...((err as HttpError & { extra?: object }).extra ?? {}) });
     const status = (err as { statusCode?: number }).statusCode;
     if (status && status < 500) return reply.status(status).send({ error: "request", message: err.message });
     req.log.error({ err: { message: err.message } }, "unhandled");
@@ -501,6 +548,126 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       })),
     );
 
+    // ── Idempotency keys (D-087) ──
+    // A request that moves money may carry Idempotency-Key. Sent again with the same key and body (a retry after a
+    // dropped connection, a double tap), it gets the first answer back and does nothing twice. The same key with a
+    // different body is refused; while the first is still running, a retry waits. Keys are kept for 24 hours.
+    v1.addHook("preHandler", async (req, reply) => {
+      const route = `${req.method} ${req.routeOptions.url ?? ""}`;
+      if (!IDEMPOTENT_ROUTES.has(route)) return;
+      const key = req.headers["idempotency-key"];
+      if (key === undefined) return;
+      if (typeof key !== "string" || !/^[A-Za-z0-9_-]{8,128}$/.test(key)) throw bad("invalid_idempotency_key", "Idempotency-Key must be 8 to 128 letters, digits, - or _.");
+      const hash = createHash("sha256").update(`${route}\n${req.url}\n${raw(req)}`).digest("hex");
+      const prior = await claimIdempotencyKey(d.db, req.user.id, key, route, hash, now());
+      if (!prior) {
+        req.idem = key;
+        return;
+      }
+      if (prior.route !== route || prior.request_hash !== hash) throw new HttpError(422, "idempotency_key_reused", "That Idempotency-Key was used for a different request.");
+      if (prior.status_code === null) throw new HttpError(409, "in_progress", "That request is still being processed. Try again in a moment.");
+      reply.header("idempotent-replayed", "true");
+      return reply.status(prior.status_code).type("application/json; charset=utf-8").send(prior.response ?? "");
+    });
+    v1.addHook("onSend", async (req, reply, payload) => {
+      if (!req.idem) return payload;
+      const key = req.idem;
+      req.idem = undefined;
+      // A server error did nothing that can't be tried again; anything else is the answer for good.
+      if (reply.statusCode >= 500 || reply.statusCode === 429) await releaseIdempotencyKey(d.db, req.user.id, key);
+      else await completeIdempotencyKey(d.db, req.user.id, key, reply.statusCode, typeof payload === "string" ? payload : payload == null ? "" : String(payload));
+      return payload;
+    });
+
+    // ── Identity tiers (D-086) ──
+    const kycTier = (u: UserRow) => u.kyc_tier as KycTier;
+    const kycView = (t: KycTier) => {
+      const l = KYC_TIERS[t];
+      return { tier: t, name: l.name, dailyInMinor: l.dailyInMinor.toString(), maxBalanceMinor: l.maxBalanceMinor?.toString() ?? null, dailyWithdrawMinor: l.dailyWithdrawMinor.toString(), accountNumber: l.accountNumber };
+    };
+    /** Throws the refusal as a 403 the app can act on: which tier unlocks it, and what is still allowed today. */
+    const kycRefused = (d0: KycDecision) => {
+      if (d0.kind === "allow") return;
+      const msg = {
+        verify_identity: "Verify your identity to do this. It takes a minute.",
+        daily_limit: "That's more than your daily limit. Verify your identity to raise it, or try a smaller amount.",
+        balance_limit: "That would take your balance past its limit. Verify your identity to raise it.",
+      }[d0.reason];
+      const err = new HttpError(403, d0.reason === "verify_identity" ? "verify_identity" : "kyc_limit", msg);
+      (err as HttpError & { extra?: unknown }).extra = { needTier: d0.needTier, roomMinor: d0.roomMinor.toString() };
+      throw err;
+    };
+
+    v1.get("/kyc", async (req) => {
+      const [check, usage] = await Promise.all([latestKycCheck(d.db, req.user.id), kycUsage(d.db, req.user.id)]);
+      return {
+        current: kycView(kycTier(req.user)),
+        tiers: ([0, 1, 2] as const).map(kycView),
+        usage: { inLast24hMinor: usage.inLast24hMinor.toString(), withdrawnLast24hMinor: usage.withdrawnLast24hMinor.toString(), balanceMinor: usage.balanceMinor.toString() },
+        check: check && check.kind === "bvn_bank_account" ? { status: check.status, reason: check.status === "failed" ? kycFailure(check.reason) : null, bvnLast4: check.bvn_last4, accountLast4: check.account_last4, at: check.created_at.toISOString() } : null,
+        legalName: req.user.legal_first_name ? `${req.user.legal_first_name} ${req.user.legal_last_name ?? ""}`.trim() : null,
+      };
+    });
+
+    /**
+     * Tier 1: Paystack checks the BVN against a bank account in the person's own name (D-086). The answer comes by
+     * webhook. The BVN is passed to Paystack and never stored: only its keyed hash (one BVN, one account) and last 4.
+     */
+    v1.post(
+      "/kyc/bvn",
+      { config: { rateLimit: { max: 5, timeWindow: "1 hour", keyGenerator: (req: FastifyRequest) => req.headers.authorization ?? req.ip } } },
+      async (req, reply) => {
+        if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact ConstantUnits support.");
+        if (kycTier(req.user) >= 1) return reply.status(200).send({ status: "verified" });
+        const b = json(req);
+        if (!isBvn(b.bvn)) throw bad("invalid_bvn", "Your BVN is 11 digits. Dial *565*0# to see it.");
+        if (!isNuban(b.accountNumber)) throw bad("invalid_account", "Enter your 10-digit account number.");
+        const bankCode = typeof b.bankCode === "string" && /^[0-9A-Za-z]{3,10}$/.test(b.bankCode) ? b.bankCode : null;
+        if (!bankCode) throw bad("invalid_bank", "Choose your bank.");
+        const firstName = str(b.firstName, "firstName", 40);
+        const lastName = str(b.lastName, "lastName", 40);
+        const phone = str(b.phone, "phone", 20).replace(/[^\d+]/g, "");
+        if (!/^(\+234|0)[789]\d{9}$/.test(phone)) throw bad("invalid_phone", "Enter a Nigerian mobile number");
+        const bvnHmac = d.secrets.hmac(`bvn:${b.bvn}`);
+        if (await bvnVerifiedElsewhere(d.db, bvnHmac, req.user.id)) throw new HttpError(409, "bvn_in_use", "This BVN is already verified on another ConstantUnits account.");
+        const pending = await latestKycCheck(d.db, req.user.id);
+        if (pending?.status === "pending") return reply.status(202).send({ status: "pending" });
+
+        const customerCode = await d.funding.ensureCustomer({
+          email: req.user.email ?? `u-${req.user.id}@${d.fundingEmailDomain}`,
+          firstName,
+          lastName,
+          phone: phone.startsWith("0") ? `+234${phone.slice(1)}` : phone,
+        });
+        // Saved before Paystack is asked (rule 7), so the webhook always finds it.
+        let check;
+        try {
+          check = await startKycCheck(d.db, {
+            userId: req.user.id,
+            provider: d.funding.name,
+            customerCode,
+            bvnHmac,
+            bvnLast4: b.bvn.slice(-4),
+            bankCode,
+            accountLast4: b.accountNumber.slice(-4),
+            firstName,
+            lastName,
+          });
+        } catch (err) {
+          if ((err as { code?: string }).code === "23505") return reply.status(202).send({ status: "pending" });
+          throw err;
+        }
+        try {
+          await d.funding.validateCustomer(customerCode, { bvn: b.bvn, accountNumber: b.accountNumber, bankCode, firstName, lastName });
+        } catch (err) {
+          await abandonKycCheck(d.db, check.id, "provider_unreachable");
+          req.log.warn({ err: { message: (err as Error).message } }, "kyc validation not started");
+          throw new HttpError(503, "unreachable", "We couldn't reach the bank check. Try again in a minute.");
+        }
+        return reply.status(202).send({ status: "pending" });
+      },
+    );
+
     v1.get("/me", async (req) => {
       const u = req.user;
       const [sum, committed, account, lines, orders, enabled, market] = await Promise.all([
@@ -516,7 +683,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       const [pots, free, freeCommitted] = await Promise.all([potBalances(d.db, u.id), freeBalance(d.db, u.id), freeCommittedToOpenOrders(d.db, u.id)]);
       const inPots = [...pots.values()].reduce((a, b) => a + b, 0n);
       return {
-        user: { id: u.id, displayName: u.display_name, email: u.email, phone: u.phone_e164, channels: u.channels, telegram: u.telegram_chat_id !== null },
+        user: { id: u.id, displayName: u.display_name, email: u.email, phone: u.phone_e164, channels: u.channels, telegram: u.telegram_chat_id !== null, kycTier: u.kyc_tier },
         telegramBot: d.telegram ? d.telegram.botUsername : null,
         balance: {
           currency: market.currency,
@@ -556,15 +723,24 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     v1.post("/funding-account", async (req) => {
       const existing = await getFundingAccount(d.db, req.user.id);
       if (existing) return { bankName: existing.bank_name, accountNumber: existing.account_number, accountName: existing.account_name };
-      const b = json(req);
-      const phone = str(b.phone, "phone", 20).replace(/[^\d+]/g, "");
-      if (!/^(\+234|0)[789]\d{9}$/.test(phone)) throw bad("invalid_phone", "Enter a Nigerian mobile number");
-      const acct = await d.funding.createDedicatedAccount({
-        email: req.user.email ?? `u-${req.user.id}@${d.fundingEmailDomain}`,
-        firstName: str(b.firstName, "firstName", 40),
-        lastName: str(b.lastName, "lastName", 40),
-        phone: phone.startsWith("0") ? `+234${phone.slice(1)}` : phone,
-      });
+      // Paystack issues account numbers only to customers whose identity it validated (D-086).
+      kycRefused(decideKyc(kycTier(req.user), { kind: "account_number" }, { inLast24hMinor: 0n, withdrawnLast24hMinor: 0n, balanceMinor: 0n }));
+      const verifiedAs = await kycCustomerCode(d.db, req.user.id);
+      let acct;
+      if (verifiedAs) {
+        acct = await d.funding.assignAccount(verifiedAs);
+      } else {
+        // Raised to a tier by a person, without a BVN check here: the details come with the request.
+        const b = json(req);
+        const phone = str(b.phone, "phone", 20).replace(/[^\d+]/g, "");
+        if (!/^(\+234|0)[789]\d{9}$/.test(phone)) throw bad("invalid_phone", "Enter a Nigerian mobile number");
+        acct = await d.funding.createDedicatedAccount({
+          email: req.user.email ?? `u-${req.user.id}@${d.fundingEmailDomain}`,
+          firstName: req.user.legal_first_name ?? str(b.firstName, "firstName", 40),
+          lastName: req.user.legal_last_name ?? str(b.lastName, "lastName", 40),
+          phone: phone.startsWith("0") ? `+234${phone.slice(1)}` : phone,
+        });
+      }
       const saved = await insertFundingAccount(d.db, {
         user_id: req.user.id,
         provider: d.funding.name,
@@ -586,6 +762,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         const credit = typeof b.amountMinor === "string" && /^\d{1,12}$/.test(b.amountMinor) ? BigInt(b.amountMinor) : null;
         if (credit === null || credit < TOPUP_MIN_MINOR || credit > TOPUP_MAX_MINOR) throw bad("invalid_amount", "Enter an amount between ₦1,000 and ₦500,000");
         if ((await pendingTopupsToday(d.db, req.user.id)) >= 20) throw bad("too_many", "Too many unfinished top-ups today. Finish one or try tomorrow.");
+        kycRefused(decideKyc(kycTier(req.user), { kind: "topup", amountMinor: credit }, await kycUsage(d.db, req.user.id)));
         const q = topUpCharge(credit);
         // Saved with its reference before Paystack is called (persist before act).
         const t = await insertTopup(d.db, {
@@ -1122,7 +1299,9 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       const amount = minor(json(req).amountMinor, "amountMinor");
       const account = await getPayoutAccount(d.db, req.user.id);
       const result = await withTx(d.db, async (tx) => {
-        await lockUser(tx, req.user.id);
+        const locked = await lockUser(tx, req.user.id);
+        // Within the identity tier's daily limit (D-086), checked with the user locked.
+        kycRefused(decideKyc(locked.kyc_tier as KycTier, { kind: "withdraw", amountMinor: amount }, await kycUsage(tx, req.user.id)));
         // Only free money can be withdrawn: a pot is for its bill until it's moved back (D-083).
         const decision = decideWithdrawal({
           balanceMinor: await freeBalance(tx, req.user.id),
@@ -1621,6 +1800,29 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     return total > 0n ? { setAsideMinor: total.toString() } : {};
   };
 
+  /** Paystack's answer to an identity check (D-086). Unknown or already-decided checks are ignored. */
+  async function settleKyc(customerCode: string, verified: boolean, reason: string | null): Promise<string> {
+    try {
+      return await withTx(d.db, async (tx) => {
+        const check = await lockPendingKycByCustomer(tx, customerCode);
+        if (!check) return "ignored";
+        await lockUser(tx, check.user_id);
+        await decideKycCheck(tx, check, { verified, reason }, now());
+        await queueNotice(tx, {
+          key: `notice:kyc:${check.id}`,
+          userId: check.user_id,
+          kind: verified ? "kyc_verified" : "kyc_failed",
+          params: verified ? {} : { reason: kycFailure(reason) },
+        });
+        return verified ? "verified" : "failed";
+      });
+    } catch (err) {
+      if (!(err instanceof BvnInUse)) throw err;
+      await raiseOpsAlert(d.db, "warn", "kyc_bvn_in_use", { customerCode });
+      return "bvn_in_use";
+    }
+  }
+
   async function settleTopup(r: CheckoutResult): Promise<string> {
     return withTx(d.db, async (tx) => {
       const t = await lockTopupByReference(tx, r.reference);
@@ -1678,10 +1880,14 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
     // A checkout payment carries our own reference; a transfer into a dedicated account doesn't (D-075).
     const paid = d.checkout?.provider.parseCheckout(body) ?? null;
     if (paid?.reference.startsWith("cu_top_")) return { ok: true, result: await settleTopup(paid) };
+    const identity = d.funding.parseIdentification(body);
+    if (identity) return { ok: true, result: await settleKyc(identity.customerCode, identity.verified, identity.reason) };
     const credit = d.funding.parseCredit(body);
     if (!credit) return { ok: true, ignored: true };
 
     const users = await usersByCustomerCode(d.db, d.funding.name, credit.customerCode);
+    // A transfer can't be refused: past the tier's limits it is credited, and a person reviews it (D-086).
+    const before = users.length === 1 ? { tier: (await getUser(d.db, users[0]!))?.kyc_tier ?? 0, usage: await kycUsage(d.db, users[0]!) } : null;
     const decision = decideFundingCredit({ signatureValid: ok, isNewEvent: true, amountMinor: credit.amountMinor, matchedSiteIds: users });
     const userId = decision.kind === "credit" ? decision.siteId : null;
     const result = await withTx(d.db, async (tx) => {
@@ -1705,6 +1911,9 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         });
       }
       if (r === "rejected") await raiseOpsAlert(tx, "page", "funding_unmatched", { eventId: credit.eventId, reason: decision.kind === "reject" ? decision.reason : "currency" });
+      if (r === "credited" && userId && before && inboundOverLimit(before.tier as KycTier, credit.amountMinor, before.usage)) {
+        await raiseOpsAlert(tx, "warn", "kyc_limit_exceeded", { userId, eventId: credit.eventId, amountMinor: credit.amountMinor.toString(), tier: before.tier });
+      }
       return r;
     });
     return { ok: true, result };

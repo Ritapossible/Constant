@@ -138,3 +138,7 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 97 | A Stellar user never needs XLM: every reserve is sponsored and every fee paid by Constant; the user's key only signs a link message, the onboarding hash and each mandate's authorization. | chains (testnet proof) · api |
 | 98 | A Stellar charge or mandate transaction is saved before it is sent; one that never reached the ledger before its time limit is built again, and the contract's charge id makes a second charge impossible either way. | worker |
 | 99 | A Stellar account is linked to a ConstantUnits account only by a signature over a single-use message naming it, and to one account at a time. | api |
+| 100 | Nobody gets an account number or withdraws before Paystack verified their BVN against a bank account in their name; top-ups and withdrawals never exceed their tier's 24-hour limits or balance cap. | rules (property) · api |
+| 101 | A full BVN is never stored or logged: only its last 4 digits and a keyed hash; one BVN verifies one account. | api |
+| 102 | Money that arrives past a tier's limits is credited, never lost, and a person is alerted. | rules (property) · api |
+| 103 | A request sent again with the same Idempotency-Key never has a second effect: it gets the first answer, or is refused if its body differs. | api |

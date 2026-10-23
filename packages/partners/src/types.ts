@@ -104,9 +104,27 @@ export interface FundingCredit {
   reference: string;
 }
 
+/** A customer's identity check (D-086), from a signed webhook. */
+export interface IdentificationResult {
+  customerCode: string;
+  verified: boolean;
+  /** Why it failed, in the provider's words. */
+  reason: string | null;
+}
+
 export interface Funding {
   readonly name: string;
   createDedicatedAccount(c: { email: string; firstName: string; lastName: string; phone: string }): Promise<DedicatedAccount>;
+  /** Creates (or finds, by email) the provider's customer and returns its code. */
+  ensureCustomer(c: { email: string; firstName: string; lastName: string; phone: string }): Promise<string>;
+  /**
+   * Asks the provider to check a BVN against a bank account in the customer's name. The answer arrives later as a
+   * webhook (parseIdentification). The BVN is passed through, never stored.
+   */
+  validateCustomer(customerCode: string, c: { bvn: string; accountNumber: string; bankCode: string; firstName: string; lastName: string }): Promise<void>;
+  /** The account number for a validated customer. */
+  assignAccount(customerCode: string): Promise<DedicatedAccount>;
+  parseIdentification(rawBody: string): IdentificationResult | null;
   /** False for a bad or missing signature. Checked on the raw bytes before parsing. */
   verifySignature(rawBody: string, headers: Record<string, string | string[] | undefined>): boolean;
   /** A credit to act on, or null for events we ignore. */

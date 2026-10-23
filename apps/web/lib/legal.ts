@@ -4,7 +4,7 @@
  */
 
 /** Shown at the top of each legal page. Update it whenever a page's meaning changes. */
-export const LEGAL_UPDATED = "20 October 2026";
+export const LEGAL_UPDATED = "23 October 2026";
 
 /**
  * The business behind ConstantUnits. Set NEXT_PUBLIC_LEGAL_NAME and NEXT_PUBLIC_LEGAL_ADDRESS once it is
@@ -33,7 +33,7 @@ export const SERVICES: Service[] = [
     name: "Paystack",
     where: "Paystack Payments Limited · Nigeria",
     why: "Your ConstantUnits account number, card, USSD and QR top-ups, and returning money to your bank",
-    data: "Your name, email address and phone number, amounts and references, and the bank account you ask us to send money to. Card details go to Paystack only; ConstantUnits never sees them",
+    data: "Your name, email address and phone number, amounts and references, the bank account you ask us to send money to, and, when you verify your identity, your BVN and a bank account in your name, which Paystack checks with the banks. We keep only the last 4 digits of your BVN. Card details go to Paystack only; ConstantUnits never sees them",
   },
   {
     name: "VTpass",

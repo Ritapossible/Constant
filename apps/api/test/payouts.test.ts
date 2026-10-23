@@ -5,6 +5,7 @@ import { FakeCableVending, FakeFunding, FakeIdentity, FakeOfframp } from "@const
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/index.js";
+import { verifyIdentity } from "./kyc-helper.js";
 
 let db: Db;
 let drop: () => Promise<void>;
@@ -35,7 +36,8 @@ describe("withdrawals", () => {
   let userId = "";
   it("needs a naira account first, then accepts only an account in the same name", async () => {
     expect((await call("PUT", "/v1/payout-account", { bankCode: "058", accountNumber: "0987654321" })).json().error).toBe("no_holder");
-    await call("POST", "/v1/funding-account", { firstName: "Carol", lastName: "Eze", phone: "08031234567" });
+    await verifyIdentity(app, funding, as, { firstName: "Carol", lastName: "Eze" });
+    await call("POST", "/v1/funding-account", {});
     userId = (await call("GET", "/v1/me")).json().user.id;
     expect((await call("PUT", "/v1/payout-account", { bankCode: "044", accountNumber: "1111111111" })).json().error).toBe("name_mismatch");
     expect((await call("PUT", "/v1/payout-account", { bankCode: "058", accountNumber: "0000000000" })).json().error).toBe("not_found");

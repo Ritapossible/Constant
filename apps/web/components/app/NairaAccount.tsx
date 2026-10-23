@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CardTopUp } from "./CardTopUp";
 import { formatMoney } from "@/lib/app/format";
-import { Field } from "./Field";
+import { VerifyIdentity } from "./VerifyIdentity";
 import { useServer } from "./Server";
 import { useNotify } from "./Toast";
 
@@ -11,9 +11,6 @@ import { useNotify } from "./Toast";
 export function NairaAccount() {
   const { me, loading, error, call, reload } = useServer();
   const notify = useNotify();
-  const [first, setFirst] = useState("");
-  const [last, setLast] = useState("");
-  const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   // Bank transfer is the main way in; card, USSD and QR sit behind "Other ways", open when coming back from one.
@@ -22,14 +19,12 @@ export function NairaAccount() {
     if (new URLSearchParams(window.location.search).has("topup")) setOtherOpen(true);
   }, []);
 
-  async function create(e: FormEvent) {
-    e.preventDefault();
-    if (!first.trim() || !last.trim()) return setFormError("Enter your first and last name as they appear at your bank");
-    if (!/^(\+234|0)[789]\d{9}$/.test(phone.replace(/[\s-]/g, ""))) return setFormError("Enter your Nigerian mobile number, e.g. 0803 123 4567");
+  /** Once verified (D-086), the account number is one tap: the details come from the verification. */
+  const create = useCallback(async () => {
     setBusy(true);
     setFormError(null);
     try {
-      await call("/v1/funding-account", { method: "POST", body: { firstName: first.trim(), lastName: last.trim(), phone: phone.replace(/[\s-]/g, "") } });
+      await call("/v1/funding-account", { method: "POST", body: {} });
       await reload();
       notify("Your account number is ready");
     } catch (err) {
@@ -37,7 +32,7 @@ export function NairaAccount() {
     } finally {
       setBusy(false);
     }
-  }
+  }, [call, reload, notify]);
 
   if (!me) {
     return (
@@ -108,20 +103,21 @@ export function NairaAccount() {
           </div>
         </>
       ) : (
-        <form className="ap-form" onSubmit={create} noValidate>
-          <p className="ap-muted">Get your own account number. Send money to it from any Nigerian bank or mobile money app, like any other transfer. It&apos;s free.</p>
-          <div className="ap-grid-2">
-            <Field label="First name">{(a) => <input {...a} autoComplete="given-name" value={first} onChange={(e) => setFirst(e.target.value)} />}</Field>
-            <Field label="Last name">{(a) => <input {...a} autoComplete="family-name" value={last} onChange={(e) => setLast(e.target.value)} />}</Field>
+        me.user.kycTier >= 1 ? (
+          <div className="ap-form">
+            <p className="ap-muted">Your identity is verified. Get your own account number and send money to it from any Nigerian bank or mobile money app. It&apos;s free.</p>
+            {formError && (
+              <p className="ap-muted" role="alert">
+                {formError}
+              </p>
+            )}
+            <button className="btn btn-primary" onClick={create} disabled={busy}>
+              {busy ? "Creating…" : "Get my account number"}
+            </button>
           </div>
-          <Field label="Mobile number" error={formError}>
-            {(a) => <input {...a} inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0803 123 4567" />}
-          </Field>
-          <button className="btn btn-primary" type="submit" disabled={busy}>
-            {busy ? "Creating…" : "Get my account number"}
-          </button>
-          <p className="ap-fine">Held by our licensed payment partner. You can stop or remove any bill at any time.</p>
-        </form>
+        ) : (
+          <VerifyIdentity onVerified={reload} />
+        )
       )}
       {me.cardTopUps && (
         <details className="ap-other" open={otherOpen} onToggle={(e) => setOtherOpen((e.target as HTMLDetailsElement).open)}>

@@ -6,6 +6,7 @@ import { FakeCableVending, FakeFunding, FakeIdentity } from "@constant/partners"
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp, deviceName, nigerianMobile } from "../src/index.js";
+import { verifyIdentity } from "./kyc-helper.js";
 
 let db: Db;
 let drop: () => Promise<void>;
@@ -220,7 +221,8 @@ describe("closing an account (D-081)", () => {
   it("needs the word DELETE, and is refused while money is left or a payment is moving", async () => {
     clock = START;
     await call("PATCH", "/v1/me", who, { displayName: "Ada", channels: ["sms"] });
-    await call("POST", "/v1/funding-account", who, { firstName: "Ada", lastName: "Obi", phone: "08031234567" });
+    await verifyIdentity(app, funding, { authorization: `Bearer fake:${who}` }, { firstName: "Ada", lastName: "Obi" });
+    await call("POST", "/v1/funding-account", who, {});
     const line = (await call("POST", "/v1/lines", who, { kind: "electricity", provider: "ikedc", ref: "45012345678", meterType: "prepaid", amountMinor: "500000", renewDay: 3 })).json();
     await call("POST", `/v1/lines/${line.id}/readings`, who, { value: 3 });
 
@@ -326,7 +328,8 @@ describe("filling pots when money arrives (D-084)", () => {
   const who = "did:privy:autofill";
   it("a transfer fills pots to their levels, soonest bill first, once; the rest stays free", async () => {
     clock = START;
-    await call("POST", "/v1/funding-account", who, { firstName: "Ada", lastName: "Fill", phone: "08031230099" });
+    await verifyIdentity(app, funding, { authorization: `Bearer fake:${who}` }, { firstName: "Ada", lastName: "Fill" });
+    await call("POST", "/v1/funding-account", who, {});
     const soon = (await call("POST", "/v1/lines", who, { kind: "airtime", provider: "mtn", ref: "08036660001", amountMinor: "100000", renewDay: 12 })).json();
     const later = (await call("POST", "/v1/lines", who, { kind: "airtime", provider: "glo", ref: "08056660001", amountMinor: "100000", renewDay: 20 })).json();
     expect((await call("PATCH", `/v1/lines/${later.id}`, who, { potTargetMinor: "300000" })).json().potTargetMinor).toBe("300000");

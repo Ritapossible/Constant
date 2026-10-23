@@ -40,10 +40,13 @@ export async function closeAccount(tx: Tx, userId: string, now: Date): Promise<C
   await tx.query("DELETE FROM funding_accounts WHERE user_id = $1", [userId]);
   await tx.query("UPDATE sessions SET revoked_at = $2, revoked_reason = 'all_signed_out' WHERE user_id = $1 AND revoked_at IS NULL", [userId, now]);
   await tx.query("UPDATE sessions SET user_agent = NULL WHERE user_id = $1", [userId]);
+  // Identity checks stay (name, BVN's last 4 and its keyed hash): the anti-money-laundering law requires keeping
+  // identification records for five years after the relationship ends (D-086). They are never shown again.
   // The person: no contact details, and the sign-in link is cut, so signing in again starts a new, empty account.
   await tx.query(
     `UPDATE users SET status = 'closed', closed_at = $2, email = NULL, phone_e164 = NULL, display_name = NULL,
-       channels = '{}', telegram_chat_id = NULL, privy_did = 'closed:' || id::text, frozen_reason = NULL, updated_at = now()
+       channels = '{}', telegram_chat_id = NULL, privy_did = 'closed:' || id::text, frozen_reason = NULL,
+       legal_first_name = NULL, legal_last_name = NULL, updated_at = now()
      WHERE id = $1`,
     [userId, now],
   );

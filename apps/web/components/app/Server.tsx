@@ -60,7 +60,12 @@ export function ServerProvider({ children }: { children: ReactNode }) {
       try {
         res = await fetch(`${API_URL}${path}`, {
           method: init?.method ?? "GET",
-          headers: { authorization: `Bearer ${token}`, ...(init?.body !== undefined ? { "content-type": "application/json" } : {}) },
+          headers: {
+            authorization: `Bearer ${token}`,
+            ...(init?.body !== undefined ? { "content-type": "application/json" } : {}),
+            // Every change carries its own key, so a request the network retried is applied once (D-087).
+            ...(init?.method && init.method !== "GET" ? { "idempotency-key": crypto.randomUUID() } : {}),
+          },
           ...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
         });
       } catch {

@@ -19,6 +19,8 @@ export type NoticeKind =
   | "token"
   | "bill_paid"
   | "weekly_cap"
+  | "kyc_verified"
+  | "kyc_failed"
   | StableNoticeKind;
 
 export interface Message {
@@ -55,6 +57,8 @@ export interface NoticeParams {
   nextAt?: string;
   /** Money added: how much went into bill pots (D-084). */
   setAsideMinor?: string;
+  /** Why an identity check failed, already in plain words (D-086). */
+  reason?: string;
 }
 
 /** One message per notice kind. Short enough for one SMS where it may go by SMS. */
@@ -101,6 +105,16 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
       return {
         subject: `${who} reached its weekly limit`,
         text: `ConstantUnits: ${who} reached its weekly limit of ${p.capMinor ? naira(BigInt(p.capMinor)) : "your limit"}. We'll top up when the week allows, or raise it in the app.`,
+      };
+    case "kyc_verified":
+      return {
+        subject: "You're verified",
+        text: "ConstantUnits: your identity is verified. You can now get your own account number for bank transfers, and withdraw to your bank.",
+      };
+    case "kyc_failed":
+      return {
+        subject: "We couldn't verify you yet",
+        text: `ConstantUnits: we couldn't verify your identity. ${p.reason ?? "Check your details and try again."}`,
       };
     case "funded":
       return {

@@ -103,6 +103,10 @@ export default function Privacy() {
               Financial records (amounts, dates, references and receipts) are kept for at least five years after the account closes, as
               Nigerian anti-money-laundering law requires, without your contact details.
             </li>
+            <li>
+              Identity checks (the name you verified with, the last 4 digits of your BVN and a one-way code made from it) are kept for five
+              years after the account closes, for the same reason. We never keep your full BVN.
+            </li>
             <li>Server logs: for a short period set by our hosting providers.</li>
           </ul>
 

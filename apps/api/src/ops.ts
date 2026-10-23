@@ -25,8 +25,9 @@ import {
   withTx,
   writeVendEntries,
   type Db,
+  setKycTierManually,
 } from "@constant/db";
-import { nextDueAfter, renewalRunAt } from "@constant/rules";
+import { isKycTier, nextDueAfter, renewalRunAt } from "@constant/rules";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { timingSafeEqual } from "node:crypto";
 
@@ -174,6 +175,21 @@ export async function registerOps(app: FastifyInstance, d: { db: Db; opsToken: s
         await d.db.query("UPDATE users SET status = 'active', frozen_reason = NULL, updated_at = now() WHERE id = $1", [id]);
         await logOpsAction(d.db, who, "unfreeze_user", id, { note: n, reason: frozen.rows[0]?.frozen_reason });
         return { ok: true };
+      });
+
+      /** Tier 2 after a person reviewed NIN and address, or a lower tier after a review (D-086). Logged with who and why. */
+      ops.post("/users/:id/kyc-tier", async (req) => {
+        const { id } = req.params as { id: string };
+        const who = actor(req);
+        const n = note(req);
+        const tier = body(req).tier;
+        if (!isKycTier(tier)) throw new OpsError(400, "invalid_tier", "tier must be 0, 1 or 2");
+        if (!n) throw new OpsError(400, "note_required", "Say why (the review's outcome) in note");
+        const user = await getUser(d.db, id);
+        if (!user) throw new OpsError(404, "not_found", "No such user");
+        await withTx(d.db, async (tx) => setKycTierManually(tx, id, tier, who, n));
+        await logOpsAction(d.db, who, "kyc_tier", id, { note: n, from: user.kyc_tier, to: tier });
+        return { ok: true, tier };
       });
 
       ops.post("/flags/:key", async (req) => {

@@ -6,7 +6,7 @@
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { fetchJson, type Fetch } from "./http.js";
-import type { Bank, Checkout, CheckoutResult, CheckoutStart, DedicatedAccount, Funding, FundingCredit, Payouts, TransferEvent, TransferOutcome } from "./types.js";
+import type { Bank, Checkout, CheckoutResult, CheckoutStart, DedicatedAccount, Funding, FundingCredit, IdentificationResult, Payouts, TransferEvent, TransferOutcome } from "./types.js";
 
 export interface PaystackConfig {
   secretKey: string;
@@ -106,9 +106,43 @@ export class Paystack implements Funding, Payouts, Checkout {
   }
 
   async createDedicatedAccount(c: { email: string; firstName: string; lastName: string; phone: string }): Promise<DedicatedAccount> {
+    return this.assignAccount(await this.ensureCustomer(c));
+  }
+
+  async ensureCustomer(c: { email: string; firstName: string; lastName: string; phone: string }): Promise<string> {
     const customer = await this.post("/customer", { email: c.email, first_name: c.firstName, last_name: c.lastName, phone: c.phone });
     const customerCode = String(customer.customer_code ?? "");
     if (!customerCode) throw new PaystackError("paystack: no customer code");
+    return customerCode;
+  }
+
+  // Customer validation (D-086): docs-v2.paystack.com/docs/identity-verification/validate-customer, checked 2026-10-23.
+  // Required before an account number for businesses in financial and general services; answered by webhook.
+  async validateCustomer(customerCode: string, c: { bvn: string; accountNumber: string; bankCode: string; firstName: string; lastName: string }): Promise<void> {
+    await this.post(`/customer/${encodeURIComponent(customerCode)}/identification`, {
+      country: "NG",
+      type: "bank_account",
+      account_number: c.accountNumber,
+      bvn: c.bvn,
+      bank_code: c.bankCode,
+      first_name: c.firstName,
+      last_name: c.lastName,
+    });
+  }
+
+  parseIdentification(rawBody: string): IdentificationResult | null {
+    try {
+      const b = JSON.parse(rawBody) as { event?: string; data?: { customer_code?: unknown; reason?: unknown } };
+      if (b.event !== "customeridentification.success" && b.event !== "customeridentification.failed") return null;
+      const code = b.data?.customer_code;
+      if (typeof code !== "string" || !code) return null;
+      return { customerCode: code, verified: b.event === "customeridentification.success", reason: typeof b.data?.reason === "string" ? b.data.reason : null };
+    } catch {
+      return null;
+    }
+  }
+
+  async assignAccount(customerCode: string): Promise<DedicatedAccount> {
     const acct = await this.post("/dedicated_account", { customer: customerCode, preferred_bank: this.c.preferredBank });
     const bank = acct.bank as { name?: string } | undefined;
     const accountNumber = String(acct.account_number ?? "");
@@ -224,9 +258,54 @@ export class FakeFunding implements Funding, Payouts, Checkout {
   private n = 0;
   constructor(readonly secret = "fake-secret") {}
 
-  async createDedicatedAccount(c: { email: string; firstName: string; lastName: string }): Promise<DedicatedAccount> {
+  async createDedicatedAccount(c: { email: string; firstName: string; lastName: string; phone: string }): Promise<DedicatedAccount> {
+    return this.assignAccount(await this.ensureCustomer(c));
+  }
+
+  customers = new Map<string, { email: string; firstName: string; lastName: string; validated: boolean }>();
+  /** Identity checks asked for, without the BVN (as Paystack masks it). */
+  validations: { customerCode: string; bvnLast4: string; accountNumber: string; bankCode: string }[] = [];
+  validateFails = false;
+
+  async ensureCustomer(c: { email: string; firstName: string; lastName: string }): Promise<string> {
+    const found = [...this.customers.entries()].find(([, v]) => v.email === c.email);
+    if (found) return found[0];
     this.n += 1;
-    return { customerCode: `CUS_fake${this.n}_${c.email}`, accountNumber: String(9_900_000_000 + this.n), bankName: "Test Bank", accountName: `CONSTANT/${c.firstName} ${c.lastName}`.toUpperCase() };
+    const code = `CUS_fake${this.n}`;
+    this.customers.set(code, { email: c.email, firstName: c.firstName, lastName: c.lastName, validated: false });
+    return code;
+  }
+
+  async validateCustomer(customerCode: string, c: { bvn: string; accountNumber: string; bankCode: string; firstName: string; lastName: string }): Promise<void> {
+    if (this.validateFails) throw new Error("fake: identification unavailable");
+    const cust = this.customers.get(customerCode);
+    if (!cust) throw new Error("fake: no such customer");
+    cust.firstName = c.firstName;
+    cust.lastName = c.lastName;
+    this.validations.push({ customerCode, bvnLast4: c.bvn.slice(-4), accountNumber: c.accountNumber, bankCode: c.bankCode });
+  }
+
+  /** Test helper: the signed webhook body Paystack would send with the check's result. */
+  identificationEvent(customerCode: string, verified: boolean, reason = "Account number or BVN is incorrect"): string {
+    if (verified) {
+      const cust = this.customers.get(customerCode);
+      if (cust) cust.validated = true;
+    }
+    return JSON.stringify({
+      event: verified ? "customeridentification.success" : "customeridentification.failed",
+      data: { customer_code: customerCode, identification: { country: "NG", type: "bank_account" }, ...(verified ? {} : { reason }) },
+    });
+  }
+
+  parseIdentification(rawBody: string): IdentificationResult | null {
+    return new Paystack({ secretKey: this.secret, preferredBank: "test-bank" }).parseIdentification(rawBody);
+  }
+
+  async assignAccount(customerCode: string): Promise<DedicatedAccount> {
+    const cust = this.customers.get(customerCode);
+    if (!cust) throw new Error("fake: no such customer");
+    const n = Number(customerCode.replace(/\D/g, ""));
+    return { customerCode, accountNumber: String(9_900_000_000 + n), bankName: "Test Bank", accountName: `CONSTANT/${cust.firstName} ${cust.lastName}`.toUpperCase() };
   }
 
   sign(rawBody: string): string {
