@@ -68,7 +68,7 @@ export async function setDepositScreening(q: Q, d: { chain: string; tx_hash: str
 }
 
 export async function addressesToScreen(q: Q, limit = 50): Promise<{ address: string; user_id: string }[]> {
-  return (await q.query("SELECT address, user_id FROM user_addresses WHERE screening = 'pending' ORDER BY created_at LIMIT $1", [limit])).rows;
+  return (await q.query("SELECT address, user_id FROM user_addresses WHERE screening = 'pending' AND family = 'evm' ORDER BY created_at LIMIT $1", [limit])).rows;
 }
 
 export async function setAddressScreening(q: Q, address: string, s: ScreeningState): Promise<void> {

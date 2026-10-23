@@ -1,5 +1,5 @@
 import { Secrets, createPool, keysFromEnv, migrate } from "@constant/db";
-import { BasePermissionVerifier, EvmPermissionVerifier, evmAddress } from "@constant/chains";
+import { BasePermissionVerifier, EvmPermissionVerifier, StellarRail, evmAddress, isStellarAccount } from "@constant/chains";
 import { FakeCableVending, FakeFunding, FakeIdentity, PaycrestRates, PaycrestSender, Paystack, Privy, Telegram, Vtpass } from "@constant/partners";
 import { buildApp } from "./app.js";
 
@@ -61,6 +61,22 @@ const app = await buildApp({
           },
         };
       })()
+    : {}),
+  // USDC on Stellar (D-085): same switch as the worker. The API holds the sponsor key only (opens accounts, pays
+  // reserves); the contract admin key that charges stays in the worker.
+  ...(env.STELLAR_AUTOPAY === "true"
+    ? {
+        stellar: {
+          rail: new StellarRail({
+            network: env.STELLAR_NETWORK === "public" ? "public" : "testnet",
+            contractId: need("STELLAR_MANDATE_CONTRACT"),
+            operatorSecret: need("STELLAR_SPONSOR_SECRET"),
+            ...(env.STELLAR_RPC_URL ? { rpcUrl: env.STELLAR_RPC_URL } : {}),
+            ...(env.STELLAR_USDC_ISSUER && isStellarAccount(env.STELLAR_USDC_ISSUER) ? { usdc: { code: "USDC", issuer: env.STELLAR_USDC_ISSUER } } : {}),
+          }),
+          rates: new PaycrestRates(env.PAYCREST_BASE_URL ?? "https://api.paycrest.io"),
+        },
+      }
     : {}),
 });
 

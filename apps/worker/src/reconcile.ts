@@ -6,7 +6,7 @@
 import { raiseOpsAlert, setFlag, withTx } from "@constant/db";
 import { checkBooks, localParts, type FundingFacts, type OrderFacts } from "@constant/rules";
 import type { Hex } from "viem";
-import { chainFor } from "./dollars.js";
+import { railFor } from "./dollars.js";
 import type { Deps } from "./jobs.js";
 
 const PARTNER_CHECK_DAYS = 7;
@@ -59,11 +59,12 @@ export async function reconcileBooks(d: Deps, force = false): Promise<{ ran: boo
     }
     if (r.charge_status) {
       o.charge = { status: r.charge_status as "confirmed", nairaMinor: r.naira_minor ?? 0n, fundLedgerMinor: BigInt(r.charge_fund) };
-      // Each charge is checked on its own chain (Base or Arc, D-070).
-      const on = d.dollars && r.charge_chain ? chainFor(d.dollars, r.charge_chain) : null;
-      if (r.charge_status === "confirmed" && r.tx_hash && on && r.updated_at.getTime() > recent) {
+      // Each charge is checked on its own network (Base, Arc or Stellar).
+      const rail = d.dollars && r.charge_chain ? railFor(d.dollars, r.charge_chain) : null;
+      if (r.charge_status === "confirmed" && r.tx_hash && rail && r.updated_at.getTime() > recent) {
         chainChecks += 1;
-        o.charge.chain = await on.chain.status(r.tx_hash as Hex, 1n).catch(() => "unknown" as const);
+        const st = await rail.status(r.tx_hash, null).catch(() => "unknown" as const);
+        o.charge.chain = st === "expired" ? "unknown" : st;
       }
     }
     orders.push(o);

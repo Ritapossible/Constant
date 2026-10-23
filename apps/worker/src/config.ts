@@ -1,4 +1,4 @@
-import { BasePermissionChain, CctpBridge, EvmPermissionChain, FakeAnchorer, StellarAnchorer, ViemReader, evmAddress, type Anchorer, type EvmReader } from "@constant/chains";
+import { BasePermissionChain, CctpBridge, EvmPermissionChain, FakeAnchorer, StellarAnchorer, StellarRail, ViemReader, evmAddress, isStellarAccount, type Anchorer, type EvmReader } from "@constant/chains";
 import { Secrets, createPool, keysFromEnv, type Db } from "@constant/db";
 import { CircleScreener, FakeCableVending, FakeMessaging, HttpMessaging, PaycrestRates, PaycrestSender, Paystack, Telegram, Vtpass, withTelegram, type CableVending, type Messaging, type Payouts } from "@constant/partners";
 import type { OfframpDeps } from "./offramp.js";
@@ -53,20 +53,50 @@ export function chainsFromEnv(env: NodeJS.ProcessEnv = process.env): { readers: 
 }
 
 /**
- * Dollar autopay on Base (D-063): on only when SPENDER_PRIVATE_KEY is set. That key is Constant's spender:
- * it receives charged USDC and pays Base gas, so it should hold a little ETH and be swept to treasury.
+ * USDC on Stellar (D-085): on when STELLAR_AUTOPAY=true. STELLAR_OPERATOR_SECRET is the mandate contract's admin and
+ * pays every fee and sponsored reserve, so it holds XLM; charged USDC goes to the treasury account set in the
+ * contract. A different key from STELLAR_SECRET (receipt anchoring), so the two never race for a sequence number.
+ */
+export function stellarFromEnv(env: NodeJS.ProcessEnv = process.env): { rail: StellarRail } | undefined {
+  if (env.STELLAR_AUTOPAY !== "true") return undefined;
+  const network = env.STELLAR_NETWORK === "public" ? "public" : "testnet";
+  const contractId = env.STELLAR_MANDATE_CONTRACT ?? "";
+  if (!/^C[A-Z2-7]{55}$/.test(contractId)) throw new Error("STELLAR_MANDATE_CONTRACT must be the mandate contract's C… address");
+  const secret = env.STELLAR_OPERATOR_SECRET ?? "";
+  if (!/^S[A-Z2-7]{55}$/.test(secret)) throw new Error("STELLAR_OPERATOR_SECRET must be a Stellar secret key (S…)");
+  if (env.STELLAR_SECRET && env.STELLAR_SECRET === secret) throw new Error("STELLAR_OPERATOR_SECRET must differ from STELLAR_SECRET (receipt anchoring)");
+  if (network === "public" && !env.STELLAR_RPC_URL) throw new Error("STELLAR_RPC_URL is required on the public network");
+  const usdc = env.STELLAR_USDC_ISSUER ? { code: "USDC", issuer: env.STELLAR_USDC_ISSUER } : undefined;
+  if (usdc && !isStellarAccount(usdc.issuer)) throw new Error("STELLAR_USDC_ISSUER must be a G… account");
+  return {
+    rail: new StellarRail({
+      network,
+      contractId,
+      operatorSecret: secret,
+      ...(env.STELLAR_RPC_URL ? { rpcUrl: env.STELLAR_RPC_URL } : {}),
+      ...(usdc ? { usdc } : {}),
+    }),
+  };
+}
+
+/**
+ * Dollar autopay. Base (D-063) is on when SPENDER_PRIVATE_KEY is set: that key is Constant's spender, it receives
+ * charged USDC and pays Base gas, so it should hold a little ETH and be swept to treasury. Stellar (D-085) is on
+ * when STELLAR_AUTOPAY=true, with or without Base.
  */
 export function dollarsFromEnv(env: NodeJS.ProcessEnv = process.env): DollarDeps | undefined {
   const key = env.SPENDER_PRIVATE_KEY;
-  if (!key) return undefined;
-  if (!/^0x[0-9a-fA-F]{64}$/.test(key)) throw new Error("SPENDER_PRIVATE_KEY must be 0x + 64 hex characters");
+  const stellar = stellarFromEnv(env);
+  if (!key && !stellar) return undefined;
+  if (key && !/^0x[0-9a-fA-F]{64}$/.test(key)) throw new Error("SPENDER_PRIVATE_KEY must be 0x + 64 hex characters");
   const treasury = env.TREASURY_ADDRESS ? evmAddress(env.TREASURY_ADDRESS) : null;
   if (env.TREASURY_ADDRESS && !treasury) throw new Error("TREASURY_ADDRESS is not an address");
   const production = env.NODE_ENV === "production";
-  if (production && !treasury) throw new Error("TREASURY_ADDRESS is required in production: charged USDC must not sit on the hot key");
+  if (key && production && !treasury) throw new Error("TREASURY_ADDRESS is required in production: charged USDC must not sit on the hot key");
   const dollars = (v: string | undefined, fallback: string) => BigInt(Math.round(Number(v ?? fallback) * 100)) * 10_000n; // "$500" → micro
   return {
-    chain: new BasePermissionChain(key as Hex, env.BASE_RPC_URL),
+    ...(key ? { chain: new BasePermissionChain(key as Hex, env.BASE_RPC_URL) } : {}),
+    ...(stellar ? { stellar } : {}),
     rates: new PaycrestRates(env.PAYCREST_BASE_URL ?? "https://api.paycrest.io"),
     confirmations: BigInt(env.BASE_CONFIRMATIONS ?? "5"),
     ...(env.CIRCLE_API_KEY ? { screener: new CircleScreener(env.CIRCLE_API_KEY, env.CIRCLE_SCREENING_CHAIN ?? "ETH") } : {}),
@@ -76,7 +106,7 @@ export function dollarsFromEnv(env: NodeJS.ProcessEnv = process.env): DollarDeps
     ...(treasury ? { treasury } : {}),
     sweepMinMicro: dollars(env.SWEEP_MIN_USD, "50"),
     // USDC on Arc (D-070): on only after Coinbase's manager is deployed there (scripts/arc/deploy-spend-permissions.mjs).
-    ...(env.ARC_AUTOPAY === "true"
+    ...(key && env.ARC_AUTOPAY === "true"
       ? {
           arc: {
             chain: new EvmPermissionChain("arc", key as Hex, env.ARC_RPC_URL),

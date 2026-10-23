@@ -29,7 +29,7 @@ export interface NewPermission {
   userId: string;
   lineId: string;
   /** Default base. */
-  chain?: "base" | "arc";
+  chain?: "base" | "arc" | "stellar";
   account: string;
   spender: string;
   token: string;

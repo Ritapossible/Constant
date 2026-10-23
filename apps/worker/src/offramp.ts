@@ -27,6 +27,9 @@ const MIN = 60_000;
 const BASE_TOKENS = STABLES.filter((s) => s.chain === "base");
 
 export async function refillFloat(d: Deps, dd: DollarDeps, od: OfframpDeps): Promise<string> {
+  // The off-ramp sells from the Base spender; without Base it has nothing to sell.
+  const base = dd.chain;
+  if (!base) return "off";
   const now = d.now();
   const cur = await offrampInFlight(d.db);
   const ref = cur ? { reference: cur.reference } : null;
@@ -40,13 +43,13 @@ export async function refillFloat(d: Deps, dd: DollarDeps, od: OfframpDeps): Pro
         return "creating";
       case "created": {
         // The token the order was made for, as saved before Paycrest was called.
-        const prepared = await dd.chain.prepareTransfer(cur.token as Hex, cur.receive_address as Hex, BigInt(cur.send_micro!));
+        const prepared = await base.prepareTransfer(cur.token as Hex, cur.receive_address as Hex, BigInt(cur.send_micro!));
         await updateOfframp(d.db, ref, { status: "funding", tx_hash: prepared.hash, tx_raw: prepared.raw });
-        await dd.chain.broadcast(prepared.raw);
+        await base.broadcast(prepared.raw);
         return "funding";
       }
       case "funding": {
-        const st = await dd.chain.status(cur.tx_hash as Hex, dd.confirmations);
+        const st = await base.status(cur.tx_hash as Hex, dd.confirmations);
         if (st === "confirmed") {
           await updateOfframp(d.db, ref, { status: "funded", tx_raw: null });
           return "funded";
@@ -56,7 +59,7 @@ export async function refillFloat(d: Deps, dd: DollarDeps, od: OfframpDeps): Pro
           await raiseOpsAlertOnce(d.db, "page", "offramp_failed", `offramp:${cur.reference}`, { reference: cur.reference, txHash: cur.tx_hash });
           return "failed";
         }
-        if (age > REBROADCAST_AFTER_MIN * MIN && cur.tx_raw) await dd.chain.broadcast(cur.tx_raw as Hex);
+        if (age > REBROADCAST_AFTER_MIN * MIN && cur.tx_raw) await base.broadcast(cur.tx_raw as Hex);
         return "funding";
       }
       case "funded": {
@@ -80,7 +83,7 @@ export async function refillFloat(d: Deps, dd: DollarDeps, od: OfframpDeps): Pro
   }
 
   const floatMinor = await d.vending.floatBalance().catch(() => null);
-  const held = await Promise.all(BASE_TOKENS.map(async (t) => ({ token: t, micro: await dd.chain.balanceOf(t.address, dd.chain.spender) })));
+  const held = await Promise.all(BASE_TOKENS.map(async (t) => ({ token: t, micro: await base.balanceOf(t.address, base.spender) })));
   const { token, micro: spenderMicro } = held.reduce((a, b) => (b.micro > a.micro ? b : a));
   const quote = await od.rates.toNgn(token.symbol, 100).catch(() => null);
   // Paycrest adds its fees on top of the order: leave room for them (1%, at least $1).
@@ -99,7 +102,7 @@ export async function refillFloat(d: Deps, dd: DollarDeps, od: OfframpDeps): Pro
   const reference = `ofr_${randomUUID().replace(/-/g, "")}`;
   if (!(await insertOfframp(d.db, { provider: "paycrest", reference, token: token.address, amountMicro: decision.usdcMicro, rate: quote!.ngnPerUsdc }))) return "in_flight";
   try {
-    const order = await od.offramp.createOrder({ token: token.symbol, amountMicro: decision.usdcMicro, rate: quote!.ngnPerUsdc, reference, returnAddress: dd.chain.spender, recipient: od.recipient });
+    const order = await od.offramp.createOrder({ token: token.symbol, amountMicro: decision.usdcMicro, rate: quote!.ngnPerUsdc, reference, returnAddress: base.spender, recipient: od.recipient });
     // Paycrest adds its fees on top; we must still hold enough to send it all.
     if (order.sendMicro > spenderMicro) {
       await updateOfframp(d.db, { reference }, { status: "failed", provider_order: order.id, error: "fees exceed the spender's balance" });

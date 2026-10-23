@@ -54,3 +54,15 @@ jobs:
       - run: forge test -vv
         env:
           FOUNDRY_PROFILE: ci
+
+  # Mandate contract on Soroban (D-085): format and unit tests. The committed wasm is built with stellar-cli.
+  soroban:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts/mandate
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup component add rustfmt
+      - run: cargo fmt --check
+      - run: cargo test --locked

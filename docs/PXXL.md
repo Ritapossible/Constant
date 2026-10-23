@@ -72,7 +72,20 @@ decoder and meter numbers can't be read.
 | `MESSAGING_PROVIDER` | `fake` while testing (messages are logged, not sent). Later: `TERMII_API_KEY` and/or `RESEND_API_KEY` + `EMAIL_FROM` instead |
 | `PAYSTACK_SECRET_KEY`, `PAYSTACK_PREFERRED_BANK` | the same test values as the API |
 
-Leave out everything about dollars, chains and Stellar for now: those parts stay off when their keys are absent.
+Leave out everything about dollars and chains for now: those parts stay off when their keys are absent.
+
+### Stellar on testnet (D-085), when you want it on
+
+Run `node scripts/stellar/deploy.mjs` once (testnet keys are made and funded for you). Then add:
+
+| Service | Variables |
+|---|---|
+| API and worker | `STELLAR_AUTOPAY=true`, `STELLAR_NETWORK=testnet`, `STELLAR_MANDATE_CONTRACT=C…` |
+| API only | `STELLAR_SPONSOR_SECRET=S…` |
+| Worker only | `STELLAR_OPERATOR_SECRET=S…` |
+
+Redeploy both. The worker logs `stellarAutopay` with the contract address when it is on. Nothing else changes: bills
+only pay from Stellar once a user links an account and signs a mandate for that bill.
 
 4. Deploy. The worker's log should say `worker started`, and its `/health` should answer `{"ok":true,…}` within a
    minute. If `/health` says `"ok":false`, the worker started but its loop stopped: read the log.

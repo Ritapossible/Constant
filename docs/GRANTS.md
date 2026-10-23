@@ -7,14 +7,22 @@ application, and only a chain with a transaction link to paste. (Review of 2026-
 |---|---|---|---|
 | **Base** | The user's own Coinbase smart account; USDC and USDT deposits indexed after 12 confirmations and screened; one spend permission per bill (Coinbase's Spend Permission Manager), charged only after it confirms, then the naira vend; charged USDC swept to the treasury; Paycrest off-ramp to refill the VTpass float. Gas sponsorship is specified (GO-LIVE.md), not yet proven. | "Diaspora USDC on Base pays a Nigerian bill, and ConstantUnits can take only the cap the user signed." Lead with the bill: email sign-in, no seed phrase, "up to $11.50 every 30 days for DStv." | The 8-step proof run in GO-LIVE.md, recorded: $5 USDC in, permission approved, charge on Basescan, sandbox vend, receipt checked against Stellar testnet, Stop revoking the permission. **Apply first, after this run.** |
 | **Arc** | USDC deposits indexed. Autopay written (Spend Permission Manager on Arc, then CCTP to Base, where the off-ramp is). Off until `scripts/arc/proof-testnet.mjs` prints ALL PASSED. | Not yet. After the proof: "USDC never has to sit on Base first: the user keeps it on Arc, ConstantUnits takes a capped amount, and Circle's bridge settles it where the off-ramp lives." Say Paycrest doesn't list Arc, so the off-ramp stays on Base. | ALL PASSED log, then one $5 Arc charge bridged by CCTP and a bill paid. |
-| **Stellar** | Once an hour, a Merkle root of settled receipts as a transaction memo; the receipt page verifies it in the browser. No user account, no Stellar USDC, no Soroban. | A feature inside the Base application: "every paid bill has a public fingerprint on Stellar." Not a Stellar grant on its own. | A receipt page showing "Checked in your browser" with the Stellar transaction link. |
+| **Stellar** | Bills paid from USDC on Stellar through Constant's own Soroban mandate contract (D-085): the user links a Stellar account by signature, Constant sponsors the account and USDC trustline (the user never holds XLM), the user signs one capped mandate per bill, the worker charges within the cap straight to the treasury, then the naira vend. Plus the hourly receipt root as a memo. Testnet only; mainnet waits for Stellar screening and funded keys. | "Diaspora and Nigerian USDC on Stellar keeps a decoder on: one signature, a cap the contract enforces, no XLM, no seed phrase from us." Say it is on testnet, that the off-ramp of Stellar USDC (CCTP to Base or a Stellar anchor) is the next build, and that the app's screens for it follow. | `docs/proof/stellar-e2e.md` (the real API and worker, linking to revoke, every step a testnet link) and `docs/proof/stellar-testnet.md` (the contract's rules: cap, duplicate charge, revoke). The contract on stellar.expert. |
 | **QIE** | ConstantMandate contract, tested; testnet deploy waiting for faucet funds. The hackathon wants a **verified mainnet** contract and the official QIE stablecoin address, which is still unconfirmed. | A separate submission (deadline 30 November). Never described as the Base or Arc integration. | Verified mainnet contract + `scripts/qie/proof-testnet.mjs` output. |
 
-## A Stellar grant later
+## A Stellar grant (Stellar Community Fund)
 
-Needs a real path first: a user sends USDC on Stellar, ConstantUnits fee-bumps it so they need no XLM, CCTP brings it to
-Base, and the same spend permission pays the bill. Then: "a Stellar USDC balance can keep a decoder on," with the
-receipt anchoring as the audit trail.
+Ready for a testnet-stage application. What a reviewer can check without trusting us:
+
+1. The contract (`contracts/mandate`) and its 14 tests; the deployed code on stellar.expert.
+2. `node scripts/stellar/proof-testnet.mjs`: a user with no XLM, Circle testnet USDC, one signature, two charges into
+   the treasury, and the contract refusing a repeated charge id, a charge over the cap and a charge after revoke.
+3. `node scripts/stellar/e2e-testnet.mjs`: the same through ConstantUnits' API and worker, ending in a renewed bill.
+
+What the grant would fund, in order: the app's Stellar screens (link a wallet, top up USDC, approve a bill); Stellar
+sanctions screening; mainnet keys and an RPC provider; turning treasury USDC into naira (CCTP to Base, where the
+Paycrest off-ramp is, or a Stellar anchor); then electricity and data bills on the same mandate. A 90-day traction
+clause can count monthly renewals paid from Stellar.
 
 ## Never in an application
 

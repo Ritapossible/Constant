@@ -15,3 +15,4 @@ export * from "./sessions.js";
 export * from "./closure.js";
 export * from "./telegram.js";
 export * from "./pots.js";
+export * from "./stellar.js";

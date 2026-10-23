@@ -5,3 +5,5 @@ export * from "./stellar.js";
 export * from "./receipt.js";
 export * from "./permissions.js";
 export * from "./cctp.js";
+export * from "./soroban.js";
+export * from "./soroban-fake.js";

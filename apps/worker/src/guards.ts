@@ -4,7 +4,7 @@
  *   money is used. A match freezes the user and pages a person; an outage leaves it pending (never clear).
  * - sweep: charged USDC and USDT leave the hot spender key for the treasury, so a stolen key holds little.
  */
-import { STABLES } from "@constant/chains";
+import { STABLES, type PermissionChain } from "@constant/chains";
 import {
   addressesToScreen,
   depositsToScreen,
@@ -68,7 +68,8 @@ type SweepResult = "none" | "sent" | "confirmed" | "waiting" | "failed" | "kept_
 
 /** One step per token (USDC, then USDT): settle the sweep in flight, or start one when the spender holds enough. */
 export async function sweepSpender(d: Deps, dd: DollarDeps, refill?: { lowWaterMinor: bigint }): Promise<SweepResult> {
-  if (!dd.treasury) return "none";
+  // Only Base has a hot spender to sweep; Stellar charges land in the treasury directly (D-085).
+  if (!dd.treasury || !dd.chain) return "none";
   // With the off-ramp on, the float comes first: don't sweep while it's low or an off-ramp is in flight (D-068).
   if (refill) {
     const busy = await d.db.query("SELECT 1 FROM offramps WHERE status IN ('creating','created','funding','funded') LIMIT 1");
@@ -76,15 +77,15 @@ export async function sweepSpender(d: Deps, dd: DollarDeps, refill?: { lowWaterM
     if (busy.rowCount || float === null || float < refill.lowWaterMinor) return "kept_for_float";
   }
   const results: SweepResult[] = [];
-  for (const t of BASE_TOKENS) results.push(await sweepToken(d, dd, dd.treasury, t.address));
+  for (const t of BASE_TOKENS) results.push(await sweepToken(d, dd, dd.chain, dd.treasury, t.address));
   return results.find((r) => r !== "none") ?? "none";
 }
 
-async function sweepToken(d: Deps, dd: DollarDeps, treasury: Address, token: Address): Promise<SweepResult> {
+async function sweepToken(d: Deps, dd: DollarDeps, base: PermissionChain, treasury: Address, token: Address): Promise<SweepResult> {
   const now = d.now();
   const inFlight = await sweepInFlight(d.db, "base", token);
   if (inFlight) {
-    const st = await dd.chain.status(inFlight.tx_hash as Hex, dd.confirmations);
+    const st = await base.status(inFlight.tx_hash as Hex, dd.confirmations);
     if (st === "confirmed") {
       await markSweep(d.db, inFlight.id, "confirmed");
       return "confirmed";
@@ -96,15 +97,15 @@ async function sweepToken(d: Deps, dd: DollarDeps, treasury: Address, token: Add
     }
     const age = now.getTime() - inFlight.created_at.getTime();
     if (age > GIVE_UP_AFTER_MIN * MIN) await raiseOpsAlertOnce(d.db, "page", "sweep_stuck", `sweep_stuck:${inFlight.id}`, { txHash: inFlight.tx_hash });
-    else if (age > REBROADCAST_AFTER_MIN * MIN && inFlight.tx_raw) await dd.chain.broadcast(inFlight.tx_raw as Hex);
+    else if (age > REBROADCAST_AFTER_MIN * MIN && inFlight.tx_raw) await base.broadcast(inFlight.tx_raw as Hex);
     return "waiting";
   }
-  const balance = await dd.chain.balanceOf(token, dd.chain.spender);
+  const balance = await base.balanceOf(token, base.spender);
   if (balance < dd.sweepMinMicro) return "none";
-  const prepared = await dd.chain.prepareTransfer(token, treasury, balance);
+  const prepared = await base.prepareTransfer(token, treasury, balance);
   // Saved before sending; the partial unique index allows one sweep in flight.
   if (!(await insertSweep(d.db, { chain: "base", token, to: treasury, amount: balance, txHash: prepared.hash, txRaw: prepared.raw }))) return "waiting";
-  await dd.chain.broadcast(prepared.raw);
+  await base.broadcast(prepared.raw);
   d.log.info("sweep sent", { token, amount: balance.toString(), txHash: prepared.hash });
   return "sent";
 }

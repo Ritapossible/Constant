@@ -44,7 +44,7 @@ async function main() {
   }
   await recover(deps);
   beats.startedAt = new Date();
-  log.info("worker started", { vending: deps.vending.name, chains: chainDeps.readers.map((r) => r.chain), anchoring: chainDeps.anchorer?.network ?? "off", dollarAutopay: dollars ? dollars.chain.spender : "off", arcAutopay: dollars?.arc ? "on" : "off" });
+  log.info("worker started", { vending: deps.vending.name, chains: chainDeps.readers.map((r) => r.chain), anchoring: chainDeps.anchorer?.network ?? "off", dollarAutopay: dollars?.chain ? dollars.chain.spender : "off", arcAutopay: dollars?.arc ? "on" : "off", stellarAutopay: dollars?.stellar ? dollars.stellar.rail.contractId : "off" });
   await Promise.all([
     every("renewal scan", 5 * 60_000, () => scanRenewals(deps)),
     every("orders", 10_000, () => processOrders(deps)),

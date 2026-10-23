@@ -101,9 +101,32 @@ export const CCTP_V2 = {
 export type StellarNetwork = "testnet" | "public";
 
 export const STELLAR = {
-  testnet: { horizon: "https://horizon-testnet.stellar.org", passphrase: "Test SDF Network ; September 2015", explorer: "https://stellar.expert/explorer/testnet" },
-  public: { horizon: "https://horizon.stellar.org", passphrase: "Public Global Stellar Network ; September 2015", explorer: "https://stellar.expert/explorer/public" },
+  testnet: {
+    horizon: "https://horizon-testnet.stellar.org",
+    rpc: "https://soroban-testnet.stellar.org",
+    friendbot: "https://friendbot.stellar.org",
+    passphrase: "Test SDF Network ; September 2015",
+    explorer: "https://stellar.expert/explorer/testnet",
+  },
+  // SDF runs no public-network RPC: set STELLAR_RPC_URL to a provider's (stellar.org/docs, RPC providers).
+  public: {
+    horizon: "https://horizon.stellar.org",
+    rpc: null,
+    friendbot: null,
+    passphrase: "Public Global Stellar Network ; September 2015",
+    explorer: "https://stellar.expert/explorer/public",
+  },
 } as const;
+
+/**
+ * USDC on Stellar, issued by Circle (developers.circle.com, USDC contract addresses, checked 2026-10-23). Classic
+ * Stellar assets have 7 decimals; Constant's books keep 6 (micro), so 1 micro = 10 units on Stellar.
+ */
+export const STELLAR_USDC = {
+  testnet: { code: "USDC", issuer: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5" },
+  public: { code: "USDC", issuer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN" },
+} as const;
+export const STELLAR_DECIMALS = 7;
 
 /** 20000000 (6 decimals) → "20.00". Exact; no floats. */
 export function formatUnits6(raw: bigint): string {

@@ -21,6 +21,7 @@
     "fastify": "^5.6.1"
   },
   "devDependencies": {
+    "@stellar/stellar-sdk": "17.3.0",
     "vitest": "^3.2.4"
   }
 }

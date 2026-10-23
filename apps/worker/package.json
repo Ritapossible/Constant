@@ -19,6 +19,7 @@
     "viem": "^2.57.4"
   },
   "devDependencies": {
+    "@stellar/stellar-sdk": "17.3.0",
     "vitest": "^3.2.4"
   }
 }

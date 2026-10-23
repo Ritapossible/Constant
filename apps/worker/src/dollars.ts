@@ -1,5 +1,7 @@
 /**
- * Paying naira bills from stablecoins: USDC (D-063) and USDT (D-069) on Base, USDC on Arc (D-070).
+ * Paying naira bills from stablecoins: USDC (D-063) and USDT (D-069) on Base, USDC on Arc (D-070), USDC on
+ * Stellar through Constant's mandate contract (D-085). Each network is a ChargeRail (rails.ts); the steps here are
+ * the same for all of them.
  *
  *   permission: signed ──approveWithSignature──▶ approving ──confirmed──▶ approved ──user stops──▶ revoke_pending ──▶ revoked
  *   order (stables): ready + charge pending ──spend tx saved, then sent──▶ submitted ──confirmed──▶ naira credited ──▶ normal vend
@@ -9,7 +11,7 @@
  * the user's balance, so the vend, ledger, receipts and refunds are the naira path unchanged. If the vend then fails,
  * the naira stays in the user's balance for the next renewal.
  */
-import { STABLES, permissionFromJson, stableFor, type Bridge, type EvmChain, type PermissionChain, type SpendPermission, type StableToken } from "@constant/chains";
+import type { Bridge, PermissionChain } from "@constant/chains";
 import {
   accountScreening,
   charged24hMicro,
@@ -57,12 +59,17 @@ import {
   type RenewalQuote,
   type StableSource,
 } from "@constant/rules";
-import type { Address, Hex } from "viem";
+import type { Address } from "viem";
 import type { Deps } from "./jobs.js";
+import { evmRail, stellarRail, tokenPreference, type ChargeRail, type ChargeToken, type StellarRailLike } from "./rails.js";
+
+export { rowToPermission } from "./rails.js";
 
 export interface DollarDeps {
-  /** Base: charges, sweeps, the off-ramp. */
-  chain: PermissionChain;
+  /** Base: charges, sweeps, the off-ramp. Absent: Base is off (a Stellar-only worker, e.g. on testnet). */
+  chain?: PermissionChain;
+  /** Stellar (D-085): charges USDC through Constant's mandate contract, straight to the treasury. Absent: off. */
+  stellar?: { rail: StellarRailLike & { contractId: string } };
   /** Arc (D-070): charges USDC on Arc; Constant's charged USDC is moved to Base with CCTP. Absent: Arc is off. */
   arc?: ArcDeps;
   rates: RateSource;
@@ -93,10 +100,11 @@ export interface ArcDeps {
   bridgeMaxFeeBps: bigint;
 }
 
-/** The chain a permission or charge lives on, if Constant is set up for it. */
-export function chainFor(dd: DollarDeps, chain: string): { chain: PermissionChain; confirmations: bigint } | null {
-  if (chain === "base") return { chain: dd.chain, confirmations: dd.confirmations };
-  if (chain === "arc" && dd.arc) return { chain: dd.arc.chain, confirmations: dd.arc.confirmations };
+/** The network a permission or charge lives on, if this worker is set up for it. */
+export function railFor(dd: DollarDeps, chain: string): ChargeRail | null {
+  if (chain === "base" && dd.chain) return evmRail(dd.chain, dd.confirmations);
+  if (chain === "arc" && dd.arc) return evmRail(dd.arc.chain, dd.arc.confirmations);
+  if (chain === "stellar" && dd.stellar) return stellarRail(dd.stellar.rail);
   return null;
 }
 
@@ -105,38 +113,21 @@ const MIN = 60_000;
 export const REBROADCAST_AFTER_MIN = 10;
 export const GIVE_UP_AFTER_MIN = 60;
 
-export function rowToPermission(p: PermissionRow): SpendPermission {
-  return permissionFromJson({
-    account: p.account,
-    spender: p.spender,
-    token: p.token,
-    allowance: p.allowance,
-    period: Number(p.period),
-    start: Number(p.start_at),
-    end: Number(p.end_at),
-    salt: p.salt,
-    extraData: p.extra_data,
-  });
-}
-
 const usd = (micro: bigint) => `${micro / 1_000_000n}.${((micro % 1_000_000n) / 10_000n).toString().padStart(2, "0")}`;
 
 // ── Renewal decision for a dollar-funded line ────────────────────────────────
 
-/** The token a permission is for: only tokens Constant accepts, on a chain it's set up for, in the order they're tried. */
-function tokenOf(p: PermissionRow, dd?: DollarDeps): StableToken | null {
-  if (p.chain !== "base" && p.chain !== "arc") return null;
-  if (dd && !chainFor(dd, p.chain)) return null;
-  return stableFor(p.chain as EvmChain, p.token);
+/** The token a permission is for: only tokens Constant accepts, on a network this worker is set up for. */
+function tokenOf(p: PermissionRow, dd: DollarDeps): ChargeToken | null {
+  return railFor(dd, p.chain)?.token(p) ?? null;
 }
-const preference = (t: StableToken) => STABLES.indexOf(t);
 
 export async function renewDollarLine(d: Deps, dd: DollarDeps, pre: LineRow, quote: RenewalQuote | null): Promise<boolean> {
   // Everything that needs the network happens before the transaction.
   const perms = (await livePermissions(d.db, pre.id))
     .map((p) => ({ row: p, token: tokenOf(p, dd) }))
-    .filter((x): x is { row: PermissionRow; token: StableToken } => x.token !== null)
-    .sort((a, b) => preference(a.token) - preference(b.token));
+    .filter((x): x is { row: PermissionRow; token: ChargeToken } => x.token !== null)
+    .sort((a, b) => tokenPreference(a.token) - tokenPreference(b.token));
   // The amount only picks the provider's rate tier; a rough dollar figure is enough.
   const roughUsd = quote ? Math.ceil(Number(quote.amountMinor) / 100 / 1000) : 20;
   const rates = new Map<string, { koboPerUsdc: bigint; fetchedAt: Date } | null>();
@@ -149,28 +140,27 @@ export async function renewDollarLine(d: Deps, dd: DollarDeps, pre: LineRow, quo
       rates.set(sym, null);
     }
   }
-  const sources: (StableSource & { row: PermissionRow; token: StableToken })[] = await Promise.all(
+  const sources: (StableSource & { row: PermissionRow; token: ChargeToken })[] = await Promise.all(
     perms.map(async ({ row, token }) => {
-      const sp = rowToPermission(row);
-      const on = chainFor(dd, row.chain)!.chain;
-      const [remaining, balance] = await Promise.all([on.remainingThisPeriod(sp), on.balanceOf(sp.token, sp.account)]);
+      const rail = railFor(dd, row.chain)!;
+      const [remaining, balance] = await Promise.all([rail.remaining(row), rail.balance(row)]);
       return {
         key: row.id,
         row,
         token,
-        permission: { status: row.status, remainingThisPeriod: remaining, endsAt: sp.end },
+        permission: { status: row.status, remainingThisPeriod: remaining, endsAt: Number(row.end_at) },
         rate: rates.get(token.symbol) ?? null,
         walletMicro: balance,
       };
     }),
   );
   const walletMicro = sources.reduce((sum, x) => sum + x.walletMicro, 0n);
-  // "USDC or USDT on Base", "USDC on Base or USDC on Arc": what the user can add to get the bill paid.
+  // "USDC or USDT on Base", "USDC on Base or USDC on Stellar": what the user can add to get the bill paid.
   const symbols =
-    (["base", "arc"] as const)
+    (["base", "arc", "stellar"] as const)
       .map((c) => {
         const syms = [...new Set(sources.filter((x) => x.token.chain === c).map((x) => x.token.symbol))];
-        return syms.length ? `${syms.join(" or ")} on ${c === "base" ? "Base" : "Arc"}` : null;
+        return syms.length ? `${syms.join(" or ")} on ${railFor(dd, c)!.networkName}` : null;
       })
       .filter(Boolean)
       .join(" or ") || "USDC on Base";
@@ -286,16 +276,14 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
   if (!c) return;
   const perm = await getPermission(d.db, c.permission_id);
   if (!perm) return;
-  const sp = rowToPermission(perm);
   const now = d.now();
-  const on = chainFor(dd, perm.chain);
-  if (!on) return; // that chain isn't configured on this worker: nothing is charged or vended (awaitingCharge holds it)
-  const { chain, confirmations } = on;
+  const rail = railFor(dd, perm.chain);
+  if (!rail) return; // that network isn't configured on this worker: nothing is charged or vended (awaitingCharge holds it)
 
   if (c.status === "pending") {
     // Re-check on chain right before charging: the user may have spent, moved money or revoked since the scan.
     const value = BigInt(c.amount_micro);
-    const [approved, remaining, balance] = await Promise.all([chain.isApproved(sp), chain.remainingThisPeriod(sp), chain.balanceOf(sp.token, sp.account)]);
+    const [approved, remaining, balance] = await Promise.all([rail.isApproved(perm), rail.remaining(perm), rail.balance(perm)]);
     if (perm.status === "approved" && !approved) {
       // Revoked from the user's own wallet, outside Constant: record it, and leave stablecoins if nothing else is on.
       await withTx(d.db, async (tx) => {
@@ -320,7 +308,8 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
       floatMinor,
       needMinor: naira.rows[0]!.naira_minor,
       floatMarginMinor: dd.floatMarginMinor,
-      screening: dd.screener ? await accountScreening(d.db, sp.account) : "unscreened",
+      // Stellar accounts aren't screened yet (D-085): in production that holds every Stellar charge.
+      screening: dd.screener && perm.chain !== "stellar" ? await accountScreening(d.db, perm.account) : "unscreened",
       screeningRequired: dd.screeningRequired,
     });
     const hour = now.toISOString().slice(0, 13);
@@ -345,7 +334,7 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
       return failCharge(d, orderId, guard.reason, true);
     }
 
-    const prepared = await chain.prepareSpend(sp, value);
+    const prepared = await rail.prepareSpend(perm, value, orderId);
     // Save the hash before sending (rule 7): a crash after this line is recoverable by re-sending the same bytes.
     const saved = await withTx(d.db, async (tx) => {
       const locked = await lockCharge(tx, orderId);
@@ -354,12 +343,12 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
       await touchOrder(tx, orderId, { next_check_at: new Date(now.getTime() + 15_000) });
       return true;
     });
-    if (saved) await chain.broadcast(prepared.raw);
+    if (saved) await rail.broadcast(prepared.raw);
     return;
   }
 
   if (c.status === "submitted" && c.tx_hash) {
-    const st = await chain.status(c.tx_hash as Hex, confirmations);
+    const st = await rail.status(c.tx_hash, c.tx_raw);
     if (st === "confirmed") {
       await withTx(d.db, async (tx) => {
         const locked = await lockCharge(tx, orderId);
@@ -377,13 +366,24 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
           currency: order.currency,
           idempotencyKey: `ledger:fund:charge:${locked.id}`,
           externalRef: locked.tx_hash,
-          actor: "base",
+          actor: perm.chain,
         });
         await touchOrder(tx, orderId, { next_check_at: now });
       });
       return;
     }
     if (st === "reverted") return failCharge(d, orderId, "charge transaction reverted", true);
+    if (st === "expired") {
+      // Past its time limit and not on the ledger: it never will be. Build it again on the next step (the
+      // contract's charge id, from the order id, makes a second charge impossible either way).
+      await withTx(d.db, async (tx) => {
+        const locked = await lockCharge(tx, orderId);
+        if (!locked || locked.status !== "submitted" || locked.tx_hash !== c.tx_hash) return;
+        await updateCharge(tx, locked.id, { status: "pending", tx_hash: null, tx_raw: null, submitted_at: null });
+        await touchOrder(tx, orderId, { next_check_at: now });
+      });
+      return;
+    }
     const age = now.getTime() - (c.submitted_at?.getTime() ?? now.getTime());
     if (age > GIVE_UP_AFTER_MIN * MIN) {
       // Nobody can say whether the dollars moved: a person decides; nothing is vended meanwhile (INV-8).
@@ -396,7 +396,7 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
       });
       return;
     }
-    if (age > REBROADCAST_AFTER_MIN * MIN && c.tx_raw) await chain.broadcast(c.tx_raw as Hex);
+    if (age > REBROADCAST_AFTER_MIN * MIN && c.tx_raw) await rail.broadcast(c.tx_raw);
     await touchOrder(d.db, orderId, { next_check_at: new Date(now.getTime() + 30_000) });
   }
 }
@@ -430,23 +430,48 @@ export async function processPermissions(d: Deps, dd: DollarDeps): Promise<void>
   const now = d.now();
   for (const p of await permissionsInStatus(d.db, ["signed", "approving", "revoke_pending"])) {
     try {
-      const sp = rowToPermission(p);
-      const on = chainFor(dd, p.chain);
-      if (!on) continue; // a chain this worker isn't set up for
-      const { chain, confirmations } = on;
+      const rail = railFor(dd, p.chain);
+      if (!rail) continue; // a network this worker isn't set up for
+      if (p.status === "signed" && (await rail.signatureLapsed(p))) {
+        // Too late to register what the user signed: they sign again from the app.
+        await withTx(d.db, async (tx) => {
+          const locked = await lockPermission(tx, p.id);
+          if (locked.status !== "signed") return;
+          await updatePermission(tx, p.id, { status: "failed", error: "signature lapsed before it was registered" });
+          const line = await lockLine(tx, p.line_id);
+          await queueNotice(tx, {
+            key: `notice:permission:${p.id}:lapsed`,
+            userId: p.user_id,
+            lineId: p.line_id,
+            kind: "permission_failed",
+            params: { line: line.nickname, usd: usd(BigInt(p.allowance)), symbol: rail.token(p)?.symbol ?? "USDC", network: rail.networkName },
+          });
+        });
+        continue;
+      }
       if (p.status === "signed" || (p.status === "revoke_pending" && !p.tx_hash)) {
-        const prepared = p.status === "signed" ? await chain.prepareApprove(sp, p.signature as Hex) : await chain.prepareRevoke(sp);
+        const prepared = p.status === "signed" ? await rail.prepareApprove(p) : await rail.prepareRevoke(p);
         const saved = await withTx(d.db, async (tx) => {
           const locked = await lockPermission(tx, p.id);
           if (locked.status !== p.status || locked.tx_hash) return false;
           await updatePermission(tx, p.id, { status: p.status === "signed" ? "approving" : "revoke_pending", tx_hash: prepared.hash, tx_raw: prepared.raw });
           return true;
         });
-        if (saved) await chain.broadcast(prepared.raw);
+        if (saved) await rail.broadcast(prepared.raw);
         continue;
       }
       if (!p.tx_hash) continue;
-      const st = await chain.status(p.tx_hash as Hex, confirmations);
+      const st = await rail.status(p.tx_hash, p.tx_raw);
+      if (st === "expired") {
+        // Never included: back to the step before, and built again next pass.
+        await withTx(d.db, async (tx) => {
+          const locked = await lockPermission(tx, p.id);
+          if (locked.tx_hash !== p.tx_hash) return;
+          if (locked.status === "approving") await updatePermission(tx, p.id, { status: "signed", tx_hash: null, tx_raw: null });
+          else if (locked.status === "revoke_pending") await updatePermission(tx, p.id, { tx_hash: null, tx_raw: null });
+        });
+        continue;
+      }
       if (st === "confirmed" || st === "reverted") {
         await withTx(d.db, async (tx) => {
           const locked = await lockPermission(tx, p.id);
@@ -461,7 +486,7 @@ export async function processPermissions(d: Deps, dd: DollarDeps): Promise<void>
               userId: p.user_id,
               lineId: p.line_id,
               kind: st === "confirmed" ? "permission_on" : "permission_failed",
-              params: { line: line.nickname, usd: usd(BigInt(p.allowance)), symbol: tokenOf(p)?.symbol ?? "USDC", network: p.chain === "arc" ? "Arc" : "Base" },
+              params: { line: line.nickname, usd: usd(BigInt(p.allowance)), symbol: rail.token(p)?.symbol ?? "USDC", network: rail.networkName },
             });
           } else if (locked.status === "revoke_pending") {
             // Constant stopped using it the moment the user asked; this records the on-chain revoke.
@@ -476,7 +501,7 @@ export async function processPermissions(d: Deps, dd: DollarDeps): Promise<void>
         if (p.status === "approving" && !(await hasApprovedPermission(d.db, p.line_id, p.id))) await setLineFunding(d.db, p.line_id, "naira");
         await raiseOpsAlert(d.db, "warn", "permission_tx_stuck", { permissionId: p.id, txHash: p.tx_hash });
       } else if (age > REBROADCAST_AFTER_MIN * MIN && p.tx_raw) {
-        await chain.broadcast(p.tx_raw as Hex);
+        await rail.broadcast(p.tx_raw);
       }
     } catch (err) {
       d.log.error("permission step failed", { permissionId: p.id, err: (err as Error).message });

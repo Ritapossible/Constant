@@ -68,6 +68,10 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | `BASE_RPC_URL`, `ARC_RPC_URL` | Deposits, charges | Paid Base RPC; Arc default |
 | ☐ | `DEPOSITS_ALL_TOKENS` (optional) | Warn about unsupported tokens | `true` only with a paid RPC |
 | ☐ | `STELLAR_NETWORK`, `STELLAR_SECRET` | Public receipts | `testnet` + a Friendbot-funded secret; later `public` + ~5 XLM |
+| ☐ | `STELLAR_AUTOPAY`, `STELLAR_MANDATE_CONTRACT` | Bills paid from USDC on Stellar (D-085), API and worker | `true` and the C… address printed by `node scripts/stellar/deploy.mjs` |
+| ☐ | `STELLAR_OPERATOR_SECRET` (worker only) | The mandate contract's admin: charges, revokes, pays fees | From the deploy script. Never on the API. Not the same as `STELLAR_SECRET` |
+| ☐ | `STELLAR_SPONSOR_SECRET` (API only) | Opens users' Stellar accounts and pays their reserves; can't charge | From the deploy script |
+| ☐ | `STELLAR_RPC_URL` | Soroban RPC | Testnet: optional (SDF's). Public network: required (a provider's) |
 | ☐ | `SPENDER_PRIVATE_KEY` | Dollar autopay | A new key used for nothing else; ~$5 of ETH on Base for gas |
 | ☐ | `TREASURY_ADDRESS` | Sweep of charged USDC (**required in production**) | A cold wallet or multisig on Base you control |
 | ☐ | `CIRCLE_API_KEY` | Sanctions screening (**required in production** for dollar charges) | Circle Developer Console → API key with Compliance Engine |

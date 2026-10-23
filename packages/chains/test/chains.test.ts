@@ -67,7 +67,7 @@ describe("Stellar anchor transaction", () => {
     expect("memo" in parsed && parsed.memo.type).toBe("hash");
     expect("memo" in parsed && Buffer.from(parsed.memo.value as Buffer).toString("hex")).toBe(root);
     expect("operations" in parsed && parsed.operations.map((o) => o.type)).toEqual(["bumpSequence"]);
-    expect(kp.verify(tx.hash(), tx.signatures[0]!.signature())).toBe(true);
+    expect(kp.verify(tx.hash(), tx.signatures[0]!.signature)).toBe(true);
   });
   it("refuses a root that isn't 32 bytes", () => {
     const kp = Keypair.random();

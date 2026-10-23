@@ -2,7 +2,7 @@
 import type { Q, Tx } from "./pool.js";
 
 export interface AddressRow {
-  family: "evm";
+  family: "evm" | "stellar";
   address: string;
   user_id: string;
   kind: "embedded" | "external" | "smart";

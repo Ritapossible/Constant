@@ -15,8 +15,16 @@ import {
   SPEND_PERMISSION_MANAGER,
   spendPermissionTypedData,
   stableFor,
+  MAX_MANDATE_SECS,
+  isStellarAccount,
+  parseStellarSignature,
+  stellarMessageHash,
+  verifyStellarSignature,
   type EvmChain,
+  type MandateDraft,
+  type OnboardingTx,
   type PermissionChain,
+  type StellarRail,
 } from "@constant/chains";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
@@ -38,6 +46,12 @@ import {
   withdrawalByReference,
   DuplicateLine,
   PermissionExists,
+  StellarAccountTaken,
+  createStellarRequest,
+  linkStellarAccount,
+  lockStellarRequest,
+  stellarAccountOf,
+  useStellarRequest,
   insertPermission,
   hasApprovedPermission,
   livePermission,
@@ -160,6 +174,15 @@ export interface ApiDeps {
   opsToken?: string;
   /** Dollar autopay on Base (D-063). Absent: the /usdc routes answer 503 and nothing changes. */
   dollars?: { chain: Pick<PermissionChain, "spender" | "verifySignature">; arc?: Pick<PermissionChain, "spender" | "verifySignature">; rates: RateSource };
+  /**
+   * USDC on Stellar (D-085). The rail's key here is the sponsor: it opens users' accounts and trustlines (paying their
+   * reserves) and simulates mandates. It is not the contract's admin, so it can't charge anyone; that key lives only
+   * in the worker. Absent: the /stellar routes answer 503.
+   */
+  stellar?: {
+    rail: Pick<StellarRail, "network" | "contractId" | "usdcContract" | "operatorAccount" | "accountState" | "prepareOnboarding" | "submitOnboarding" | "draftMandate" | "signDraft" | "signatureIn" | "contractUrl">;
+    rates: RateSource;
+  };
 }
 
 declare module "fastify" {
@@ -1289,6 +1312,232 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       const token = STABLES.find((t) => t.symbol === sym && t.chain === net);
       if (!token) throw bad("unsupported_token", "No such token.");
       const perm = await livePermission(d.db, line.id, token.chain, token.address);
+      if (perm) await stopPermission(line.id, perm);
+      return reply.status(204).send();
+    });
+
+    // ── Paying a bill from USDC on Stellar (D-085) ─────────────────────────────────
+    // The user links a Stellar account, Constant opens it for USDC (paying every reserve), and the user signs one
+    // mandate per bill. Each step is a request the user signs: a message, a transaction hash or an authorization hash.
+    const stellar = () => {
+      if (!d.stellar) throw new HttpError(503, "stellar_off", "Paying from USDC on Stellar isn't switched on yet.");
+      return d.stellar;
+    };
+    const REQUEST_MINUTES = { link: 15, onboard: 4, mandate: 60 } as const;
+    const signatureOf = (b: Record<string, unknown>) => {
+      const sig = parseStellarSignature(b.signature);
+      if (!sig) throw bad("invalid_signature", "Missing or malformed signature.");
+      return sig;
+    };
+    const requestId = (b: Record<string, unknown>) => {
+      if (typeof b.requestId !== "string" || !UUID.test(b.requestId)) throw bad("invalid_request", "Missing request id.");
+      return b.requestId;
+    };
+    const linkedAccount = async (req: FastifyRequest) => {
+      const account = await stellarAccountOf(d.db, req.user.id);
+      if (!account) throw new HttpError(409, "no_stellar_account", "Link your Stellar account first.");
+      return account;
+    };
+    const stellarView = async (account: string | null) => {
+      const s = stellar();
+      const state = account ? await s.rail.accountState(account) : null;
+      return {
+        available: true,
+        network: s.rail.network,
+        account,
+        ready: state ? state.exists && state.trustline : false,
+        usdc: state ? formatUnits6(state.usdcMicro) : null,
+        contract: s.rail.contractId,
+        contractUrl: s.rail.contractUrl(),
+      };
+    };
+
+    v1.get("/stellar", async (req) => {
+      if (!d.stellar) return { available: false };
+      return stellarView(await stellarAccountOf(d.db, req.user.id));
+    });
+
+    /** Step 1: a message to sign with the Stellar account, proving it is the user's (SEP-53). */
+    v1.post("/stellar/link/challenge", async (req) => {
+      stellar();
+      const account = json(req).account;
+      if (typeof account !== "string" || !isStellarAccount(account)) throw bad("invalid_account", "That isn't a Stellar account (G…).");
+      const message = `ConstantUnits: link ${account} to my account. Code ${randomBytes(12).toString("hex")}`;
+      const r = await createStellarRequest(d.db, {
+        userId: req.user.id,
+        kind: "link",
+        account,
+        payload: stellarMessageHash(message),
+        data: { message },
+        expiresAt: new Date(now().getTime() + REQUEST_MINUTES.link * 60_000),
+      });
+      return { requestId: r.id, message, payload: r.payload };
+    });
+
+    v1.post("/stellar/link", async (req) => {
+      stellar();
+      const b = json(req);
+      const id = requestId(b);
+      const signature = signatureOf(b);
+      const account = await withTx(d.db, async (tx) => {
+        const r = await lockStellarRequest(tx, id, req.user.id, "link", now());
+        if (!r) throw new HttpError(410, "request_expired", "That request has expired. Start again.");
+        if (!verifyStellarSignature(r.account, r.payload, signature)) throw bad("invalid_signature", "The signature doesn't match that Stellar account.");
+        try {
+          await linkStellarAccount(tx, req.user.id, r.account);
+        } catch (err) {
+          if (err instanceof StellarAccountTaken) throw new HttpError(409, "account_taken", "That Stellar account is linked to another ConstantUnits account.");
+          throw err;
+        }
+        await useStellarRequest(tx, r.id, now());
+        return r.account;
+      });
+      return stellarView(account);
+    });
+
+    /** Step 2: the transaction that opens the account for USDC, every reserve paid by Constant. */
+    v1.post("/stellar/onboarding", async (req) => {
+      const s = stellar();
+      const account = await linkedAccount(req);
+      const tx = await s.rail.prepareOnboarding(account);
+      if (!tx) return { ready: true };
+      const r = await createStellarRequest(d.db, {
+        userId: req.user.id,
+        kind: "onboard",
+        account,
+        payload: tx.hash,
+        data: tx,
+        expiresAt: new Date(now().getTime() + REQUEST_MINUTES.onboard * 60_000),
+      });
+      return { ready: false, requestId: r.id, xdr: tx.xdr, hash: tx.hash, network: s.rail.network };
+    });
+
+    /** The user's signature over the onboarding hash, or the transaction as their wallet signed it. */
+    v1.post("/stellar/onboarding/submit", async (req) => {
+      const s = stellar();
+      const b = json(req);
+      const id = requestId(b);
+      let signature: string | null = null;
+      const r = await withTx(d.db, async (tx) => {
+        const locked = await lockStellarRequest(tx, id, req.user.id, "onboard", now());
+        if (!locked) throw new HttpError(410, "request_expired", "That request has expired. Start again.");
+        signature = typeof b.signedXdr === "string" ? s.rail.signatureIn(b.signedXdr, locked.account, locked.payload) : parseStellarSignature(b.signature);
+        if (!signature || !verifyStellarSignature(locked.account, locked.payload, signature)) throw bad("invalid_signature", "The signature doesn't match your Stellar account.");
+        await useStellarRequest(tx, locked.id, now());
+        return locked;
+      });
+      const onboarding = r.data as unknown as OnboardingTx;
+      try {
+        const txHash = await s.rail.submitOnboarding(r.account, onboarding, signature!);
+        return { ...(await stellarView(r.account)), txHash };
+      } catch (err) {
+        req.log.warn({ err: { message: (err as Error).message } }, "stellar onboarding failed");
+        throw new HttpError(502, "onboarding_failed", "Stellar didn't accept that. Start again.");
+      }
+    });
+
+    v1.get("/lines/:id/stellar", async (req) => {
+      const line = await ownLine(req);
+      if (!d.stellar) return { available: false };
+      const perm = await livePermission(d.db, line.id, "stellar", d.stellar.rail.usdcContract);
+      return {
+        available: true,
+        funding: line.funding,
+        permission: perm
+          ? { status: perm.status, capUsd: usd(BigInt(perm.allowance)), periodDays: Number(perm.period) / 86_400, account: perm.account, until: new Date(Number(perm.end_at) * 1000).toISOString() }
+          : null,
+      };
+    });
+
+    /** Step 3: what the user signs for one bill: Constant may take up to this much USDC every 30 days, for 115 days. */
+    v1.post("/lines/:id/stellar/proposal", async (req) => {
+      const s = stellar();
+      const line = await ownLine(req);
+      if (line.kind !== "tv") throw bad("tv_only", "Paying from stablecoins covers cable TV for now.");
+      if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact ConstantUnits support.");
+      const account = await linkedAccount(req);
+      const state = await s.rail.accountState(account);
+      if (!state.exists || !state.trustline) throw new HttpError(409, "stellar_not_ready", "Open your Stellar account for USDC first.");
+      let rate: bigint;
+      try {
+        rate = parseRate((await s.rates.toNgn("USDC", 20)).ngnPerUsdc);
+      } catch {
+        throw new HttpError(503, "rate_unavailable", "We can't get today's dollar rate. Try again in a minute.");
+      }
+      const capMicro = permissionAllowance(line.cap_minor, rate);
+      const nowSecs = Math.floor(now().getTime() / 1000);
+      const terms = { owner: account, id: randomBytes(32).toString("hex"), capMicro, periodSecs: PERMISSION_PERIOD_SECONDS, endAt: nowSecs + MAX_MANDATE_SECS - 3_600 };
+      let draft: MandateDraft;
+      try {
+        draft = await s.rail.draftMandate(terms);
+      } catch (err) {
+        req.log.warn({ err: { message: (err as Error).message } }, "stellar mandate simulation failed");
+        throw new HttpError(502, "stellar_unavailable", "Stellar didn't answer. Try again in a minute.");
+      }
+      const r = await createStellarRequest(d.db, {
+        userId: req.user.id,
+        lineId: line.id,
+        kind: "mandate",
+        account,
+        payload: draft.payload,
+        data: { ...draft, terms: { ...draft.terms, capMicro: draft.terms.capMicro.toString() } },
+        expiresAt: new Date(now().getTime() + REQUEST_MINUTES.mandate * 60_000),
+      });
+      return {
+        requestId: r.id,
+        payload: draft.payload,
+        preimage: draft.preimage,
+        network: s.rail.network,
+        contract: s.rail.contractId,
+        display: { capUsd: usd(capMicro), periodDays: PERMISSION_PERIOD_SECONDS / 86_400, capNgnMinor: line.cap_minor.toString(), rateNgnPerUsdc: (Number(rate) / 100).toFixed(2), until: new Date(terms.endAt * 1000).toISOString() },
+      };
+    });
+
+    /** The signed authorization. The worker registers the mandate on Stellar; the bill switches once it's confirmed. */
+    v1.post("/lines/:id/stellar", async (req, reply) => {
+      const s = stellar();
+      const line = await ownLine(req);
+      if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact ConstantUnits support.");
+      const b = json(req);
+      const id = requestId(b);
+      const signature = signatureOf(b);
+      const r = await withTx(d.db, async (tx) => {
+        const locked = await lockStellarRequest(tx, id, req.user.id, "mandate", now());
+        if (!locked || locked.line_id !== line.id) throw new HttpError(410, "request_expired", "That request has expired. Start again.");
+        if (!verifyStellarSignature(locked.account, locked.payload, signature)) throw bad("invalid_signature", "The signature doesn't match your Stellar account.");
+        await useStellarRequest(tx, locked.id, now());
+        return locked;
+      });
+      const stored = r.data as unknown as MandateDraft & { terms: { capMicro: string } };
+      const draft: MandateDraft = { ...stored, terms: { ...stored.terms, capMicro: BigInt(stored.terms.capMicro) } };
+      const entry = await s.rail.signDraft(draft, signature);
+      try {
+        await insertPermission(d.db, {
+          userId: req.user.id,
+          lineId: line.id,
+          chain: "stellar",
+          account: r.account,
+          spender: s.rail.contractId,
+          token: s.rail.usdcContract,
+          allowance: draft.terms.capMicro,
+          period: draft.terms.periodSecs,
+          start: Math.floor(now().getTime() / 1000),
+          end: draft.terms.endAt,
+          salt: BigInt("0x" + draft.terms.id),
+          extraData: JSON.stringify({ entry, expiryLedger: draft.terms.expiryLedger, validUntilLedger: draft.validUntilLedger }),
+          signature,
+        });
+      } catch (err) {
+        if (err instanceof PermissionExists) throw new HttpError(409, "exists", "This bill already pays from USDC on Stellar.");
+        throw err;
+      }
+      return reply.status(202).send({ status: "signed", symbol: "USDC", network: "stellar" });
+    });
+
+    /** Stop paying this bill from USDC on Stellar: at once in Constant; the worker revokes the mandate on chain. */
+    v1.delete("/lines/:id/stellar", async (req, reply) => {
+      const line = await ownLine(req);
+      const perm = d.stellar ? await livePermission(d.db, line.id, "stellar", d.stellar.rail.usdcContract) : null;
       if (perm) await stopPermission(line.id, perm);
       return reply.status(204).send();
     });
