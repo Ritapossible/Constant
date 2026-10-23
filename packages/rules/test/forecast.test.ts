@@ -172,6 +172,29 @@ describe("INV-36 withdraw any time, except money promised to an open order", () 
     expect(r.kind === "refuse" && r.reason).toBe(reason);
   });
 
+  it("D-088: money added by card in the last 3 days pays bills but isn't withdrawn yet", () => {
+    const r = decideWithdrawal({ ...ok, cardHeldMinor: naira(20_000) });
+    expect(r).toEqual({ kind: "refuse", reason: "card_hold", withdrawableMinor: naira(15_000) });
+    expect(decideWithdrawal({ ...ok, amountMinor: naira(15_000), cardHeldMinor: naira(20_000) }).kind).toBe("pay_out");
+    expect(decideWithdrawal({ ...ok, amountMinor: naira(40_000), cardHeldMinor: naira(20_000) })).toMatchObject({ reason: "insufficient" });
+  });
+
+  it("property: never pays out committed or card-held money", () => {
+    fc.assert(
+      fc.property(
+        fc.bigInt({ min: 0n, max: naira(1_000_000) }),
+        fc.bigInt({ min: 0n, max: naira(1_000_000) }),
+        fc.bigInt({ min: 0n, max: naira(1_000_000) }),
+        fc.bigInt({ min: 1n, max: naira(1_000_000) }),
+        (bal, committed, held, amt) => {
+          const r = decideWithdrawal({ ...ok, balanceMinor: bal, committedMinor: committed, cardHeldMinor: held, amountMinor: amt });
+          if (r.kind === "pay_out") expect(r.amountMinor <= bal - committed - held).toBe(true);
+          if (r.kind === "refuse") expect(r.withdrawableMinor >= 0n).toBe(true);
+        },
+      ),
+    );
+  });
+
   it("property: never pays out committed money", () => {
     fc.assert(
       fc.property(

@@ -142,3 +142,5 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 101 | A full BVN is never stored or logged: only its last 4 digits and a keyed hash; one BVN verifies one account. | api |
 | 102 | Money that arrives past a tier's limits is credited, never lost, and a person is alerted. | rules (property) · api |
 | 103 | A request sent again with the same Idempotency-Key never has a second effect: it gets the first answer, or is refused if its body differs. | api |
+| 104 | Money added by card is never withdrawn within 3 days of arriving; it can pay bills at once. | rules (property) · api |
+| 105 | A transfer from an account in someone else's name is credited and always raises a review alert. | api |

@@ -26,6 +26,7 @@ import {
   type PermissionChain,
   type StellarRail,
 } from "@constant/chains";
+import { naira } from "@constant/copy";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import {
@@ -47,6 +48,7 @@ import {
   DuplicateLine,
   PermissionExists,
   BvnInUse,
+  cardHeldMinor,
   getUser,
   claimIdempotencyKey,
   completeIdempotencyKey,
@@ -158,6 +160,7 @@ import {
   inboundOverLimit,
   isBvn,
   isNuban,
+  CARD_HOLD_DAYS,
   type KycDecision,
   type KycTier,
 } from "@constant/rules";
@@ -1309,6 +1312,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
           amountMinor: amount,
           payoutVerified: Boolean(account && payoutAccountUsable(account.updated_at, now())),
           payoutsEnabled: await flag(tx, "payouts_enabled"),
+          cardHeldMinor: await cardHeldMinor(tx, req.user.id, CARD_HOLD_DAYS),
         });
         if (decision.kind === "refuse") return decision;
         const id = randomUUID();
@@ -1321,6 +1325,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
           non_positive: "Enter an amount.",
           unverified_payout: account ? "Your bank account was added recently. You can withdraw 24 hours after adding it." : "Add your bank account first.",
           insufficient: "That's more than you can withdraw right now.",
+          card_hold: `Money added by card can pay bills straight away, and can be withdrawn ${CARD_HOLD_DAYS} days after it was added. You can withdraw ${naira(result.withdrawableMinor)} now.`,
         }[result.reason];
         throw new HttpError(result.reason === "paused" ? 503 : 400, result.reason, msg);
       }
@@ -1911,6 +1916,18 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         });
       }
       if (r === "rejected") await raiseOpsAlert(tx, "page", "funding_unmatched", { eventId: credit.eventId, reason: decision.kind === "reject" ? decision.reason : "currency" });
+      // Someone else paying in (family, an employer) is allowed, and a person looks at it (D-088).
+      if (r === "credited" && userId && credit.senderName) {
+        const holder = await tx.query<{ legal_first_name: string | null; legal_last_name: string | null; account_name: string | null }>(
+          "SELECT u.legal_first_name, u.legal_last_name, f.account_name FROM users u LEFT JOIN funding_accounts f ON f.user_id = u.id WHERE u.id = $1",
+          [userId],
+        );
+        const h = holder.rows[0];
+        const name = h?.legal_first_name ? `${h.legal_first_name} ${h.legal_last_name ?? ""}` : (h?.account_name ?? null);
+        if (name && !namesMatch(name, credit.senderName)) {
+          await raiseOpsAlert(tx, "warn", "third_party_deposit", { userId, eventId: credit.eventId, amountMinor: credit.amountMinor.toString(), sender: credit.senderName });
+        }
+      }
       if (r === "credited" && userId && before && inboundOverLimit(before.tier as KycTier, credit.amountMinor, before.usage)) {
         await raiseOpsAlert(tx, "warn", "kyc_limit_exceeded", { userId, eventId: credit.eventId, amountMinor: credit.amountMinor.toString(), tier: before.tier });
       }

@@ -143,6 +143,24 @@ describe("identity tiers (D-086)", () => {
     expect(alert[0].detail).toMatchObject({ userId: id, tier: 1 });
   });
 
+  it("D-088: a transfer from someone else's account is credited and a person takes a look; one from the holder isn't flagged", async () => {
+    const id = await userId("did:privy:k1");
+    const acct = (await db.query("SELECT customer_code FROM funding_accounts WHERE user_id = $1", [id])).rows[0];
+    const from = (n: number, sender: string) =>
+      hook(
+        JSON.stringify({
+          event: "charge.success",
+          data: { id: n, status: "success", channel: "dedicated_nuban", amount: 100_000, currency: "NGN", reference: `s${n}`, customer: { customer_code: acct.customer_code }, authorization: { channel: "dedicated_nuban", sender_name: sender, sender_bank: "GTBank" } },
+        }),
+      );
+    expect((await from(9101, "OBI CHIOMA ADAEZE")).json().result).toBe("credited");
+    expect((await db.query("SELECT 1 FROM ops_alerts WHERE kind = 'third_party_deposit'")).rowCount).toBe(0);
+    expect((await from(9102, "RANDALL AKANBI HORTON")).json().result).toBe("credited");
+    const alert = (await db.query("SELECT detail FROM ops_alerts WHERE kind = 'third_party_deposit'")).rows;
+    expect(alert).toHaveLength(1);
+    expect(alert[0].detail).toMatchObject({ userId: id, sender: "RANDALL AKANBI HORTON", amountMinor: "100000" });
+  });
+
   it("a person raises a tier after a review, with a reason, and it's on the record", async () => {
     const id = await userId("did:privy:k1");
     const ops = (body: unknown) => app.inject({ method: "POST", url: `/ops/users/${id}/kyc-tier`, headers: { authorization: `Bearer ${OPS}`, "content-type": "application/json", "x-ops-actor": "ada" }, payload: JSON.stringify(body) });

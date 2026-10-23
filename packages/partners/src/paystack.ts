@@ -212,6 +212,8 @@ export class Paystack implements Funding, Payouts, Checkout {
       amountMinor: amount,
       currency: String(d.currency ?? "NGN"),
       reference: String(d.reference ?? ""),
+      // authorization.sender_name, per Paystack's dedicated account webhook sample (docs-v2, checked 2026-10-23).
+      senderName: typeof (d.authorization as { sender_name?: unknown } | undefined)?.sender_name === "string" ? ((d.authorization as { sender_name: string }).sender_name.trim() || null) : null,
     };
   }
 }

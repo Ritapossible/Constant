@@ -140,3 +140,16 @@ export async function completeIdempotencyKey(q: Q, userId: string, key: string, 
 export async function releaseIdempotencyKey(q: Q, userId: string, key: string): Promise<void> {
   await q.query("DELETE FROM api_idempotency WHERE user_id = $1 AND key = $2 AND status_code IS NULL", [userId, key]);
 }
+
+/**
+ * Money added by card in the last `days` (D-088): it pays bills at once but isn't withdrawable until the hold ends,
+ * because a card payment can be disputed after the money left. Counted in full even if bills already used some of it
+ * (the safe side). Measured on the database's clock, which stamped the rows.
+ */
+export async function cardHeldMinor(q: Q, userId: string, days: number): Promise<bigint> {
+  const r = await q.query<{ held: string }>(
+    "SELECT COALESCE(SUM(credit_minor), 0)::text AS held FROM topups WHERE user_id = $1 AND status = 'credited' AND channel = 'card' AND created_at > now() - make_interval(days => $2)",
+    [userId, days],
+  );
+  return BigInt(r.rows[0]!.held);
+}

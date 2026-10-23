@@ -151,7 +151,7 @@ describe("Paystack", () => {
   });
 
   it("parses a transfer into a dedicated account, in kobo", () => {
-    expect(p.parseCredit(body)).toEqual({ eventId: "302961", customerCode: "CUS_1", amountMinor: 500_000n, currency: "NGN", reference: "ref1" });
+    expect(p.parseCredit(body)).toEqual({ eventId: "302961", customerCode: "CUS_1", amountMinor: 500_000n, currency: "NGN", reference: "ref1", senderName: null });
   });
 
   it("ignores card payments and other events", () => {

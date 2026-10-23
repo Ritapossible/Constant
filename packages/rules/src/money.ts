@@ -140,20 +140,30 @@ export interface WithdrawalInput {
   payoutVerified: boolean;
   /** Global kill switch (reconciliation). */
   payoutsEnabled: boolean;
+  /**
+   * Money added by card in the last CARD_HOLD_DAYS (D-088). It pays bills at once but can't be withdrawn yet: a card
+   * payment can be disputed and reversed after the money has left. Optional; zero when absent.
+   */
+  cardHeldMinor?: Minor;
 }
 
 export type WithdrawalDecision =
   | { kind: "pay_out"; amountMinor: Minor }
-  | { kind: "refuse"; reason: "paused" | "non_positive" | "unverified_payout" | "insufficient"; withdrawableMinor: Minor };
+  | { kind: "refuse"; reason: "paused" | "non_positive" | "unverified_payout" | "insufficient" | "card_hold"; withdrawableMinor: Minor };
+
+/** Days money added by card waits before it can be withdrawn (D-088). It can pay bills straight away. */
+export const CARD_HOLD_DAYS = 3;
 
 /** Users can take their money out at any time, except money already promised to an open order. */
 export function decideWithdrawal(i: WithdrawalInput): WithdrawalDecision {
-  const raw = i.balanceMinor - i.committedMinor;
+  const free = i.balanceMinor - i.committedMinor;
+  const raw = free - (i.cardHeldMinor ?? 0n);
   const withdrawableMinor = raw > 0n ? raw : 0n;
   if (!i.payoutsEnabled) return { kind: "refuse", reason: "paused", withdrawableMinor };
   if (i.amountMinor <= 0n) return { kind: "refuse", reason: "non_positive", withdrawableMinor };
   if (!i.payoutVerified) return { kind: "refuse", reason: "unverified_payout", withdrawableMinor };
-  if (i.amountMinor > withdrawableMinor) return { kind: "refuse", reason: "insufficient", withdrawableMinor };
+  // Within the free balance but not past the card hold: say why, so the person knows it's a matter of days.
+  if (i.amountMinor > withdrawableMinor) return { kind: "refuse", reason: i.amountMinor <= free ? "card_hold" : "insufficient", withdrawableMinor };
   return { kind: "pay_out", amountMinor: i.amountMinor };
 }
 

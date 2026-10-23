@@ -60,6 +60,21 @@ describe("withdrawals", () => {
     expect(await ledgerSum(db, userId)).toBe(4_000_000n);
   });
 
+  it("D-088: money added by card in the last 3 days can't be withdrawn yet; transfers can", async () => {
+    // A card top-up of ₦30,000 credited just now (as settleTopup records it).
+    await db.query(
+      "INSERT INTO topups (user_id, provider, reference, credit_minor, fee_minor, total_minor, status, channel) VALUES ($1, 'fake', 'cu_top_cardhold', 3000000, 0, 3000000, 'credited', 'card')",
+      [userId],
+    );
+    const r = await call("POST", "/v1/withdrawals", { amountMinor: "2000000" });
+    expect(r.json()).toMatchObject({ error: "card_hold" });
+    expect(r.json().message).toContain("₦10,000");
+    // Three days later the hold is over: the whole free balance can go.
+    await db.query("UPDATE topups SET created_at = now() - interval '4 days' WHERE reference = 'cu_top_cardhold'");
+    // Past the hold, asking for more than the free balance is just "insufficient", never "card_hold".
+    expect((await call("POST", "/v1/withdrawals", { amountMinor: "5000000" })).json().error).toBe("insufficient");
+  });
+
   it("a signed failure webhook gives the money back once, however often it's replayed", async () => {
     const w = (await call("GET", "/v1/withdrawals")).json()[0];
     const ref = (await db.query("SELECT reference FROM withdrawals WHERE id = $1", [w.id])).rows[0].reference;

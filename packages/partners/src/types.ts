@@ -102,6 +102,8 @@ export interface FundingCredit {
   amountMinor: bigint;
   currency: string;
   reference: string;
+  /** The name on the account the transfer came from, when the bank sent it (D-088). */
+  senderName: string | null;
 }
 
 /** A customer's identity check (D-086), from a signed webhook. */
