@@ -828,14 +828,9 @@
 .ap-grid-2 {
   display: grid;
   /* minmax(0, …): a column never grows past half because of what's inside it. */
-  grid-template-columns: minmax(0, minmax(0, 1fr)) minmax(0, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
   align-items: start;
-}
-@media (max-width: 360px) {
-  .ap-grid-2 {
-    grid-template-columns: minmax(0, minmax(0, 1fr));
-  }
 }
 
 /* detail */
@@ -1149,6 +1144,10 @@
   max-width: 440px;
 }
 .ap-tabs .ap-tab {
+  /* The label sits in the middle of its pill, across and down. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 6px 12px;
   text-align: center;
   line-height: 1.2;
@@ -1169,7 +1168,7 @@
 }
 .ap-provider-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, minmax(0, 1fr)));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 .ap-provider-card {
@@ -1284,7 +1283,7 @@
 }
 .ap-net-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, minmax(0, 1fr)));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 .ap-net-tile {
@@ -1356,7 +1355,7 @@
 }
 .ap-quick {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, minmax(0, 1fr)));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .ap-quick-btn {
@@ -1460,11 +1459,11 @@
   color: var(--ink);
 }
 .ap-topup .ap-quick {
-  grid-template-columns: repeat(2, minmax(0, minmax(0, 1fr)));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 @media (min-width: 480px) {
   .ap-topup .ap-quick {
-    grid-template-columns: repeat(4, minmax(0, minmax(0, 1fr)));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -1580,7 +1579,7 @@
 /* A bill's pot (D-083). */
 .ap-pot {
   display: grid;
-  grid-template-columns: minmax(0, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: 10px;
   padding: 16px;

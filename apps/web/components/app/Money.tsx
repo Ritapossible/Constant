@@ -12,6 +12,7 @@ import { StellarWallet } from "./StellarWallet";
 import { useServer } from "./Server";
 import { useNotify } from "./Toast";
 import { useWalletAddress } from "./useWalletAddress";
+import { Withdraw } from "./Withdraw";
 
 type Balances = Record<string, bigint | null>;
 
@@ -69,7 +70,10 @@ export function Money({ user, plan }: { user: User; plan: Plan }) {
       </section>
 
       {server.enabled ? (
-        <NairaAccount />
+        <>
+          <NairaAccount />
+          <Withdraw />
+        </>
       ) : (
         <section className="ap-card" aria-labelledby="bank-title">
           <div className="ap-card-head">

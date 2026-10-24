@@ -16,7 +16,7 @@ function remember(reason: SignOutReason) {
   }
 }
 
-type Call = <T>(path: string, init?: { method?: "GET" | "POST" | "PATCH" | "DELETE"; body?: unknown }) => Promise<T>;
+type Call = <T>(path: string, init?: { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; body?: unknown }) => Promise<T>;
 type SignOut = (reason: SignOutReason, opts?: { everywhere?: boolean }) => Promise<void>;
 
 type Server = {
