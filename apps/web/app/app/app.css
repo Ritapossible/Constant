@@ -763,6 +763,42 @@
   border-color: var(--ink);
   box-shadow: 0 0 0 3px rgba(10, 10, 10, 0.08);
 }
+/* Bank search: type a few letters, pick from the list that pops up under the field. */
+.ap-combo {
+  position: relative;
+  min-width: 0;
+}
+.ap-combo-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+}
+.ap-combo-list li {
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.ap-combo-list li[data-active] {
+  background: var(--surface-2);
+}
+.ap-combo-list .ap-combo-empty {
+  color: var(--muted);
+  cursor: default;
+}
 /* Dropdowns look like the text fields, and a long option (a bank's full name) never widens the page. */
 .ap-field select {
   height: 50px;

@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { Kyc } from "@/lib/app/api";
 import { formatMoney } from "@/lib/app/format";
+import { BankPicker, type Bank } from "./BankPicker";
 import { Field } from "./Field";
 import { useServer } from "./Server";
 
-type Bank = { code: string; name: string };
 
 /**
  * Verifying identity before the account number (D-086): Paystack checks the BVN against a bank account in the
@@ -57,7 +57,7 @@ export function VerifyIdentity({ onVerified }: { onVerified: () => void }) {
       return setFormError(
         "Your BVN is 11 digits. Dial *565*0# from the phone number linked to it to see it.",
       );
-    if (!bank) return setFormError("Choose the bank your account is with");
+    if (!bank) return setFormError("Type your bank and pick it from the list");
     if (!/^\d{10}$/.test(account))
       return setFormError("Enter your 10-digit account number");
     if (!/^(\+234|0)[789]\d{9}$/.test(tel))
@@ -157,16 +157,7 @@ export function VerifyIdentity({ onVerified }: { onVerified: () => void }) {
         )}
       </Field>
       <Field label="Your bank">
-        {(a) => (
-          <select {...a} value={bank} onChange={(e) => setBank(e.target.value)}>
-            <option value="">Choose</option>
-            {banks.map((b) => (
-              <option key={b.code} value={b.code}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        )}
+        {(a) => <BankPicker id={a.id} banks={banks} value={bank} onChange={setBank} invalid={a["aria-invalid"]} {...(a["aria-describedby"] ? { describedBy: a["aria-describedby"] } : {})} />}
       </Field>
       <Field label="Account number in your name">
         {(a) => (
