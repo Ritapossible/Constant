@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/Logo";
@@ -56,9 +57,9 @@ function NotConfigured() {
       <p className="ap-muted" style={{ maxWidth: 360, textAlign: "center" }}>
         Sign-in is not configured yet. Set <code>NEXT_PUBLIC_PRIVY_APP_ID</code> in the deployment settings.
       </p>
-      <a className="btn btn-ghost btn-sm" href="/">
+      <Link className="btn btn-ghost btn-sm" href="/">
         Back to home
-      </a>
+      </Link>
     </div>
   );
 }

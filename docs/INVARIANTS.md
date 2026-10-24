@@ -145,3 +145,6 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 104 | Money added by card is never withdrawn within 3 days of arriving; it can pay bills at once. | rules (property) · api |
 | 105 | A transfer from an account in someone else's name is credited and always raises a review alert. | api |
 | 106 | The app never signs Stellar bytes it hasn't decoded and matched to the screen: the pinned contract, this account, Circle's USDC, and nothing extra. | chains (testnet fixture, tampered copies) |
+| 107 | On the public network, a Stellar charge from an unscreened account is never made; only testnet is exempt. | worker |
+| 108 | Retrying an action whose outcome is unknown reuses its Idempotency-Key, so it takes effect at most once. | web (unit) · api |
+| 109 | Withdrawals go only to a bank account in the name the identity check confirmed. | api |

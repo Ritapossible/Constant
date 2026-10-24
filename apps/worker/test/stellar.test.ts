@@ -119,6 +119,32 @@ describe("USDC on Stellar", () => {
     expect(stellarMandateId(perm)).toBe(id);
   });
 
+  it("in production on testnet it still charges: testnet USDC isn't screened (D-090)", async () => {
+    deps.dollars = { ...deps.dollars!, screeningRequired: true };
+    const { user } = await setup();
+    await processPermissions(deps, deps.dollars!);
+    await processPermissions(deps, deps.dollars!);
+    await scanRenewals(deps);
+    await tick();
+    await tick();
+    expect(rail.treasuryMicro).toBe(usdcForNaira(PRICE, RATE));
+    expect(await ledgerSum(db, user.id)).toBe(PRICE); // credited, ready to pay the bill
+  });
+
+  it("in production on the public network an unscreened Stellar account is never charged (D-090)", async () => {
+    rail.network = "public";
+    deps.dollars = { ...deps.dollars!, screeningRequired: true };
+    const { line } = await setup();
+    await processPermissions(deps, deps.dollars!);
+    await processPermissions(deps, deps.dollars!);
+    await scanRenewals(deps);
+    await tick();
+    await tick();
+    expect(rail.treasuryMicro).toBe(0n);
+    expect(rail.sent.filter((t) => t.fn === "charge")).toHaveLength(0);
+    expect((await charges(line.id)).every((c) => c.status !== "confirmed")).toBe(true);
+  });
+
   it("a charge the network never includes is built again after its time limit, and charges once", async () => {
     const { user, line } = await setup();
     await processPermissions(deps, deps.dollars!);

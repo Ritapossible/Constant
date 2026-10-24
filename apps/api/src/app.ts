@@ -158,6 +158,7 @@ import {
   KYC_TIERS,
   decideKyc,
   inboundOverLimit,
+  KYC_MAX_TIER,
   isBvn,
   isNuban,
   CARD_HOLD_DAYS,
@@ -248,6 +249,9 @@ class HttpError extends Error {
 const bad = (code: string, message: string) => new HttpError(400, code, message);
 
 /** Requests that move money or create something that does: they honour Idempotency-Key (D-087). */
+/** A bank's code as Paystack lists it: digits, sometimes letters, 3 to 10 characters. */
+const BANK_CODE = /^[0-9A-Za-z]{3,10}$/;
+
 const IDEMPOTENT_ROUTES = new Set([
   "POST /v1/withdrawals",
   "POST /v1/topups",
@@ -588,13 +592,18 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       const l = KYC_TIERS[t];
       return { tier: t, name: l.name, dailyInMinor: l.dailyInMinor.toString(), maxBalanceMinor: l.maxBalanceMinor?.toString() ?? null, dailyWithdrawMinor: l.dailyWithdrawMinor.toString(), accountNumber: l.accountNumber };
     };
-    /** Throws the refusal as a 403 the app can act on: which tier unlocks it, and what is still allowed today. */
-    const kycRefused = (d0: KycDecision) => {
+    /**
+     * Throws the refusal as a 403 the app can act on: which tier unlocks it, and what is still allowed today. The
+     * message points to the next step for this person: verifying if they haven't, a review (support) if they have.
+     */
+    const kycRefused = (d0: KycDecision, tier: KycTier) => {
       if (d0.kind === "allow") return;
+      const room = d0.roomMinor > 0n ? ` You can still do ${naira(d0.roomMinor)} today.` : "";
+      const raise = tier === 0 ? "Verify your identity to raise it." : tier < KYC_MAX_TIER ? "Contact support to have your limit reviewed." : "";
       const msg = {
         verify_identity: "Verify your identity to do this. It takes a minute.",
-        daily_limit: "That's more than your daily limit. Verify your identity to raise it, or try a smaller amount.",
-        balance_limit: "That would take your balance past its limit. Verify your identity to raise it.",
+        daily_limit: `That's more than your daily limit.${room} ${raise}`.trim(),
+        balance_limit: `That would take your balance past its limit. ${raise}`.trim(),
       }[d0.reason];
       const err = new HttpError(403, d0.reason === "verify_identity" ? "verify_identity" : "kyc_limit", msg);
       (err as HttpError & { extra?: unknown }).extra = { needTier: d0.needTier, roomMinor: d0.roomMinor.toString() };
@@ -625,7 +634,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         const b = json(req);
         if (!isBvn(b.bvn)) throw bad("invalid_bvn", "Your BVN is 11 digits. Dial *565*0# to see it.");
         if (!isNuban(b.accountNumber)) throw bad("invalid_account", "Enter your 10-digit account number.");
-        const bankCode = typeof b.bankCode === "string" && /^[0-9A-Za-z]{3,10}$/.test(b.bankCode) ? b.bankCode : null;
+        const bankCode = typeof b.bankCode === "string" && BANK_CODE.test(b.bankCode) ? b.bankCode : null;
         if (!bankCode) throw bad("invalid_bank", "Choose your bank.");
         const firstName = str(b.firstName, "firstName", 40);
         const lastName = str(b.lastName, "lastName", 40);
@@ -727,7 +736,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       const existing = await getFundingAccount(d.db, req.user.id);
       if (existing) return { bankName: existing.bank_name, accountNumber: existing.account_number, accountName: existing.account_name };
       // Paystack issues account numbers only to customers whose identity it validated (D-086).
-      kycRefused(decideKyc(kycTier(req.user), { kind: "account_number" }, { inLast24hMinor: 0n, withdrawnLast24hMinor: 0n, balanceMinor: 0n }));
+      kycRefused(decideKyc(kycTier(req.user), { kind: "account_number" }, { inLast24hMinor: 0n, withdrawnLast24hMinor: 0n, balanceMinor: 0n }), kycTier(req.user));
       const verifiedAs = await kycCustomerCode(d.db, req.user.id);
       let acct;
       if (verifiedAs) {
@@ -765,7 +774,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         const credit = typeof b.amountMinor === "string" && /^\d{1,12}$/.test(b.amountMinor) ? BigInt(b.amountMinor) : null;
         if (credit === null || credit < TOPUP_MIN_MINOR || credit > TOPUP_MAX_MINOR) throw bad("invalid_amount", "Enter an amount between ₦1,000 and ₦500,000");
         if ((await pendingTopupsToday(d.db, req.user.id)) >= 20) throw bad("too_many", "Too many unfinished top-ups today. Finish one or try tomorrow.");
-        kycRefused(decideKyc(kycTier(req.user), { kind: "topup", amountMinor: credit }, await kycUsage(d.db, req.user.id)));
+        kycRefused(decideKyc(kycTier(req.user), { kind: "topup", amountMinor: credit }, await kycUsage(d.db, req.user.id)), kycTier(req.user));
         const q = topUpCharge(credit);
         // Saved with its reference before Paystack is called (persist before act).
         const t = await insertTopup(d.db, {
@@ -1271,18 +1280,24 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
 
     v1.get("/payout-account", async (req) => payoutView(await getPayoutAccount(d.db, req.user.id)));
 
-    /** The account must be in the same name as the user's Constant account (their naira account holder name). */
+    /**
+     * The account must be in the user's own name: the legal name their BVN check confirmed (D-086), or for accounts
+     * verified before that, the name on their ConstantUnits account number. Only verified people add one at all.
+     */
     v1.put("/payout-account", async (req) => {
       const p = payouts();
+      if (kycTier(req.user) < 1) throw new HttpError(403, "verify_identity", "Verify your identity first, so we know the name to match.");
       const b = json(req);
-      const bankCode = typeof b.bankCode === "string" && /^[0-9A-Za-z]{2,10}$/.test(b.bankCode) ? b.bankCode : null;
-      const accountNumber = typeof b.accountNumber === "string" && /^\d{10}$/.test(b.accountNumber) ? b.accountNumber : null;
+      const bankCode = typeof b.bankCode === "string" && BANK_CODE.test(b.bankCode) ? b.bankCode : null;
+      const accountNumber = isNuban(b.accountNumber) ? b.accountNumber : null;
       if (!bankCode || !accountNumber) throw bad("invalid", "Choose your bank and enter the 10-digit account number");
-      const holder = await getFundingAccount(d.db, req.user.id);
-      if (!holder) throw bad("no_holder", "Get your ConstantUnits account number first, so we know the name to match");
+      const ownName = req.user.legal_first_name
+        ? `${req.user.legal_first_name} ${req.user.legal_last_name ?? ""}`.trim()
+        : ((await getFundingAccount(d.db, req.user.id))?.account_name ?? null);
+      if (!ownName) throw new HttpError(403, "verify_identity", "Verify your identity first, so we know the name to match.");
       const bankName = await p.resolveAccount(bankCode, accountNumber);
       if (!bankName) throw bad("not_found", "That account number wasn't found at this bank");
-      if (!namesMatch(holder.account_name, bankName)) throw bad("name_mismatch", `This account is in the name ${bankName}. Withdrawals go only to an account in your own name.`);
+      if (!namesMatch(ownName, bankName)) throw bad("name_mismatch", `This account is in the name ${bankName}. Withdrawals go only to an account in your own name.`);
       const bank = (bankCache?.banks ?? (await p.banks())).find((x) => x.code === bankCode);
       const recipient = await p.createRecipient({ name: bankName, bankCode, accountNumber });
       const saved = await upsertPayoutAccount(d.db, {
@@ -1296,6 +1311,29 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       (await listWithdrawals(d.db, req.user.id)).map((w) => ({ id: w.id, amountMinor: w.amount_minor.toString(), status: w.status, createdAt: w.created_at.toISOString() })),
     );
 
+    /**
+     * What can be withdrawn right now, with the same rules POST /withdrawals applies: the free balance less money
+     * promised to open orders and card money still on hold (D-088), within today's limit for the tier (D-086).
+     */
+    v1.get("/withdrawals/available", async (req) => {
+      const [free, committed, held, usage] = await Promise.all([
+        freeBalance(d.db, req.user.id),
+        freeCommittedToOpenOrders(d.db, req.user.id),
+        cardHeldMinor(d.db, req.user.id, CARD_HOLD_DAYS),
+        kycUsage(d.db, req.user.id),
+      ]);
+      const limit = KYC_TIERS[kycTier(req.user)].dailyWithdrawMinor;
+      const max0 = (x: bigint) => (x > 0n ? x : 0n);
+      const room = max0(limit - usage.withdrawnLast24hMinor);
+      const balance = max0(free - committed - held);
+      return {
+        withdrawableMinor: (balance < room ? balance : room).toString(),
+        cardHeldMinor: held.toString(),
+        dailyRoomMinor: room.toString(),
+        enabled: Boolean(d.payouts) && (await flag(d.db, "payouts_enabled")),
+      };
+    });
+
     v1.post("/withdrawals", async (req, reply) => {
       payouts();
       if (req.user.status !== "active") throw new HttpError(403, "account_on_hold", "Your account is on hold. Contact ConstantUnits support.");
@@ -1304,7 +1342,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       const result = await withTx(d.db, async (tx) => {
         const locked = await lockUser(tx, req.user.id);
         // Within the identity tier's daily limit (D-086), checked with the user locked.
-        kycRefused(decideKyc(locked.kyc_tier as KycTier, { kind: "withdraw", amountMinor: amount }, await kycUsage(tx, req.user.id)));
+        kycRefused(decideKyc(locked.kyc_tier as KycTier, { kind: "withdraw", amountMinor: amount }, await kycUsage(tx, req.user.id)), locked.kyc_tier as KycTier);
         // Only free money can be withdrawn: a pot is for its bill until it's moved back (D-083).
         const decision = decideWithdrawal({
           balanceMinor: await freeBalance(tx, req.user.id),

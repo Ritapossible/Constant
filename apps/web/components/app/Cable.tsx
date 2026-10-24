@@ -219,7 +219,7 @@ export function CableDetail({ line, orders, onClose }: { line: ServerLine; order
 
       {line.status === "frozen" && (
         <div className="ap-warn" role="note">
-          A payment for this bill needs a person to confirm it. Nothing more will be paid until we've checked. We'll message you.
+          A payment for this bill needs a person to confirm it. Nothing more will be paid until we&apos;ve checked. We&apos;ll message you.
         </div>
       )}
 

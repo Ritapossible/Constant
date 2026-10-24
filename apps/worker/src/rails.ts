@@ -106,7 +106,7 @@ export function parseStellarData(p: PermissionRow): StellarPermissionData {
 /** What the worker needs from a Stellar rail: the real one, or FakeStellarRail in tests. */
 export type StellarRailLike = Pick<
   StellarRail,
-  "usdcContract" | "contractId" | "isActive" | "remaining" | "balanceMicro" | "latestLedger" | "prepareCreate" | "prepareCharge" | "prepareRevoke" | "broadcast" | "status" | "maxTimeOf"
+  "network" | "usdcContract" | "contractId" | "isActive" | "remaining" | "balanceMicro" | "latestLedger" | "prepareCreate" | "prepareCharge" | "prepareRevoke" | "broadcast" | "status" | "maxTimeOf"
 >;
 
 /** Stellar, through Constant's mandate contract. The operator pays every fee; the user only ever signed. */

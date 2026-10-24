@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { Kyc } from "@/lib/app/api";
 import { formatMoney } from "@/lib/app/format";
-import { BankPicker, type Bank } from "./BankPicker";
+import { BankPicker, useBanks } from "./BankPicker";
 import { Field } from "./Field";
 import { useServer } from "./Server";
 
@@ -15,7 +15,7 @@ import { useServer } from "./Server";
 export function VerifyIdentity({ onVerified }: { onVerified: () => void }) {
   const { call } = useServer();
   const [kyc, setKyc] = useState<Kyc | null>(null);
-  const [banks, setBanks] = useState<Bank[]>([]);
+  const banks = useBanks();
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
   const [bvn, setBvn] = useState("");
@@ -24,20 +24,19 @@ export function VerifyIdentity({ onVerified }: { onVerified: () => void }) {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
     const k = await call<Kyc>("/v1/kyc");
     setKyc(k);
+    setLoadFailed(false);
     if (k.current.accountNumber) onVerified();
     return k;
   }, [call, onVerified]);
 
   useEffect(() => {
-    load().catch(() => undefined);
-    call<Bank[]>("/v1/banks")
-      .then(setBanks)
-      .catch(() => setBanks([]));
-  }, [load, call]);
+    load().catch(() => setLoadFailed(true));
+  }, [load]);
 
   // While Paystack checks (usually under a minute), look again every few seconds.
   useEffect(() => {
@@ -85,6 +84,17 @@ export function VerifyIdentity({ onVerified }: { onVerified: () => void }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (!kyc && loadFailed) {
+    return (
+      <div className="ap-inline-state" role="alert">
+        <p className="ap-muted">We couldn&apos;t load your verification status.</p>
+        <button className="btn btn-primary btn-sm" type="button" onClick={() => load().catch(() => setLoadFailed(true))}>
+          Try again
+        </button>
+      </div>
+    );
   }
 
   if (!kyc) {
@@ -157,7 +167,7 @@ export function VerifyIdentity({ onVerified }: { onVerified: () => void }) {
         )}
       </Field>
       <Field label="Your bank">
-        {(a) => <BankPicker id={a.id} banks={banks} value={bank} onChange={setBank} invalid={a["aria-invalid"]} {...(a["aria-describedby"] ? { describedBy: a["aria-describedby"] } : {})} />}
+        {(a) => <BankPicker id={a.id} list={banks} value={bank} onChange={setBank} invalid={a["aria-invalid"]} {...(a["aria-describedby"] ? { describedBy: a["aria-describedby"] } : {})} />}
       </Field>
       <Field label="Account number in your name">
         {(a) => (

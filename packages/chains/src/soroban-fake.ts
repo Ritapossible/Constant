@@ -13,7 +13,8 @@ interface FakeMandate extends OnChainMandate {
 }
 
 export class FakeStellarRail {
-  readonly network = "testnet" as const;
+  /** Tests set "public" to check what changes on the real network. */
+  network: "testnet" | "public" = "testnet";
   readonly passphrase = STELLAR.testnet.passphrase;
   readonly contractId = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
   readonly usdcContract = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";

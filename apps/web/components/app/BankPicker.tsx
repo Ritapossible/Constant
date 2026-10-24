@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { ApiError } from "@/lib/app/api";
+import { useServer } from "./Server";
 
 export type Bank = { code: string; name: string };
 
@@ -30,6 +32,33 @@ const ALIASES: Record<string, string[]> = {
   access: ["access"],
   diamond: ["access bank (diamond)", "diamond"],
 };
+
+export type BankList = {
+  banks: Bank[];
+  /** "off": withdrawals aren't set up on this server, so there's no bank list either. */
+  status: "loading" | "ready" | "error" | "off";
+  retry: () => void;
+};
+
+/** Nigeria's banks from the API, with a state for every outcome: a failed load says so and can be tried again. */
+export function useBanks(enabled = true): BankList {
+  const { call } = useServer();
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [status, setStatus] = useState<BankList["status"]>("loading");
+  const load = useCallback(() => {
+    setStatus("loading");
+    call<Bank[]>("/v1/banks")
+      .then((b) => {
+        setBanks(b);
+        setStatus(b.length ? "ready" : "error");
+      })
+      .catch((err) => setStatus(err instanceof ApiError && err.code === "payouts_off" ? "off" : "error"));
+  }, [call]);
+  useEffect(() => {
+    if (enabled) load();
+  }, [enabled, load]);
+  return { banks, status, retry: load };
+}
 
 /** Shown before anything is typed: the banks most people use. */
 const POPULAR = ["access bank", "guaranty trust", "first bank", "united bank for africa", "zenith", "opay", "moniepoint", "palmpay", "kuda"];
@@ -66,20 +95,21 @@ export function matchBanks(banks: Bank[], query: string, limit = 8): Bank[] {
  */
 export function BankPicker({
   id,
-  banks,
+  list,
   value,
   onChange,
   invalid,
   describedBy,
 }: {
   id: string;
-  banks: Bank[];
+  list: BankList;
   value: string;
   onChange: (code: string) => void;
   invalid?: boolean;
   describedBy?: string;
 }) {
   const listId = useId();
+  const banks = list.banks;
   const chosen = banks.find((b) => b.code === value) ?? null;
   const [text, setText] = useState(chosen?.name ?? "");
   const [open, setOpen] = useState(false);
@@ -124,7 +154,19 @@ export function BankPicker({
     }
   }
 
-  const loading = banks.length === 0;
+  const loading = list.status === "loading";
+  if (list.status === "error" || list.status === "off") {
+    return (
+      <div className="ap-inline-state" role="alert" id={id} tabIndex={-1}>
+        <p className="ap-muted">{list.status === "off" ? "Bank accounts can't be added yet." : "We couldn't load the list of banks."}</p>
+        {list.status === "error" && (
+          <button className="btn btn-ghost btn-sm" type="button" onClick={list.retry}>
+            Try again
+          </button>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="ap-combo" ref={wrap}>
       <input

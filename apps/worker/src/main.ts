@@ -2,7 +2,7 @@ import { migrate } from "@constant/db";
 import { anchorReceipts, indexDeposits } from "./chains.js";
 import { chainsFromEnv, dollarsFromEnv, fromEnv, offrampFromEnv } from "./config.js";
 import { refillFloat } from "./offramp.js";
-import { processPermissions } from "./dollars.js";
+import { processPermissions, screeningApplies } from "./dollars.js";
 import { bridgeStep } from "./bridge.js";
 import { screenPending, sweepSpender } from "./guards.js";
 import { notifyOps } from "./ops.js";
@@ -45,6 +45,9 @@ async function main() {
   await recover(deps);
   beats.startedAt = new Date();
   log.info("worker started", { vending: deps.vending.name, chains: chainDeps.readers.map((r) => r.chain), anchoring: chainDeps.anchorer?.network ?? "off", dollarAutopay: dollars?.chain ? dollars.chain.spender : "off", arcAutopay: dollars?.arc ? "on" : "off", stellarAutopay: dollars?.stellar ? dollars.stellar.rail.contractId : "off" });
+if (dollars?.stellar && screeningApplies(dollars, "stellar")) {
+  log.warn("Stellar charges are refused on the public network until Stellar accounts are screened (D-090)");
+}
   await Promise.all([
     every("renewal scan", 5 * 60_000, () => scanRenewals(deps)),
     every("orders", 10_000, () => processOrders(deps)),

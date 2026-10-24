@@ -44,6 +44,13 @@ nvm use            # Node 22
 corepack enable    # pnpm 10
 pnpm install
 pnpm check         # typecheck + tests
+pnpm --filter @constant/web lint   # the app's lint, as CI runs it
+```
+
+The db, API and worker tests each create a throwaway database. Point them at a local Postgres first:
+
+```sh
+export TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
 ```
 
 ## Status

@@ -1,14 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
-import { ApiError } from "@/lib/app/api";
+import { CARD_HOLD_DAYS } from "@constant/rules";
 import { formatMoney } from "@/lib/app/format";
-import { BankPicker, type Bank } from "./BankPicker";
+import { BankPicker, useBanks } from "./BankPicker";
 import { Field } from "./Field";
 import { useServer } from "./Server";
 import { useNotify } from "./Toast";
 
 type PayoutAccount = { bankName: string; last4: string; accountName: string; usableFrom: string } | null;
+/** What can go out now, by the same rules the server applies to a withdrawal (kobo, as strings). */
+type Available = { withdrawableMinor: string; cardHeldMinor: string; dailyRoomMinor: string; enabled: boolean };
 type Withdrawal = { id: string; amountMinor: string; status: "requested" | "sent" | "succeeded" | "failed" | "reversed" | "needs_human"; createdAt: string };
 
 const STATUS: Record<Withdrawal["status"], string> = {
@@ -26,6 +28,15 @@ function toMinor(v: string): bigint | null {
   return BigInt(t) * 100n;
 }
 
+/** The line under the amount: what can go now, and why some of the balance can't yet. */
+function availableText(a: Available | null): string {
+  if (!a) return "Money in bill pots stays for its bill.";
+  if (!a.enabled) return "Withdrawals are paused right now. Your money is safe.";
+  const held = BigInt(a.cardHeldMinor);
+  const now = `${formatMoney(BigInt(a.withdrawableMinor), "NGN")} can be withdrawn now.`;
+  return held > 0n ? `${now} ${formatMoney(held, "NGN")} added by card can be withdrawn ${CARD_HOLD_DAYS} days after it was added.` : `${now} Money in bill pots stays for its bill.`;
+}
+
 const when = (iso: string) => new Date(iso).toLocaleString("en-NG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
 /**
@@ -36,10 +47,12 @@ export function Withdraw() {
   const { me, call, reload } = useServer();
   const notify = useNotify();
   const id = useId();
-  const [off, setOff] = useState(false);
-  const [banks, setBanks] = useState<Bank[]>([]);
+  const verified = (me?.user.kycTier ?? 0) >= 1;
+  const banks = useBanks(verified);
   const [payout, setPayout] = useState<PayoutAccount | undefined>(undefined);
   const [history, setHistory] = useState<Withdrawal[]>([]);
+  const [available, setAvailable] = useState<Available | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [bank, setBank] = useState("");
   const [account, setAccount] = useState("");
@@ -47,27 +60,26 @@ export function Withdraw() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const verified = (me?.user.kycTier ?? 0) >= 1;
-
+  // A failed load says so and offers a retry; it never pretends there's no bank account on file.
   const load = useCallback(async () => {
     try {
-      const [p, w] = await Promise.all([call<PayoutAccount>("/v1/payout-account"), call<Withdrawal[]>("/v1/withdrawals")]);
+      const [p, w, a] = await Promise.all([
+        call<PayoutAccount>("/v1/payout-account"),
+        call<Withdrawal[]>("/v1/withdrawals"),
+        call<Available>("/v1/withdrawals/available"),
+      ]);
       setPayout(p);
       setHistory(w);
+      setAvailable(a);
+      setLoadFailed(false);
     } catch {
-      setPayout(null);
+      setLoadFailed(true);
     }
   }, [call]);
 
   useEffect(() => {
-    if (!verified) return;
-    call<Bank[]>("/v1/banks")
-      .then(setBanks)
-      .catch((err) => {
-        if (err instanceof ApiError && err.code === "payouts_off") setOff(true);
-      });
-    load();
-  }, [verified, call, load]);
+    if (verified) load();
+  }, [verified, load]);
 
   async function saveAccount(e: FormEvent) {
     e.preventDefault();
@@ -107,7 +119,7 @@ export function Withdraw() {
 
   if (!me) return null;
 
-  if (off) {
+  if (banks.status === "off") {
     return (
       <section className="ap-card" aria-labelledby={`${id}-title`}>
         <div className="ap-card-head">
@@ -125,6 +137,13 @@ export function Withdraw() {
 
       {!verified ? (
         <p className="ap-muted">Verify your identity above, then you can withdraw to a bank account in your own name.</p>
+      ) : loadFailed && payout === undefined ? (
+        <div className="ap-inline-state" role="alert">
+          <p className="ap-muted">We couldn&apos;t load your withdrawal details.</p>
+          <button className="btn btn-primary btn-sm" type="button" onClick={load}>
+            Try again
+          </button>
+        </div>
       ) : payout === undefined ? (
         <div className="ap-inline-state" role="status">
           <span className="ap-spinner" aria-hidden="true" />
@@ -134,7 +153,7 @@ export function Withdraw() {
         <form className="ap-form" onSubmit={saveAccount} noValidate>
           <p className="ap-muted">Add the bank account to withdraw to. It must be in your own name.</p>
           <Field label="Your bank">
-            {(a) => <BankPicker id={a.id} banks={banks} value={bank} onChange={setBank} invalid={a["aria-invalid"]} {...(a["aria-describedby"] ? { describedBy: a["aria-describedby"] } : {})} />}
+            {(a) => <BankPicker id={a.id} list={banks} value={bank} onChange={setBank} invalid={a["aria-invalid"]} {...(a["aria-describedby"] ? { describedBy: a["aria-describedby"] } : {})} />}
           </Field>
           <Field label="Account number" error={error}>
             {(a) => (
@@ -204,10 +223,10 @@ export function Withdraw() {
                 />
               </div>
               <span id={`${id}-amount-help`} className={error ? "ap-err" : "ap-hint"} role={error ? "alert" : undefined}>
-                {error ?? `${formatMoney(BigInt(me.balance.freeMinor), "NGN")} free to withdraw. Money in bill pots stays for its bill.`}
+                {error ?? availableText(available)}
               </span>
             </div>
-            <button className="btn btn-primary" type="submit" disabled={busy}>
+            <button className="btn btn-primary" type="submit" disabled={busy || available?.enabled === false}>
               {busy ? "Sending…" : "Withdraw"}
             </button>
           </form>

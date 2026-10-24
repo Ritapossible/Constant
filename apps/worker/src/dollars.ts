@@ -89,6 +89,16 @@ export interface DollarDeps {
   sweepMinMicro: bigint;
 }
 
+/**
+ * Whether a charge must come from a screened account (D-064, D-090). Production requires it, except on Stellar's
+ * test network: testnet USDC has no value and no sanctioned owner, so screening it protects nothing, while requiring
+ * it would refuse every testnet charge. Public-network Stellar stays refused until Stellar accounts are screened.
+ */
+export function screeningApplies(dd: Pick<DollarDeps, "screeningRequired" | "stellar">, chain: string): boolean {
+  if (!dd.screeningRequired) return false;
+  return !(chain === "stellar" && dd.stellar?.rail.network === "testnet");
+}
+
 export interface ArcDeps {
   chain: PermissionChain;
   bridge: Bridge;
@@ -308,9 +318,9 @@ export async function chargeStep(d: Deps, dd: DollarDeps, orderId: string): Prom
       floatMinor,
       needMinor: naira.rows[0]!.naira_minor,
       floatMarginMinor: dd.floatMarginMinor,
-      // Stellar accounts aren't screened yet (D-085): in production that holds every Stellar charge.
+      // Stellar accounts aren't screened yet (D-085, D-090): on the public network an unscreened account is refused.
       screening: dd.screener && perm.chain !== "stellar" ? await accountScreening(d.db, perm.account) : "unscreened",
-      screeningRequired: dd.screeningRequired,
+      screeningRequired: screeningApplies(dd, perm.chain),
     });
     const hour = now.toISOString().slice(0, 13);
     if (guard.kind === "stop_all") {

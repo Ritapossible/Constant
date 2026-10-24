@@ -3,6 +3,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { API_URL, ApiError, type Me } from "@/lib/app/api";
+import { PendingKeys } from "@/lib/app/idempotency";
 
 /** Why the person was signed out, shown once on the sign-in screen (D-080). */
 export type SignOutReason = "expired" | "idle" | "everywhere" | "manual";
@@ -52,25 +53,32 @@ export function ServerProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(Boolean(API_URL));
   const [error, setError] = useState<string | null>(null);
 
+  // One key per intended action, kept across retries until the server gives a definite answer (D-087).
+  const pending = useRef<PendingKeys | null>(null);
+  pending.current ??= new PendingKeys(() => crypto.randomUUID());
+
   const call: Call = useCallback(
     async <T,>(path: string, init?: { method?: string; body?: unknown }) => {
       const token = await getAccessToken();
       if (!token) throw new ApiError(401, "unauthenticated", "Sign in again");
+      const method = init?.method ?? "GET";
+      const action = method === "GET" ? null : PendingKeys.fingerprint(method, path, init?.body);
       let res: Response;
       try {
         res = await fetch(`${API_URL}${path}`, {
-          method: init?.method ?? "GET",
+          method,
           headers: {
             authorization: `Bearer ${token}`,
             ...(init?.body !== undefined ? { "content-type": "application/json" } : {}),
-            // Every change carries its own key, so a request the network retried is applied once (D-087).
-            ...(init?.method && init.method !== "GET" ? { "idempotency-key": crypto.randomUUID() } : {}),
+            ...(action ? { "idempotency-key": pending.current!.keyFor(action) } : {}),
           },
           ...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
         });
       } catch {
+        if (action) pending.current!.settle(action, 0);
         throw new ApiError(0, "offline", "Can't reach ConstantUnits. Check your connection.");
       }
+      if (action) pending.current!.settle(action, res.status);
       if (res.status === 204) return undefined as T;
       const body = await res.json().catch(() => ({}));
       if (res.status === 401 && body.error === "session_expired" && !leaving.current) {
@@ -90,6 +98,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
       if (leaving.current) return;
       leaving.current = true;
       remember(reason);
+      pending.current?.clear();
       if (API_URL) {
         // Best effort: if the network is down, the server still ends the session after a week unused.
         await call(opts?.everywhere ? "/v1/sessions/end-all" : "/v1/session/end", { method: "POST" }).catch(() => undefined);

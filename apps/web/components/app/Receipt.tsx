@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LogoMark } from "@/components/Logo";
 import { API_URL, type PublicReceipt } from "@/lib/app/api";
@@ -58,10 +59,10 @@ export function Receipt({ id }: { id: string }) {
   return (
     <main className="ap-main" style={{ maxWidth: 520, paddingBottom: 48 }}>
       <div className="ap-page">
-        <a href="/" className="ap-brand" aria-label="ConstantUnits home">
+        <Link href="/" className="ap-brand" aria-label="ConstantUnits home">
           <LogoMark />
           <span>ConstantUnits</span>
-        </a>
+        </Link>
         {error ? (
           <div className="ap-card" role="alert">
             <p>{error}</p>

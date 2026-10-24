@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { User } from "@privy-io/react-auth";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -86,10 +87,10 @@ function App({ user }: { user: User }) {
   return (
     <div className="ap">
       <aside className="ap-side" aria-label="App navigation">
-        <a href="/" className="ap-brand" aria-label="ConstantUnits home">
+        <Link href="/" className="ap-brand" aria-label="ConstantUnits home">
           <LogoMark />
           <span>ConstantUnits</span>
-        </a>
+        </Link>
         <nav className="ap-nav">
           {TABS.map((t) => (
             <button key={t.id} className="ap-nav-item" data-on={tab === t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? "page" : undefined}>
@@ -103,10 +104,10 @@ function App({ user }: { user: User }) {
 
       <main className="ap-main" id="main" ref={main} tabIndex={-1} aria-label={TABS.find((t) => t.id === tab)?.label}>
         <div className="ap-mobile-top">
-          <a href="/" className="ap-brand" aria-label="ConstantUnits home">
+          <Link href="/" className="ap-brand" aria-label="ConstantUnits home">
             <LogoMark />
             <span>ConstantUnits</span>
-          </a>
+          </Link>
           <PreviewBadge />
         </div>
         <AnimatePresence mode="wait">

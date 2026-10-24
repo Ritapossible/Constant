@@ -34,15 +34,17 @@ afterAll(async () => {
 
 describe("withdrawals", () => {
   let userId = "";
-  it("needs a naira account first, then accepts only an account in the same name", async () => {
-    expect((await call("PUT", "/v1/payout-account", { bankCode: "058", accountNumber: "0987654321" })).json().error).toBe("no_holder");
+  it("needs a verified identity first, then accepts only an account in that name", async () => {
+    const before = await call("PUT", "/v1/payout-account", { bankCode: "058", accountNumber: "0987654321" });
+    expect([before.statusCode, before.json().error]).toEqual([403, "verify_identity"]);
     await verifyIdentity(app, funding, as, { firstName: "Carol", lastName: "Eze" });
-    await call("POST", "/v1/funding-account", {});
     userId = (await call("GET", "/v1/me")).json().user.id;
+    // The name to match is the one the BVN check confirmed: no account number needed first.
     expect((await call("PUT", "/v1/payout-account", { bankCode: "044", accountNumber: "1111111111" })).json().error).toBe("name_mismatch");
     expect((await call("PUT", "/v1/payout-account", { bankCode: "058", accountNumber: "0000000000" })).json().error).toBe("not_found");
     const ok = await call("PUT", "/v1/payout-account", { bankCode: "058", accountNumber: "0987654321" });
     expect(ok.json()).toMatchObject({ bankName: "Guaranty Trust Bank", last4: "4321", accountName: "EZE CAROL NGOZI" });
+    await call("POST", "/v1/funding-account", {}); // for the transfers below
   });
 
   it("is off until the payouts switch is on; then waits 24 hours after the account was added", async () => {
@@ -69,10 +71,13 @@ describe("withdrawals", () => {
     const r = await call("POST", "/v1/withdrawals", { amountMinor: "2000000" });
     expect(r.json()).toMatchObject({ error: "card_hold" });
     expect(r.json().message).toContain("₦10,000");
+    // The app is told the same figure before the person tries.
+    expect((await call("GET", "/v1/withdrawals/available")).json()).toMatchObject({ withdrawableMinor: "1000000", cardHeldMinor: "3000000" });
     // Three days later the hold is over: the whole free balance can go.
     await db.query("UPDATE topups SET created_at = now() - interval '4 days' WHERE reference = 'cu_top_cardhold'");
     // Past the hold, asking for more than the free balance is just "insufficient", never "card_hold".
     expect((await call("POST", "/v1/withdrawals", { amountMinor: "5000000" })).json().error).toBe("insufficient");
+    expect((await call("GET", "/v1/withdrawals/available")).json()).toMatchObject({ withdrawableMinor: "4000000", cardHeldMinor: "0" });
   });
 
   it("a signed failure webhook gives the money back once, however often it's replayed", async () => {

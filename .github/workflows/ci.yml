@@ -32,6 +32,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm --filter "./packages/*" --filter @constant/api --filter @constant/worker run build
+      - run: pnpm --filter @constant/web lint
       - run: pnpm --filter @constant/web build
       - name: No secrets or banned user-facing words in source
         run: ./scripts/guard.sh

@@ -125,6 +125,15 @@ describe("identity tiers (D-086)", () => {
     expect((await call("POST", "/v1/topups", "did:privy:k1", { amountMinor: "6000000" })).statusCode).toBe(200);
   });
 
+  it("the limit message points to the next step: verifying, or a review once verified", async () => {
+    const basic = (await call("POST", "/v1/topups", "did:privy:k3", { amountMinor: "6000000" })).json().message;
+    expect(basic).toMatch(/Verify your identity/);
+    const verified = await call("POST", "/v1/topups", "did:privy:k1", { amountMinor: "25000000" });
+    expect(verified.json().error).toBe("kyc_limit");
+    expect(verified.json().message).not.toMatch(/Verify/);
+    expect(verified.json().message).toMatch(/Contact support/);
+  });
+
   it("withdrawals need a verified identity", async () => {
     const r = await call("POST", "/v1/withdrawals", "did:privy:k3", { amountMinor: "100000" });
     expect(r.json()).toMatchObject({ error: "verify_identity", needTier: 1 });

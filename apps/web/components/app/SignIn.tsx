@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useLogin } from "@privy-io/react-auth";
 import { SMS_LOGIN } from "./Providers";
 import { motion } from "motion/react";
@@ -42,9 +43,9 @@ export function SignIn() {
     <div className="ap-signin">
       <div className="ap-signin-bg" aria-hidden="true" />
       <header className="ap-signin-top">
-        <a href="/" aria-label="ConstantUnits home">
+        <Link href="/" aria-label="ConstantUnits home">
           <Logo />
-        </a>
+        </Link>
       </header>
       <motion.section
         className="ap-signin-card"
