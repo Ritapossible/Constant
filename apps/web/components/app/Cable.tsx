@@ -10,6 +10,7 @@ import { ProviderGrid } from "./ProviderPicker";
 import { useServer } from "./Server";
 import { useNotify } from "./Toast";
 import { StablesAutopay } from "./StablesAutopay";
+import { StellarAutopay } from "./StellarAutopay";
 import { PotCard } from "./PotCard";
 import { feeForKind } from "@constant/rules";
 
@@ -269,6 +270,7 @@ export function CableDetail({ line, orders, onClose }: { line: ServerLine; order
       </form>
 
       {line.status !== "frozen" && <StablesAutopay lineId={line.id} lineName={line.nickname} />}
+      {line.status !== "frozen" && <StellarAutopay lineId={line.id} lineName={line.nickname} />}
 
       {orders.length > 0 && (
         <section aria-label="Renewals">

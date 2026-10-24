@@ -144,3 +144,4 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 103 | A request sent again with the same Idempotency-Key never has a second effect: it gets the first answer, or is refused if its body differs. | api |
 | 104 | Money added by card is never withdrawn within 3 days of arriving; it can pay bills at once. | rules (property) · api |
 | 105 | A transfer from an account in someone else's name is credited and always raises a review alert. | api |
+| 106 | The app never signs Stellar bytes it hasn't decoded and matched to the screen: the pinned contract, this account, Circle's USDC, and nothing extra. | chains (testnet fixture, tampered copies) |

@@ -15,6 +15,7 @@ Status: ☐ to do · ☑ done (tick them in your own copy).
 | ☐ | `NEXT_PUBLIC_ARC_RPC_URL` (public, optional) | Balances on Arc | Default `https://rpc.mainnet.arc.io` |
 | ☐ | `NEXT_PUBLIC_ARC_AUTOPAY` (public) | "USDC on Arc" row under Pay from stablecoins | `true` only after the Arc go-live steps (GO-LIVE "USDC on Arc"); default off |
 | ☐ | `NEXT_PUBLIC_SITE_URL` (public, optional) | Links and previews on a custom domain | `https://your-domain` |
+| ☐ | `NEXT_PUBLIC_STELLAR_NETWORK`, `NEXT_PUBLIC_STELLAR_MANDATE_CONTRACT` (public) | The app's USDC on Stellar screens (D-089); hidden while unset | `testnet` and the same C… address as the API and worker |
 | ☐ | `NEXT_PUBLIC_SMS_LOGIN` (public, optional) | Phone sign-in | Leave unset. Privy texts only US and Canada numbers on its standard plans; set `true` only after Privy's Scale plan with your own Twilio covers Nigeria and SMS is on in the Privy dashboard |
 | ☐ | `NEXT_PUBLIC_LEGAL_NAME`, `NEXT_PUBLIC_LEGAL_ADDRESS` (public, optional) | Privacy, terms and refund pages (D-081) | The registered company name and postal address, once registered with CAC |
 | ☐ | `NEXT_PUBLIC_CONTACT_EMAIL` (public, optional) | Footer, privacy page, FAQ, /llms.txt | Defaults to `constantunitshq@gmail.com`; set it only to change the address |

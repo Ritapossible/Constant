@@ -7,3 +7,4 @@ export * from "./permissions.js";
 export * from "./cctp.js";
 export * from "./soroban.js";
 export * from "./soroban-fake.js";
+export * from "./soroban-verify.js";
