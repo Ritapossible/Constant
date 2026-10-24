@@ -138,6 +138,21 @@
 .ap {
   min-height: 100svh;
   display: grid;
+  /* One column that is exactly the screen: nothing inside can make the page wider than the phone. */
+  grid-template-columns: minmax(0, 1fr);
+}
+/* Grid and flex children default to "at least as wide as my content"; here they may shrink, so long text wraps
+   or truncates instead of pushing the page sideways. */
+.ap-main,
+.ap-page,
+.ap-page > *,
+.ap-card,
+.ap-card > *,
+.ap-form,
+.ap-form > *,
+.ap-form-section,
+.ap-form-section > * {
+  min-width: 0;
 }
 .ap-side {
   display: none;
@@ -185,7 +200,7 @@
   bottom: calc(12px + env(safe-area-inset-bottom));
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   padding: 6px;
   border-radius: 22px;
   background: rgba(10, 10, 10, 0.94);
@@ -209,7 +224,7 @@
 }
 @media (min-width: 960px) {
   .ap {
-    grid-template-columns: 260px 1fr;
+    grid-template-columns: 260px minmax(0, 1fr);
   }
   .ap-side {
     display: flex;
@@ -283,7 +298,7 @@
   font-weight: 600;
 }
 .ap-page-head-row {
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
 }
 .ap-section-title {
@@ -322,7 +337,7 @@
   gap: 16px;
 }
 .ap-hero-totals[data-split] {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0;
 }
 .ap-hero-total {
@@ -530,7 +545,7 @@
 }
 .ap-address {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 16px;
   align-items: center;
 }
@@ -675,7 +690,7 @@
 /* add / forms */
 .ap-kind-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
 }
 .ap-kind-card {
@@ -724,7 +739,8 @@
 .ap-field > label {
   margin-bottom: 0;
 }
-.ap-field input[aria-invalid="true"] {
+.ap-field input[aria-invalid="true"],
+.ap-field select[aria-invalid="true"] {
   border-color: #b42318;
 }
 .ap-hint {
@@ -742,9 +758,32 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   width: 100%;
 }
-.ap-field input:focus {
+.ap-field input:focus,
+.ap-field select:focus {
   border-color: var(--ink);
   box-shadow: 0 0 0 3px rgba(10, 10, 10, 0.08);
+}
+/* Dropdowns look like the text fields, and a long option (a bank's full name) never widens the page. */
+.ap-field select {
+  height: 50px;
+  padding: 0 40px 0 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23666' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 16px center;
+  font-size: 16px;
+  color: var(--ink);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .ap-err {
   color: #b42318;
@@ -752,9 +791,15 @@
 }
 .ap-grid-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …): a column never grows past half because of what's inside it. */
+  grid-template-columns: minmax(0, minmax(0, 1fr)) minmax(0, minmax(0, 1fr));
   gap: 12px;
   align-items: start;
+}
+@media (max-width: 360px) {
+  .ap-grid-2 {
+    grid-template-columns: minmax(0, minmax(0, 1fr));
+  }
 }
 
 /* detail */
@@ -1055,12 +1100,23 @@
   color: var(--ink);
 }
 .ap-tabs {
-  display: flex;
+  /* Equal halves that share the row and never push past it; a long label wraps instead. */
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 4px;
   padding: 4px;
   border-radius: var(--pill);
   background: var(--surface-2);
-  justify-self: start;
+  justify-self: stretch;
+  width: 100%;
+  max-width: 440px;
+}
+.ap-tabs .ap-tab {
+  padding: 6px 12px;
+  text-align: center;
+  line-height: 1.2;
+  white-space: normal;
 }
 .ap-tab {
   min-height: 38px;
@@ -1077,7 +1133,7 @@
 }
 .ap-provider-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, minmax(0, 1fr)));
   gap: 10px;
 }
 .ap-provider-card {
@@ -1192,7 +1248,7 @@
 }
 .ap-net-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, minmax(0, 1fr)));
   gap: 8px;
 }
 .ap-net-tile {
@@ -1264,7 +1320,7 @@
 }
 .ap-quick {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, minmax(0, 1fr)));
   gap: 8px;
 }
 .ap-quick-btn {
@@ -1368,11 +1424,11 @@
   color: var(--ink);
 }
 .ap-topup .ap-quick {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, minmax(0, 1fr)));
 }
 @media (min-width: 480px) {
   .ap-topup .ap-quick {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, minmax(0, 1fr)));
   }
 }
 
@@ -1488,7 +1544,7 @@
 /* A bill's pot (D-083). */
 .ap-pot {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, minmax(0, 1fr));
   min-width: 0;
   gap: 10px;
   padding: 16px;

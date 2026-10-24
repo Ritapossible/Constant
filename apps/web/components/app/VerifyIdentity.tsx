@@ -49,15 +49,35 @@ export function VerifyIdentity({ onVerified }: { onVerified: () => void }) {
   async function submit(e: FormEvent) {
     e.preventDefault();
     const tel = phone.replace(/[\s-]/g, "");
-    if (!first.trim() || !last.trim()) return setFormError("Enter your first and last name as they appear at your bank");
-    if (!/^\d{11}$/.test(bvn)) return setFormError("Your BVN is 11 digits. Dial *565*0# from the phone number linked to it to see it.");
+    if (!first.trim() || !last.trim())
+      return setFormError(
+        "Enter your first and last name as they appear at your bank",
+      );
+    if (!/^\d{11}$/.test(bvn))
+      return setFormError(
+        "Your BVN is 11 digits. Dial *565*0# from the phone number linked to it to see it.",
+      );
     if (!bank) return setFormError("Choose the bank your account is with");
-    if (!/^\d{10}$/.test(account)) return setFormError("Enter your 10-digit account number");
-    if (!/^(\+234|0)[789]\d{9}$/.test(tel)) return setFormError("Enter your Nigerian mobile number, e.g. 0803 123 4567");
+    if (!/^\d{10}$/.test(account))
+      return setFormError("Enter your 10-digit account number");
+    if (!/^(\+234|0)[789]\d{9}$/.test(tel))
+      return setFormError(
+        "Enter your Nigerian mobile number, e.g. 0803 123 4567",
+      );
     setBusy(true);
     setFormError(null);
     try {
-      await call("/v1/kyc/bvn", { method: "POST", body: { firstName: first.trim(), lastName: last.trim(), bvn, bankCode: bank, accountNumber: account, phone: tel } });
+      await call("/v1/kyc/bvn", {
+        method: "POST",
+        body: {
+          firstName: first.trim(),
+          lastName: last.trim(),
+          bvn,
+          bankCode: bank,
+          accountNumber: account,
+          phone: tel,
+        },
+      });
       setBvn("");
       await load();
     } catch (err) {
@@ -80,7 +100,10 @@ export function VerifyIdentity({ onVerified }: { onVerified: () => void }) {
     return (
       <div className="ap-inline-state" role="status" aria-live="polite">
         <span className="ap-spinner" aria-hidden="true" />
-        <p className="ap-muted">Checking your details with your bank. This usually takes under a minute; you can leave this page.</p>
+        <p className="ap-muted">
+          Checking your details with your bank. This usually takes under a
+          minute; you can leave this page.
+        </p>
       </div>
     );
   }
@@ -89,7 +112,8 @@ export function VerifyIdentity({ onVerified }: { onVerified: () => void }) {
   return (
     <form className="ap-form" onSubmit={submit} noValidate>
       <p className="ap-muted">
-        To get your own account number, confirm it&apos;s you. We check your BVN against a bank account in your name, the way banks do. It takes a
+        To get your own account number, confirm it&apos;s you. We check your BVN
+        against a bank account in your name, the way banks do. It takes a
         minute.
       </p>
       {kyc.check?.status === "failed" && kyc.check.reason && (
@@ -98,38 +122,84 @@ export function VerifyIdentity({ onVerified }: { onVerified: () => void }) {
         </p>
       )}
       <div className="ap-grid-2">
-        <Field label="First name">{(a) => <input {...a} autoComplete="given-name" value={first} onChange={(e) => setFirst(e.target.value)} />}</Field>
-        <Field label="Last name">{(a) => <input {...a} autoComplete="family-name" value={last} onChange={(e) => setLast(e.target.value)} />}</Field>
-      </div>
-      <Field label="BVN">
-        {(a) => <input {...a} inputMode="numeric" autoComplete="off" maxLength={11} value={bvn} onChange={(e) => setBvn(e.target.value.replace(/\D/g, ""))} placeholder="11 digits" />}
-      </Field>
-      <div className="ap-grid-2">
-        <Field label="Your bank">
+        <Field label="First name">
           {(a) => (
-            <select {...a} value={bank} onChange={(e) => setBank(e.target.value)}>
-              <option value="">Choose</option>
-              {banks.map((b) => (
-                <option key={b.code} value={b.code}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+            <input
+              {...a}
+              autoComplete="given-name"
+              value={first}
+              onChange={(e) => setFirst(e.target.value)}
+            />
           )}
         </Field>
-        <Field label="Account number">
-          {(a) => <input {...a} inputMode="numeric" maxLength={10} value={account} onChange={(e) => setAccount(e.target.value.replace(/\D/g, ""))} placeholder="10 digits" />}
+        <Field label="Last name">
+          {(a) => (
+            <input
+              {...a}
+              autoComplete="family-name"
+              value={last}
+              onChange={(e) => setLast(e.target.value)}
+            />
+          )}
         </Field>
       </div>
+      <Field label="BVN">
+        {(a) => (
+          <input
+            {...a}
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={11}
+            value={bvn}
+            onChange={(e) => setBvn(e.target.value.replace(/\D/g, ""))}
+            placeholder="11 digits"
+          />
+        )}
+      </Field>
+      <Field label="Your bank">
+        {(a) => (
+          <select {...a} value={bank} onChange={(e) => setBank(e.target.value)}>
+            <option value="">Choose</option>
+            {banks.map((b) => (
+              <option key={b.code} value={b.code}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </Field>
+      <Field label="Account number in your name">
+        {(a) => (
+          <input
+            {...a}
+            inputMode="numeric"
+            maxLength={10}
+            value={account}
+            onChange={(e) => setAccount(e.target.value.replace(/\D/g, ""))}
+            placeholder="10 digits"
+          />
+        )}
+      </Field>
       <Field label="Mobile number" error={formError}>
-        {(a) => <input {...a} inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0803 123 4567" />}
+        {(a) => (
+          <input
+            {...a}
+            inputMode="tel"
+            autoComplete="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="0803 123 4567"
+          />
+        )}
       </Field>
       <button className="btn btn-primary" type="submit" disabled={busy}>
         {busy ? "Sending…" : "Verify and get my account number"}
       </button>
       <p className="ap-fine">
-        Your BVN goes to our licensed payment partner to confirm it&apos;s you; we keep only its last 4 digits. Verified accounts can add up to{" "}
-        {formatMoney(BigInt(verified.dailyInMinor), "NGN")} a day and withdraw to their own bank.
+        Your BVN goes to our licensed payment partner to confirm it&apos;s you;
+        we keep only its last 4 digits. Verified accounts can add up to{" "}
+        {formatMoney(BigInt(verified.dailyInMinor), "NGN")} a day and withdraw
+        to their own bank.
       </p>
     </form>
   );
