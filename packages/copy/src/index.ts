@@ -21,6 +21,8 @@ export type NoticeKind =
   | "weekly_cap"
   | "kyc_verified"
   | "kyc_failed"
+  | "bill_due_soon"
+  | "bill_last_call"
   | StableNoticeKind;
 
 export interface Message {
@@ -35,6 +37,17 @@ export function naira(minor: bigint): string {
   const whole = (abs / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   const k = abs % 100n;
   return `${neg ? "-" : ""}₦${whole}${k ? "." + k.toString().padStart(2, "0") : ""}`;
+}
+
+/** "Thu 12 Nov, 6 pm": when a held bill's service ends. */
+function dayTime(iso: string): string {
+  const parts: Record<string, string> = {};
+  for (const x of new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: false, timeZone: "Africa/Lagos" }).formatToParts(new Date(iso)))
+    parts[x.type] = x.value;
+  const h24 = Number(parts.hour) % 24;
+  const h = h24 % 12 || 12;
+  const min = parts.minute === "00" ? "" : `:${parts.minute}`;
+  return `${parts.weekday} ${parts.day} ${parts.month}, ${h}${min} ${h24 < 12 ? "am" : "pm"}`;
 }
 
 const day = (iso: string) =>
@@ -59,6 +72,8 @@ export interface NoticeParams {
   setAsideMinor?: string;
   /** Why an identity check failed, already in plain words (D-086). */
   reason?: string;
+  /** Why a bill is waiting on the person: "insufficient", "above_cap" or "weekly_cap" (D-091). */
+  held?: string;
 }
 
 /** One message per notice kind. Short enough for one SMS where it may go by SMS. */
@@ -101,6 +116,18 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
         subject: `${who} paid`,
         text: `ConstantUnits: ${who} paid, ${amt}.${p.nextAt ? ` Next on ${day(p.nextAt)}.` : ""}`,
       };
+    case "bill_due_soon":
+    case "bill_last_call": {
+      // Reminders while a bill waits on the person (D-091): what's missing, and what one step fixes it.
+      const ends = p.dueAt ? dayTime(p.dueAt) : "soon";
+      const fix =
+        p.held === "insufficient"
+          ? `Add ${p.shortMinor ? naira(BigInt(p.shortMinor)) : "money"} and we'll pay it within minutes.`
+          : `It's ${amt}, above your limit: raise it in the app and we'll pay it.`;
+      return kind === "bill_due_soon"
+        ? { subject: `${who} ends ${ends}`, text: `ConstantUnits: reminder, ${who} ends ${ends}, unpaid. ${fix}` }
+        : { subject: `Last reminder: ${who}`, text: `ConstantUnits: last reminder, ${who} ends ${ends}. ${fix}` };
+    }
     case "weekly_cap":
       return {
         subject: `${who} reached its weekly limit`,

@@ -48,6 +48,7 @@ import {
   USAGE_MIN_DAYS_BETWEEN_TOPUPS,
   availableForBill,
   decideRenewal,
+  holdReminder,
   nextDueAfter,
   nextMonthlyRunAt,
   noticeKey,
@@ -217,22 +218,33 @@ async function renewLine(d: Deps, lineId: string): Promise<boolean> {
         return false;
       case "notify_and_hold": {
         const short = quote ? quote.amountMinor + input.feeMinor - input.availableMinor : 0n;
-        await queueNotice(tx, {
-          // Keyed by the subscription cycle (its end date), so hourly re-checks never repeat the message.
-          key: noticeKey(line.id, action.notice, line.due_at ?? line.next_run_at),
-          userId: user.id,
-          lineId: line.id,
-          kind: action.notice,
-          params: {
-            line: label(line),
-            amountMinor: quote?.amountMinor.toString(),
-            capMinor: (action.notice === "weekly_cap" ? (line.weekly_cap_minor ?? line.cap_minor) : line.cap_minor).toString(),
-            shortMinor: short > 0n ? short.toString() : undefined,
-            dueAt: iso(quote?.dueAt ?? line.due_at),
-          },
+        const cycle = line.due_at ?? line.next_run_at;
+        const dueAt = quote?.dueAt ?? line.due_at;
+        const params = {
+          line: label(line),
+          amountMinor: quote?.amountMinor.toString(),
+          capMinor: (action.notice === "weekly_cap" ? (line.weekly_cap_minor ?? line.cap_minor) : line.cap_minor).toString(),
+          shortMinor: short > 0n ? short.toString() : undefined,
+          dueAt: iso(dueAt),
+          held: action.notice,
+        };
+        // Keyed by the subscription cycle (its end date), so hourly re-checks never repeat a message.
+        let toldAt = (await queueNotice(tx, { key: noticeKey(line.id, action.notice, cycle), userId: user.id, lineId: line.id, kind: action.notice, params }))
+          ? now
+          : line.held_notified_at;
+        // Then reminders as the end comes close: due soon, last call (D-091). Each once a cycle, never at night.
+        if (toldAt !== now) {
+          const stage = holdReminder({ now, dueAt, lastNotifiedAt: toldAt, timeZone: market.time_zone });
+          const kind = stage === "due_soon" ? "bill_due_soon" : stage === "last_call" ? "bill_last_call" : null;
+          if (kind && (await queueNotice(tx, { key: noticeKey(line.id, kind, cycle), userId: user.id, lineId: line.id, kind, params }))) toldAt = now;
+        }
+        // Keep this cycle's run time (and so the keys); look again in an hour, or as soon as money arrives.
+        await updateLine(tx, line.id, {
+          next_run_at: new Date(Math.max(line.next_run_at.getTime(), now.getTime() + RECHECK_HOLD_MIN * MIN)),
+          held_reason: action.notice,
+          held_since: line.held_since ?? line.next_run_at,
+          held_notified_at: toldAt,
         });
-        // Keep this cycle's run time (and so the notice key); look again in an hour.
-        await updateLine(tx, line.id, { next_run_at: new Date(Math.max(line.next_run_at.getTime(), now.getTime() + RECHECK_HOLD_MIN * MIN)) });
         return false;
       }
       case "hold":

@@ -148,3 +148,6 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 107 | On the public network, a Stellar charge from an unscreened account is never made; only testnet is exempt. | worker |
 | 108 | Retrying an action whose outcome is unknown reuses its Idempotency-Key, so it takes effect at most once. | web (unit) · api |
 | 109 | Withdrawals go only to a bank account in the name the identity check confirmed. | api |
+| 110 | Money credited to a person makes their bills held for money due at once; a bill held above its limit is not paid because money arrived. | worker · db |
+| 111 | A held bill's reminders are sent at most once each per cycle, never between 10 pm and 7 am, and a bill with a known end gets a last call before it lapses. | rules (property) · worker |
+| 112 | Moving a bill's schedule ends its hold: a resumed bill is never paid for a day it missed. | worker |

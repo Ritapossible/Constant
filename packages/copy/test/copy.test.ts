@@ -35,3 +35,15 @@ describe("stablecoin copy (D-053)", () => {
     }
   });
 });
+
+describe("reminders while a bill waits (D-091)", () => {
+  const base = { line: "Living room DSTV", amountMinor: "1995000", shortMinor: "500000", dueAt: "2026-11-12T17:00:00Z" };
+  it.each(["bill_due_soon", "bill_last_call"] as const)("%s says when it ends and the one step that fixes it, in one SMS", (kind) => {
+    for (const held of ["insufficient", "above_cap", "weekly_cap"]) {
+      const m = render(kind, { ...base, held });
+      expect(m.text.length).toBeLessThanOrEqual(160);
+      expect(m.text).toContain("Thu 12 Nov, 6 pm");
+      expect(m.text).toMatch(held === "insufficient" ? /Add ₦5,000/ : /raise it in the app/);
+    }
+  });
+});

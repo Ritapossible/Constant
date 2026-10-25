@@ -11,6 +11,7 @@ import {
   ledgerSum,
   setVendingEnabled,
   testKeyB64,
+  updateLine,
   upsertUser,
   vendingEnabled,
   type Db,
@@ -194,6 +195,48 @@ describe("money and price (INV-39, INV-23)", () => {
     expect(await scanRenewals(deps)).toBe(1);
     await processOrders(deps);
     expect(vending.calls.renew).toHaveLength(1);
+  });
+
+  it("D-091: money arriving pays a held bill on the next scan, not after the hourly recheck", async () => {
+    const { user, line } = await setup({ fundMinor: 1_000_000n });
+    expect(await scanRenewals(deps)).toBe(0);
+    expect((await lineRow(line.id)).held_reason).toBe("insufficient");
+    clock = new Date(T0.getTime() + 5 * MIN);
+    await insertLedger(db, { userId: user.id, kind: "fund", amountMinor: 1_000_000n, currency: "NGN", idempotencyKey: `test:wake:${line.id}`, actor: "test" });
+    clock = new Date(T0.getTime() + 6 * MIN); // the next scan, well inside the hour
+    expect(await scanRenewals(deps)).toBe(1);
+    await processOrders(deps);
+    expect(vending.calls.renew).toHaveLength(1);
+    expect((await orders(line.id))[0].scheduled_for.toISOString()).toBe(T0.toISOString()); // still this cycle's order
+  });
+
+  it("D-091: a held bill is reminded as its end comes close: due soon, then a last call, once each, never at night", async () => {
+    const { user } = await setup({ fundMinor: 1_000_000n }); // held at 7 am Lagos; the TV ends at midnight
+    const sent: { kind: string; at: Date }[] = [];
+    for (clock = T0; clock < DUE; clock = new Date(clock.getTime() + 61 * MIN)) {
+      const before = (await notices(user.id)).length;
+      await scanRenewals(deps);
+      for (const x of (await notices(user.id)).slice(before)) sent.push({ kind: x.kind, at: clock });
+    }
+    expect(sent.map((x) => x.kind)).toEqual(["insufficient", "bill_due_soon", "bill_last_call"]);
+    const lagosHour = (d: Date) => (d.getUTCHours() + 1) % 24;
+    for (const x of sent) expect(lagosHour(x.at) >= 7 && lagosHour(x.at) < 22).toBe(true);
+    expect(sent[1]!.at.getTime() - sent[0]!.at.getTime()).toBeGreaterThanOrEqual(3 * 60 * MIN);
+    expect(DUE.getTime() - sent[2]!.at.getTime()).toBeLessThanOrEqual(6 * 60 * MIN);
+  });
+
+  it("D-091: only bills held for money wake on a credit; moving a bill's schedule ends its hold", async () => {
+    const capped = await setup({ fundMinor: 5_000_000n, capMinor: 1_900_000n });
+    expect(await scanRenewals(deps)).toBe(0);
+    const held = await lineRow(capped.line.id);
+    expect(held.held_reason).toBe("above_cap");
+    await insertLedger(db, { userId: capped.user.id, kind: "fund", amountMinor: 100_000n, currency: "NGN", idempotencyKey: `test:nowake:${capped.line.id}`, actor: "test" });
+    expect((await lineRow(capped.line.id)).next_run_at.toISOString()).toBe(held.next_run_at.toISOString()); // money doesn't fix a limit
+
+    await updateLine(db, capped.line.id, { status: "paused" });
+    await updateLine(db, capped.line.id, { status: "active", next_run_at: new Date(DUE.getTime() + 86_400_000) });
+    const after = await lineRow(capped.line.id);
+    expect([after.held_reason, after.held_since, after.held_notified_at]).toEqual([null, null, null]);
   });
 
   it("a price above the cap is asked about, never paid", async () => {

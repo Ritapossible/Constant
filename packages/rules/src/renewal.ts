@@ -5,7 +5,7 @@
  * may approve a renewal or compute its amount. The amount always comes from a fresh,
  * side-effect-free quote from the partner (decoder lookup), never from the client.
  */
-import { DAY_MS, addDays, localDate, zonedInstant } from "./time.js";
+import { DAY_MS, addDays, localDate, localParts, zonedInstant } from "./time.js";
 import type { Minor } from "./types.js";
 
 export type LineStatus = "active" | "paused" | "frozen" | "cancelled";
@@ -187,4 +187,42 @@ export const MONTHLY_MIN_DAYS_BETWEEN_PAYMENTS = 20;
 export function availableBalance(ledgerSumMinor: Minor, committedToOpenOrdersMinor: Minor): Minor {
   if (committedToOpenOrdersMinor < 0n) throw new Error("availableBalance: committed must be >= 0");
   return ledgerSumMinor - committedToOpenOrdersMinor;
+}
+
+// ── Reminders while a bill waits on the person (D-091) ────────────────────────────
+
+/**
+ * A held bill (not enough money, or above its limit) is told about once when it's first held. These reminders follow
+ * as the service's end comes close, so nobody finds out from a dark screen:
+ *   due_soon   within a day of the end
+ *   last_call  within the last 6 hours, or from 8 pm the evening before an early-morning end
+ * Never between 10 pm and 7 am local time, and never within a few hours of the previous message (an hour for the
+ * last call, which can't wait). Each is sent at most once a cycle (the caller keys it); a bill with no known end
+ * (usage-based data and power) gets only the first message.
+ */
+export const HOLD_REMINDER = {
+  dueSoonHours: 24,
+  lastCallHours: 6,
+  /** From this local hour, an end within lastCallEveningHours counts as the last call: it's the last waking chance. */
+  eveningHour: 20,
+  lastCallEveningHours: 14,
+  quietFromHour: 22,
+  quietUntilHour: 7,
+  minGapHours: 3,
+  lastCallMinGapHours: 1,
+} as const;
+
+export type HoldReminderStage = "due_soon" | "last_call";
+
+export function holdReminder(i: { now: Date; dueAt: Date | null; lastNotifiedAt: Date | null; timeZone: string }): HoldReminderStage | null {
+  const R = HOLD_REMINDER;
+  if (!i.dueAt || i.now.getTime() >= i.dueAt.getTime()) return null;
+  const { hour } = localParts(i.now, i.timeZone);
+  if (hour >= R.quietFromHour || hour < R.quietUntilHour) return null;
+  const hoursLeft = (i.dueAt.getTime() - i.now.getTime()) / 3_600_000;
+  const lastCall = hoursLeft <= R.lastCallHours || (hour >= R.eveningHour && hoursLeft <= R.lastCallEveningHours);
+  if (!lastCall && hoursLeft > R.dueSoonHours) return null;
+  const sinceLast = i.lastNotifiedAt ? (i.now.getTime() - i.lastNotifiedAt.getTime()) / 3_600_000 : Infinity;
+  if (sinceLast < (lastCall ? R.lastCallMinGapHours : R.minGapHours)) return null;
+  return lastCall ? "last_call" : "due_soon";
 }

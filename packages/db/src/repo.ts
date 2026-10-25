@@ -149,6 +149,12 @@ export interface LineRow {
   weekly_cap_minor: bigint | null;
   setup_needed: "bundle" | null;
   pot_target_minor: bigint | null;
+  /** Why this cycle's payment is waiting on the person (D-091); null when it isn't. */
+  held_reason: "insufficient" | "above_cap" | "weekly_cap" | null;
+  /** The run time the bill was first held at this cycle: where it goes back to when money arrives. */
+  held_since: Date | null;
+  /** When the person was last told about this hold. */
+  held_notified_at: Date | null;
   created_at: Date;
 }
 
@@ -234,8 +240,11 @@ export async function updateLine(
     status: LineStatus; frozen_reason: string | null; cap_minor: bigint; nickname: string; due_at: Date | null; next_run_at: Date | null;
     last_renewed_at: Date; plan_name: string | null; renew_day: number | null; amount_minor: bigint | null; variation_code: string | null;
     threshold: number | null; weekly_cap_minor: bigint | null; setup_needed: "bundle" | null; paused_by: "user" | "stop" | null; pot_target_minor: bigint | null;
+    held_reason: "insufficient" | "above_cap" | "weekly_cap" | null; held_since: Date | null; held_notified_at: Date | null;
   }>,
 ): Promise<void> {
+  // Moving a bill's schedule ends any hold (D-091): paid, rescheduled, resumed. Only the hold itself keeps it.
+  if ("next_run_at" in patch && !("held_reason" in patch)) Object.assign(patch, { held_reason: null, held_since: null, held_notified_at: null });
   const keys = Object.keys(patch) as (keyof typeof patch)[];
   if (keys.length === 0) return;
   const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(", ");
@@ -303,7 +312,28 @@ export async function insertLedger(q: Q, e: LedgerInsert): Promise<boolean> {
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (idempotency_key) DO NOTHING`,
     [e.userId, e.lineId ?? null, e.orderId ?? null, e.kind, e.amountMinor, e.currency, e.idempotencyKey, e.externalRef ?? null, e.actor, e.potLineId ?? null],
   );
-  return r.rowCount === 1;
+  const inserted = r.rowCount === 1;
+  // Every credit goes through here, so no way of adding money can forget to wake the bills waiting for it (D-091).
+  if (inserted && e.amountMinor > 0n) await wakeHeldLines(q, e.userId);
+  return inserted;
+}
+
+/**
+ * Bills held this cycle for lack of money become due again at once: the next renewal scan (every few minutes) tries
+ * them, instead of waiting out the hourly recheck while the service may lapse. They go back to the run time they were
+ * held at, so the order and notice keys stay this cycle's. A bill being worked on right now is skipped: its own run
+ * is already deciding. Returns how many were woken.
+ */
+export async function wakeHeldLines(q: Q, userId: string): Promise<number> {
+  const r = await q.query(
+    `UPDATE lines SET next_run_at = held_since, updated_at = now()
+     WHERE id IN (
+       SELECT id FROM lines
+       WHERE user_id = $1 AND status = 'active' AND held_reason = 'insufficient' AND held_since IS NOT NULL AND next_run_at > held_since
+       FOR UPDATE SKIP LOCKED)`,
+    [userId],
+  );
+  return r.rowCount ?? 0;
 }
 
 export async function ledgerSum(q: Q, userId: string): Promise<bigint> {
