@@ -1,6 +1,6 @@
 # Invariants
 
-If any of these ever fails, it is a bug that costs a customer money or their light. Each one maps to a test. "Rules" tests are pure and live in `packages/rules/test`. "DB" and "Worker" tests need Postgres and arrive in PLAN steps 2–4; until then they are listed as **pending**.
+If any of these ever fails, it is a bug that costs a customer money or their light. Each one maps to a test. "Rules" tests are pure and live in `packages/rules/test`; "DB", "API" and "Worker" tests run against a real Postgres. A test not written yet is marked **pending**. Money-critical rules are also checked by mutation: break the rule on purpose and confirm its test fails.
 
 | # | Invariant | Where it is enforced | Test |
 |---|---|---|---|
@@ -17,7 +17,7 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 11 | The token is stored before SMS. SMS failure resends the stored token; it never buys again. | order state machine | rules: INV-11 · worker: **pending** |
 | 12 | Ledger vs partner disagreement stops vending for everyone until a human clears it. | `reconcile`, `killed` | rules: INV-12 |
 | 13 | A vend is settled only from the signed webhook or fetch(partnerRef). | order state machine | rules: INV-13 |
-| 14 | The full token never appears in a URL, a log line or the public receipt. | redaction in logger, receipt view model | api: smartcard never in a response or stored in clear · worker log redacts 10+ digits |
+| 14 | The full token never appears in a URL, a log line or the public receipt. | redaction in logger, receipt view model | api: smartcard never in a response or stored in clear · worker: `log.test` (10+ digits cut to the last 4, secret-named fields hidden) |
 | 15 | Once the mandate is wired, spend succeeds before vend. Until then, nothing pretends the chain is in the path. | not scheduled (D-011) | — |
 | 16 | An alert site never creates an order, writes a vend entry, or calls the partner. | `decideSchedule` → `not_schedule`; `decideAlert` has no amount | rules: INV-16 (property) · worker: **pending** |
 | 17 | No unit reading, no alert. Above the threshold, no owner alert. | `decideAlert` | rules: INV-17 |
@@ -32,7 +32,7 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 21 | A missed run is never bought late on a different local day; the owner is told once. | "No catch-up" made precise (D-006). |
 | 22 | After any buy, the next run is at least `min_hours` away. | A LOW on Sunday must not silently eat Monday (D-007). |
 | 23 | Every owner notice is sent at most once per (site, notice, slot). | `noticeKey`; stops the "notify every minute" loop. |
-| 24 | A token SMS fits in one GSM-7 segment. | Cost and delivery on basic phones (D-019). copy: **pending** |
+| 24 | A token SMS fits in one GSM-7 segment. | Every SMS goes through `toSmsText` (₦ → N, • → *): one non-GSM-7 character cuts a part from 160 to 70 characters (D-019). | copy: every notice kind is one GSM-7 SMS · worker: SMS sent, and the token backup, are GSM-7 |
 | 25 | The balance covers amount + fee before a buy; the fee never counts against the weekly cap; a negative fee never buys. | Fee is revenue, not a way to overspend or block a chosen day (D-020). rules: INV-25 |
 
 ## Prepaid autopilot (D-028 to D-043) — PLAN step 2
@@ -50,7 +50,7 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 34 | Running-low reminders: none while learning (<3 days), none below the threshold, at most one per line per 24h, none in quiet hours. A reminder never moves money. | rules: INV-34 |
 | 35 | Wallet runway names the first upcoming charge that the money set aside cannot cover, and the exact shortfall. | rules: INV-35 |
 | 36 | A user can withdraw any amount except money committed to an open order, only to a verified account in their name; payouts stop with the kill switch. | rules: INV-36 (property) |
-| 37 | A pot pays only its own line. Moving money between pots needs the user's explicit permission each time. | pending |
+| 37 | A pot pays only its own line. Moving money between pots needs the user's explicit permission each time. | See 94 (D-083, D-084): money enters a pot only by the user's request or up to the level they set, never from another pot. | rules · db · worker · api (as 94) |
 | 38 | Cancelling a line returns its pot to the main balance in the same transaction; no payment is made for a cancelled or paused line. | rules: INV-38 (property) · worker: paused before and after order creation (pots pending) |
 | 39 | A cable renewal never pays above the user's cap; a price rise is asked about once. | rules: INV-39 (property) · worker: above_cap notice once |
 | 40 | A failed, menu or SMS-deferred USSD reply is never a low balance and never triggers a buy. | rules: INV-40 (property) |

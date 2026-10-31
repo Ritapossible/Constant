@@ -4,7 +4,7 @@
  * Money rules (CLAUDE.md): rules decide, the order row is persisted before every partner call, only a
  * "delivered" from the partner settles, anything unclear is asked again and then handed to a person.
  */
-import { render, type NoticeKind } from "@constant/copy";
+import { render, toSmsText, type NoticeKind } from "@constant/copy";
 import {
   freeBalance,
   freeCommittedToOpenOrders,
@@ -507,13 +507,14 @@ export async function sendNotices(d: Deps, max = 20): Promise<number> {
       } else {
         const msg = render(n.kind as NoticeKind, params);
         try {
-          const r = await d.messaging.send(target.channel, target.to, msg.subject, msg.text);
+          // SMS goes in the GSM-7 alphabet: one "₦" would double what each message costs (INV-24).
+          const r = await d.messaging.send(target.channel, target.to, msg.subject, target.channel === "sms" ? toSmsText(msg.text) : msg.text);
           await markNotice(tx, n.id, { status: "sent", attempts, channel: target.channel, provider_msg_id: r.providerId });
           ok = true;
           sent += 1;
           // SMS is the backup for an electricity token: it reaches any phone, even offline from the internet.
           if (n.kind === "token" && target.channel !== "sms" && reach.sms && d.messaging.channels.includes("sms")) {
-            await d.messaging.send("sms", reach.sms, msg.subject, msg.text).catch((err: Error) => d.log.warn("token sms backup failed", { noticeId: String(n.id), err: err.message }));
+            await d.messaging.send("sms", reach.sms, msg.subject, toSmsText(msg.text)).catch((err: Error) => d.log.warn("token sms backup failed", { noticeId: String(n.id), err: err.message }));
           }
         } catch (err) {
           const done = attempts >= MAX_NOTICE_ATTEMPTS;

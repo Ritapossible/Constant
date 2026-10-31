@@ -4,6 +4,7 @@
  */
 import { Secrets, freeBalance, freshDatabase, insertLedger, insertLine, ledgerSum, movePot, potBalance, withTx, setChannels, setVendingEnabled, testKeyB64, upsertUser, type Db, type NewLine } from "@constant/db";
 import { FakeCableVending, FakeMessaging } from "@constant/partners";
+import { isGsm7, smsParts } from "@constant/copy";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { CHECK_BACKOFF_MIN, clearPlanCache, processOrders, scanRenewals, sendNotices, silentLog, type Deps } from "../src/index.js";
 
@@ -268,6 +269,7 @@ describe("messages", () => {
     await processOrders(deps);
     await sendNotices(deps);
     expect(messaging.sent[0]).toMatchObject({ channel: "sms", to: "+2348031234567" }); // WhatsApp isn't connected yet
+    expect(isGsm7(messaging.sent[0]!.text)).toBe(true); // INV-24: no "₦" or "•" doubling the cost
   });
 
   it("go to the linked Telegram chat, and an electricity token is also sent by SMS as the backup", async () => {
@@ -290,6 +292,13 @@ describe("messages", () => {
     expect(tgSent[0]).toMatchObject({ chatId: "4242" });
     expect(tgSent[0]!.text).toContain("1234-5678-9012-3456-7890");
     expect(messaging.sent).toEqual([expect.objectContaining({ channel: "sms", to: "+2348031230000" })]);
+    // INV-24: the token SMS is one GSM-7 message, with the token intact; Telegram keeps the naira sign.
+    const sms = messaging.sent[0]!.text;
+    expect(isGsm7(sms)).toBe(true);
+    expect(smsParts(sms)).toBe(1);
+    expect(sms).toContain("1234-5678-9012-3456-7890");
+    expect(sms).toContain("N5,000");
+    expect(tgSent[0]!.text).toContain("₦5,000");
   });
 
   it("subscriptions are tracked, never paid", async () => {
