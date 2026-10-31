@@ -22,8 +22,8 @@ const PEOPLE = [
   {
     src: "/people/woman-macbook.jpg",
     alt: "A smiling woman lying on the grass beside her laptop and phone",
-    title: "Subscriptions, paid in naira.",
-    text: "ChatGPT, Spotify, Netflix: renewed on time.",
+    title: "Subscriptions, never a surprise.",
+    text: "ChatGPT, Spotify, Netflix: every renewal date in one place.",
   },
   {
     src: "/people/hand-phone.jpg",

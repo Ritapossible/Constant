@@ -8,14 +8,15 @@ export function GET() {
   const body = `# ConstantUnits
 
 > Autopay for prepaid bills in Nigeria: data, airtime, electricity, TV and subscriptions. People set money aside
-> in a pot per bill, and ConstantUnits pays each bill on its date or before it runs out, within limits they set.
+> in a pot per bill, and ConstantUnits pays each bill on its date or when they tap Top up now, within limits they set.
+> Status: preview. Accounts and bills are saved; bill payments switch on after the first live payment.
 
 ## What it pays
 
-- Data and airtime on MTN, Airtel, Glo and T2, topped up before the line runs low.
+- Data and airtime on MTN, Airtel, Glo and T2, on a schedule or on request; the app forecasts when a line runs low from readings.
 - Prepaid electricity tokens for Nigerian DisCos, and postpaid bills on a date.
 - TV: DStv, GOtv, StarTimes, renewed the day before they expire.
-- Subscriptions, including AI tools: planned (they need a naira-funded virtual card).
+- Subscriptions, including AI tools: tracked with renewal reminders; paying them is planned (it needs a naira-funded virtual card).
 
 ## Pricing
 
@@ -26,7 +27,7 @@ ${BILL_PRICES.map((b) => `- ${b.label}: ${b.fee}. ${b.basis}`).join("\n")}
 Adding money:
 - Bank transfer, from any Nigerian bank or mobile money app to the user's own ConstantUnits account number: free.
 - Card, USSD or QR (${TOPUP_RANGE}): the card processor's fee (Paystack) added at cost, shown before paying. For example, ${TOPUP_EXAMPLES.map((t) => `${t.credit} costs ${t.total}`).join("; ")}.
-- Stablecoins (USDC or USDT on Base, USDC on Arc): the same naira fees, at the market rate.
+- Stablecoins (USDC or USDT on Base): the same naira fees, at the market rate. USDC on Stellar is on testnet.
 
 ${FACTS.map((f) => `- ${f}`).join("\n")}
 
@@ -36,6 +37,8 @@ ${FACTS.map((f) => `- ${f}`).join("\n")}
 - Pricing: ${SITE_URL}/pricing
 - App: ${SITE_URL}/app
 - Privacy: ${SITE_URL}/privacy
+- Stellar testnet proof: ${SITE_URL}/proof
+- Code: https://github.com/Ritapossible/Constant
 
 Contact: ${CONTACT_EMAIL}
 `;

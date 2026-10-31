@@ -19,11 +19,11 @@ const QA = [
   },
   {
     q: "Do I still type in my electricity token?",
-    a: "For most meters, yes. ConstantUnits sends the token the moment it's bought, on WhatsApp, Telegram, SMS or email, and can keep a spare one ready.",
+    a: "For most meters, yes. ConstantUnits sends the token the moment it's bought, by Telegram, SMS or email, and it's in the app too.",
   },
   {
-    q: "How does it know I'm running low?",
-    a: "Data: the ConstantUnits app measures what your phone uses and checks your balance with your network. Light: from the units you bought and a quick meter reading when needed. Cable and subscriptions: their renewal dates.",
+    q: "How does it know when to pay?",
+    a: "Cable TV: its renewal date. Data, airtime and light: on the schedule you set, or whenever you tap Top up now. You can add a meter reading, and it learns how fast your home uses power. Subscriptions are tracked, with a reminder before each renewal.",
   },
   {
     q: "Can it spend more than I want?",

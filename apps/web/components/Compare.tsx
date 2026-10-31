@@ -6,7 +6,7 @@ import { IconCheck, IconX } from "./icons";
 
 const ROWS: [string, string][] = [
   ["Data dies in the middle of a call", "Tops up before it runs out"],
-  ["Light goes off at night", "A spare token is already on your phone"],
+  ["Light goes off at night", "The token is on your phone in seconds"],
   ["DStv cuts on match day", "Renewed the day before"],
   ["The money got spent on something else", "Set aside, one pot per bill"],
   ["You find out when it's too late", "Warned days before it runs low"],

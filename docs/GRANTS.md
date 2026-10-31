@@ -12,6 +12,14 @@ application, and only a chain with a transaction link to paste. (Review of 2026-
 
 ## A Stellar grant (Stellar Community Fund)
 
+**Track: Integration** (decided 2026-10-31). The Stellar wallet is a Privy embedded wallet and the USDC-to-naira path
+uses Circle's CCTP; both are on SCF's Integration List. Integration awards are panel-reviewed and pay the last 40%
+against an on-chain metric: ten households renewing monthly from Stellar. Stage: testnet, in preview; never claim live
+payments. The application is the proof page (constantunits.xyz/proof), the contract on stellar.expert and the public
+repo. Ask only for the cost of: mainnet contract with a screened treasury and a $5 charge of our own; one real bill
+(that USDC to naira via CCTP and Paycrest, paying our own DStv renewal); then ten households. One chain per form:
+no Base, Arc or QIE here.
+
 Ready for a testnet-stage application. What a reviewer can check without trusting us:
 
 1. The contract (`contracts/mandate`) and its 14 tests; the deployed code on stellar.expert.

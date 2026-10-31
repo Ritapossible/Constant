@@ -88,7 +88,7 @@ export function PhoneMock() {
           </span>
           <div className="lines">
             <Line icon={<IconData size={14} />} name="Data · MTN" right={dataFull ? "1.8 GB" : "310 MB"} sub={dataFull ? "about 4h of calls" : "topping up at 300 MB"} value={dataFull ? 0.88 : 0.16} />
-            <Line icon={<IconBolt size={14} />} name="Light" right="about Thu" sub="spare token ready" value={0.46} />
+            <Line icon={<IconBolt size={14} />} name="Light" right="about Thu" sub="token sent on Telegram" value={0.46} />
             <Line icon={<IconTv size={14} />} name="DStv" right="15 Dec" sub="renews the day before" value={1} />
             <Line icon={<IconSpark size={14} />} name="ChatGPT Plus" right="3 Jan" sub="renews monthly" value={1} />
           </div>

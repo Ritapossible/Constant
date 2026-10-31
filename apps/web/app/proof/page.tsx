@@ -79,7 +79,7 @@ export default function Proof() {
       <main id="main" className="container section" style={{ maxWidth: 820 }}>
         <article className="prose">
           <h1 className="h2">Paying bills from USDC on Stellar</h1>
-          <p className="muted">Testnet · last run {E2E.date}</p>
+          <p className="muted">Stellar testnet · ConstantUnits is in preview · last run {E2E.date}</p>
           <p className="lede">
             ConstantUnits lets someone keep a Nigerian bill paid straight from USDC on Stellar. They sign once, and our Soroban contract
             makes sure we can never take more than they approved. Everything below happened on Stellar testnet. Each link opens the
@@ -130,18 +130,44 @@ export default function Proof() {
           </p>
           <Run steps={RULES.steps} />
 
-          <h2>What else backs this</h2>
+          <h2>What this does not prove yet</h2>
           <ul>
-            <li>The contract is written in Rust with soroban-sdk and has 14 unit tests, run on every change with the rest of our tests.</li>
-            <li>Both runs above are scripts that anyone with the code can repeat against testnet; their output is recorded word for word.</li>
-            <li>Testnet USDC has no value. Mainnet needs Stellar account screening and production keys first; this is the next step.</li>
+            <li>Everything above is testnet. Testnet USDC has no value.</li>
+            <li>
+              The naira side of these runs used a test bill-payment service: no testnet USDC was turned into naira, and no real
+              decoder was renewed from Stellar.
+            </li>
+            <li>ConstantUnits is in preview. Bill payments switch on after our first live payment.</li>
           </ul>
 
-          <h2>Next</h2>
+          <h2>Next: from testnet to real bills</h2>
+          <ol className="prose-ol">
+            <li>
+              <b>Mainnet contract.</b> Screen the treasury account, deploy the same mandate, and charge $5 of our own USDC through it.
+            </li>
+            <li>
+              <b>One real bill.</b> That USDC becomes naira (Circle&apos;s CCTP to Base, then Paycrest) and pays one of our own DStv
+              renewals.
+            </li>
+            <li>
+              <b>Ten households.</b> The same mandate pays their monthly renewal. Electricity and data follow once those ten have
+              renewed once.
+            </li>
+          </ol>
+
+          <h2>Check it yourself</h2>
           <ul>
-            <li>Screening for Stellar accounts, then mainnet with a production RPC provider.</li>
-            <li>Turning the USDC we receive into naira at scale.</li>
-            <li>The same mandate for electricity and data, not only cable TV.</li>
+            <li>
+              The code is public:{" "}
+              <a href="https://github.com/Ritapossible/Constant" target="_blank" rel="noreferrer">
+                github.com/Ritapossible/Constant
+              </a>
+              . The contract is in <code>contracts/mandate</code> (Rust, soroban-sdk) with 14 tests, run on every change.
+            </li>
+            <li>
+              Both runs are scripts anyone can repeat against testnet: <code>scripts/stellar/proof-testnet.mjs</code> and{" "}
+              <code>scripts/stellar/e2e-testnet.mjs</code>. Their output is recorded word for word in <code>docs/proof</code>.
+            </li>
           </ul>
 
           <p className="muted" style={{ marginTop: 32 }}>

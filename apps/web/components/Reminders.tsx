@@ -7,7 +7,7 @@ import { IconBell, IconBolt, IconData, IconTv } from "./icons";
 
 const NOTES = [
   { icon: <IconData size={16} />, title: "70% chance your data runs out before tomorrow evening", sub: "Autopilot will top up at 300 MB." },
-  { icon: <IconBolt size={16} />, title: "Light likely low by Thursday", sub: "Spare token is ready on Telegram." },
+  { icon: <IconBolt size={16} />, title: "Light likely low by Thursday", sub: "Tap Top up now, or it pays on its date." },
   { icon: <IconTv size={16} />, title: "DStv renewal on 15 Dec is ₦2,300 short", sub: "Add money any time before then." },
 ];
 

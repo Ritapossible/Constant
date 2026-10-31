@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
   { href: "/refunds", label: "Refunds" },
+  { href: "/proof", label: "Stellar testnet proof" },
 ];
 
 /** Brand marks as each company publishes them (X brand toolkit; Instagram glyph), drawn in the footer's ink. */

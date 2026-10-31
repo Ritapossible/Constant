@@ -66,7 +66,7 @@ function DataCard() {
           <IconData size={14} style={{ display: "inline", verticalAlign: -2 }} /> Data & airtime
         </span>
         <h3 className="h3">Tops up before your call drops.</h3>
-        <p>The app watches what your phone uses and refills at the line you choose. Lands on your SIM in seconds.</p>
+        <p>On the schedule you set, or the moment you tap Top up now. Lands on your SIM in seconds.</p>
       </div>
       <div className="card-visual meter" aria-hidden="true">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12 }}>
@@ -107,7 +107,7 @@ function LightCard() {
         <span className="card-tag">
           <IconBolt size={14} style={{ display: "inline", verticalAlign: -2 }} /> Light
         </span>
-        <h3 className="h3">The token is ready before it goes off.</h3>
+        <h3 className="h3">The token arrives the moment it&apos;s bought.</h3>
       </div>
       <div className="card-visual keypad" aria-hidden="true">
         <div className="lcd">
@@ -115,7 +115,7 @@ function LightCard() {
           <span className="lcd-unit">kWh</span>
         </div>
         <div className="token-chip">
-          <span>Spare token</span>
+          <span>Your token</span>
           <span className="mono">•••• 7890</span>
         </div>
       </div>
@@ -164,7 +164,7 @@ function SubsCard() {
         <span className="card-tag">
           <IconSpark size={14} style={{ display: "inline", verticalAlign: -2 }} /> Subscriptions
         </span>
-        <h3 className="h3">Your AI tools, paid every month in naira.</h3>
+        <h3 className="h3">Your AI tools, with no surprise renewals.</h3>
       </div>
       <div className="card-visual subs" aria-hidden="true">
         {subs.map((s) => (
@@ -219,7 +219,7 @@ function PotsCard() {
 /* Delivery channels orbit. */
 function ChannelsCard() {
   const nodes = [
-    { icon: <IconChat size={20} />, label: "WhatsApp", a: 0 },
+    { icon: <IconChat size={20} />, label: "In the app", a: 0 },
     { icon: <IconSend size={20} />, label: "Telegram", a: 90 },
     { icon: <IconSms size={20} />, label: "SMS", a: 180 },
     { icon: <IconMail size={20} />, label: "Email", a: 270 },
@@ -229,7 +229,7 @@ function ChannelsCard() {
       <div className="card-head">
         <span className="card-tag">Delivery</span>
         <h3 className="h3">Tokens and receipts where you already are.</h3>
-        <p>WhatsApp, Telegram, SMS or email. Your choice. SMS is always the backup.</p>
+        <p>Telegram, SMS or email, your choice. Every receipt is in the app too.</p>
       </div>
       <div className="card-visual" aria-hidden="true">
         <div className="orbit">

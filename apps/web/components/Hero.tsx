@@ -30,8 +30,8 @@ export function Hero() {
             </span>
           </h1>
           <p className="lead fade-in" style={{ ["--d" as string]: "420ms" }}>
-            ConstantUnits pays your data, light, cable and subscriptions from money you set aside, and warns you before
-            anything runs low.
+            ConstantUnits pays your data, light and cable from money you set aside, on the day you choose, and tells you
+            before a bill can&apos;t be paid.
           </p>
           <div className="hero-actions fade-in" style={{ ["--d" as string]: "540ms" }}>
             <a href="/app" className="btn btn-primary">

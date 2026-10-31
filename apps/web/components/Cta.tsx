@@ -2,7 +2,7 @@ import { Reveal } from "./Reveal";
 import { Scramble } from "./Scramble";
 import { IconArrow } from "./icons";
 
-const WORDS = ["data", "light", "DStv", "airtime", "ChatGPT"];
+const WORDS = ["data", "light", "DStv", "airtime", "GOtv"];
 
 export function Cta() {
   return (

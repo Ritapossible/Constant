@@ -4,11 +4,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
 const STEPS = [
-  { title: "Add money", text: "Bank transfer in naira, or stablecoins on Base and Arc. It sits in pots, one for each bill.", tags: ["Bank", "Stables"] },
+  { title: "Add money", text: "Bank transfer, card or USSD in naira. It sits in pots, one for each bill.", tags: ["Bank", "Card"] },
   { title: "Pick what to keep paid", text: "Data, light, DStv, ChatGPT. Add the number, meter or decoder once.", tags: ["Data", "Light", "TV", "AI"] },
   { title: "Set your limits", text: "How much, how often, and a cap it can never pass. Change or pause any time.", tags: ["Cap", "Pause"] },
-  { title: "ConstantUnits keeps watch", text: "It checks your data balance, asks for a meter photo when it matters, renews on the date, and warns you before anything runs low.", tags: ["Check", "Remind"] },
-  { title: "Paid, and sent to you", text: "Bundles land on your SIM. Tokens and receipts arrive where you chose.", tags: ["WhatsApp", "Telegram", "SMS", "Email"] },
+  { title: "ConstantUnits keeps watch", text: "It pays on the date, tops up when you tap, and reminds you before a bill can't be paid.", tags: ["Schedule", "Remind"] },
+  { title: "Paid, and sent to you", text: "Bundles land on your SIM. Tokens and receipts arrive where you chose.", tags: ["Telegram", "SMS", "Email"] },
 ];
 
 const ANGLE = 11; // degrees between nodes on the arc

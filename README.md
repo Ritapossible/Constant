@@ -2,11 +2,12 @@
 
 **Set it once. Never run out.**
 
-ConstantUnits pays Nigerians' everyday bills automatically: data, airtime, electricity, cable TV and subscriptions. People put money aside, set a limit per bill, and ConstantUnits pays each one on time, warns them before anything runs low, and never spends past the limits they chose. They can pause, cancel or withdraw at any time.
+ConstantUnits pays Nigerians' everyday bills from money they set aside: data, airtime, electricity and cable TV. Each bill is paid on the day the person sets, or when they tap Top up now, never past the limit they chose, and they're told before a bill can't be paid. Nothing reads the meter or the SIM automatically: people can add a reading, and the app forecasts from it. Subscriptions are tracked with reminders, not paid. People can pause, cancel or withdraw at any time.
 
 - **Website and app:** [constantunits.xyz](https://constantunits.xyz)
 - **Stellar proof for reviewers:** [constantunits.xyz/proof](https://constantunits.xyz/proof): every testnet transaction, linked.
-- **Status:** early access in Nigeria. Naira payments run through licensed partners; stablecoin autopay is built, with Stellar proven on testnet.
+- **Code:** [github.com/Ritapossible/Constant](https://github.com/Ritapossible/Constant)
+- **Status:** preview. Accounts and bills are saved; bill payments are switched off until the first live payment through VTpass. USDC on Stellar works end to end on testnet only.
 
 ---
 
@@ -29,7 +30,7 @@ ConstantUnits pays Nigerians' everyday bills automatically: data, airtime, elect
 | Bill | How it's paid |
 |---|---|
 | **Cable TV** (DStv, GOtv, StarTimes) | Renewed before it expires, after checking the price against the person's limit. |
-| **Data and airtime** (MTN, Airtel, Glo, T2) | Topped up on a schedule or when running low, within a weekly limit. |
+| **Data and airtime** (MTN, Airtel, Glo, T2) | Topped up on a schedule or when the person taps Top up now, within a weekly limit. |
 | **Electricity** (prepaid and postpaid meters) | Bought on a schedule; the token is sent straight to the owner. |
 | **Subscriptions** (ChatGPT, Claude, Spotify, Netflix…) | Tracked, with a reminder before each renewal. |
 
@@ -47,15 +48,16 @@ Around the bills:
 
 | Area | State |
 |---|---|
-| Web app, accounts, bills, pots, reminders | Live in early access |
+| Web app, accounts, bills, pots, reminders | Preview: live, with payments switched off |
 | Naira top-ups (transfer, card, USSD, QR) | Built with Paystack |
-| Bill payments | Built with VTpass |
+| Bill payments | Built with VTpass; switched off until the first live payment (`vending_enabled`) |
 | Identity tiers (BVN) and limits | Built (D-086) |
 | Withdrawals | Built; switched off until launch (`payouts_enabled`) |
 | USDC/USDT on Base autopay | Built; proof run pending |
 | USDC on Stellar autopay | **Proven end to end on testnet** ([proof](https://constantunits.xyz/proof)); mainnet next |
 | USDC on Arc autopay | Built; off until its testnet proof passes |
-| Android app (on-device data sensing) | Not started |
+| Automatic sensing (an Android app reading data use; meter readings) | Not started: readings are typed in |
+| Subscriptions | Tracked with reminders; not paid |
 
 ## Architecture
 

@@ -12,7 +12,6 @@ const BRANDS = [
   { name: "Coinbase", logo: "/brands/coinbase.png" },
   { name: "Base", logo: "/brands/base.svg" },
   { name: "Arc", logo: "/brands/arc.svg" },
-  { name: "QIE", logo: "/brands/qie.png" },
   { name: "Stellar", logo: "/brands/stellar.png" },
   { name: "Termii", logo: "/brands/termii.png" },
   { name: "Resend", logo: "/brands/resend.png" },
