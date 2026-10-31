@@ -143,7 +143,8 @@ describe("welcome and paid-with (D-093)", () => {
 
   it("the welcome email adds the three steps to start, in HTML and plain text", () => {
     const e = emailFor("welcome", render("welcome", { preview: "1" }), { preview: "1" }, { appUrl: "https://constantunits.xyz", name: "Ada Obi" });
-    expect(e.text).toContain("1. Add a bill: data, airtime, light or TV\n2. Set its limit");
+    expect(e.text).toContain("1. Add a bill for yourself or someone else: data, airtime, light, TV or a subscription\n2. Set its limit");
+    for (const said of ["subscriptions renew", "ChatGPT", "Claude", "a friend or family"]) expect(e.text).toContain(said); // never left out (CLAUDE.md)
     expect(e.html.match(/<li /g)).toHaveLength(3);
     expect(e.text.startsWith("Hi Ada,")).toBe(true);
     expect(e.html).toContain("Add your first bill");

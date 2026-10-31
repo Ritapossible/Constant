@@ -50,10 +50,11 @@ function content(kind: NoticeKind, m: Message, p: NoticeParams): { paragraphs: s
   if (kind === "welcome") {
     return {
       paragraphs: [
-        "ConstantUnits pays your data, airtime, light and TV from money you set aside, on the day you choose and never above the limit you set.",
+        "ConstantUnits pays data, airtime, light and TV for you, a friend or family, from money you set aside, on the day you choose and never above the limit you set.",
+        "It also reminds you before your subscriptions renew: ChatGPT, Claude, Gemini, Spotify, Netflix and more.",
         p.preview === "1" ? "Bill payments switch on soon. Until then you can set everything up." : "Your first bill is paid as soon as there's money for it.",
       ],
-      steps: ["Add a bill: data, airtime, light or TV", "Set its limit: the most it may ever cost", "Add money by bank transfer, card or USSD"],
+      steps: ["Add a bill for yourself or someone else: data, airtime, light, TV or a subscription", "Set its limit: the most it may ever cost", "Add money by bank transfer, card or USSD"],
       button: "Add your first bill",
     };
   }

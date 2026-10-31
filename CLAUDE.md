@@ -75,6 +75,7 @@ Node 22 (`.nvmrc`), pnpm 10.
 - Times are stored as `timestamptz` UTC; weekday and "today" are always computed in the site's market time zone (`packages/rules/src/time.ts`).
 - Idempotency keys come from `packages/rules/src/keys.ts` and sit in unique columns.
 - Every decision that deviates from the original spec goes in `docs/DECISIONS.md` with a reason.
+- When copy lists what ConstantUnits covers, never leave out subscriptions (AI tools such as ChatGPT, Claude and Gemini, plus Spotify, Netflix), and say a bill can be someone else's (a friend's line, a parent's meter or DStv). Stay honest: subscriptions are tracked with reminders, not paid, until a card issuer is in place (D-039).
 
 ## Decided
 
