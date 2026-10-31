@@ -116,7 +116,7 @@ describe("emails (D-092)", () => {
   it("escapes everything that came from a person, so a bill name can't inject HTML", () => {
     const p = { line: `<img src=x onerror="alert(1)">`, likelyAt: "2026-11-12T17:30:00Z" };
     const e = emailFor("running_low", render("running_low", p), p, { appUrl: "https://constantunits.xyz", name: "<b>Ada</b>" });
-    expect(e.html).not.toContain("<img");
+    expect(e.html).not.toContain("<img src=x");
     expect(e.html).not.toContain("<b>Ada");
     expect(e.html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
   });
@@ -133,19 +133,36 @@ describe("emails (D-092)", () => {
 describe("welcome and paid-with (D-093)", () => {
   it("welcomes without promising payments while they're switched off", () => {
     const preview = render("welcome", { preview: "1" });
-    expect(preview.subject).toBe("Welcome to ConstantUnits");
+    expect(preview.subject).toBe("Your ConstantUnits account is ready");
     expect(preview.text).toContain("Bill payments switch on soon");
-    expect(preview.text).not.toContain("We'll pay");
+    expect(preview.text.toLowerCase()).not.toContain("we'll pay");
     const live = render("welcome", {});
-    expect(live.text).toContain("We'll pay it on the day you choose");
+    expect(live.text).toContain("we'll pay it on the day you choose");
     for (const m of [preview, live]) expect(smsParts(toSmsText(m.text))).toBe(1);
   });
 
   it("the welcome email adds the three steps to start, in HTML and plain text", () => {
     const e = emailFor("welcome", render("welcome", { preview: "1" }), { preview: "1" }, { appUrl: "https://constantunits.xyz", name: "Ada Obi" });
-    expect(e.text).toContain("1. Add a bill: data, airtime, light or TV.\n2. Set its limit");
+    expect(e.text).toContain("1. Add a bill: data, airtime, light or TV\n2. Set its limit");
     expect(e.html.match(/<li /g)).toHaveLength(3);
     expect(e.text.startsWith("Hi Ada,")).toBe(true);
+    expect(e.html).toContain("Add your first bill");
+    expect(e.text).toContain("Bill payments switch on soon");
+    expect(e.text).not.toContain("is paid as soon");
+    const live = emailFor("welcome", render("welcome", {}), {}, { appUrl: "https://constantunits.xyz/" });
+    expect(live.text).not.toContain("switch on soon");
+    expect(live.html).toContain('src="https://constantunits.xyz/email/mark.png"');
+  });
+
+  it("no message shouts: no exclamation marks anywhere, in any channel", () => {
+    const p = { line: "Living room DSTV", amountMinor: "1995000", capMinor: "2500000", shortMinor: "500000", dueAt: "2026-11-15T17:30:00Z", likelyAt: "2026-11-15T17:30:00Z", token: "1234-5678-9012-3456-7890", held: "insufficient" };
+    for (const kind of [...KINDS, "token", "bill_due_soon", "bill_last_call", "running_low", "kyc_verified", "kyc_failed", "welcome"] as NoticeKind[]) {
+      for (const q of [p, { ...p, preview: "1" }]) {
+        const m = render(kind, q);
+        const e = emailFor(kind, m, q, { appUrl: "https://constantunits.xyz" });
+        expect(m.subject + m.text + e.text).not.toContain("!");
+      }
+    }
   });
 
   it("a bill paid from stablecoins says what left the person's account; one paid in naira doesn't", () => {

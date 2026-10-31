@@ -145,11 +145,11 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
     case "welcome":
       // Sent once, when the account is made (D-093). Never promises payments while they're switched off.
       return {
-        subject: "Welcome to ConstantUnits",
+        subject: "Your ConstantUnits account is ready",
         text:
           p.preview === "1"
-            ? "ConstantUnits: welcome! Add a bill, set its limit and add money. Bill payments switch on soon, and we'll tell you when they do."
-            : "ConstantUnits: welcome! Add a bill, set its limit and add money. We'll pay it on the day you choose, and warn you before anything can't be paid.",
+            ? "ConstantUnits: your account is ready. Add a bill, set its limit and add money. Bill payments switch on soon."
+            : "ConstantUnits: your account is ready. Add a bill, set its limit and add money, and we'll pay it on the day you choose.",
       };
     case "running_low": {
       // From the person's own readings (D-092): nothing measures the line, so the fix includes a fresh reading.
