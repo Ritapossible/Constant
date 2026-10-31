@@ -21,6 +21,7 @@ import {
   chargeForOrder,
   hasOpenOrder,
   linesToCheckLow,
+  subscriptionsToRemind,
   insertOrder,
   lockLine,
   lockOrder,
@@ -53,6 +54,7 @@ import {
   availableForBill,
   decideRenewal,
   decideRunningLow,
+  subscriptionReminder,
   holdReminder,
   nextDueAfter,
   nextMonthlyRunAt,
@@ -541,6 +543,38 @@ export async function remindRunningLow(d: Deps, max = 200): Promise<number> {
       await updateLine(tx, line.id, { low_reminded_at: now });
       if (fresh) queued += 1;
     });
+  }
+  return queued;
+}
+
+/**
+ * Subscription renewal reminders (D-096, INV-119): two or three days ahead, then the day before, by the person's
+ * channel, 9 am to 8 pm. Each stage is keyed by the renewal, so this can run every few minutes and still send each
+ * once. ConstantUnits doesn't pay subscriptions yet (D-039); the reminder is the service.
+ */
+export async function remindSubscriptions(d: Deps, max = 500): Promise<number> {
+  const now = d.now();
+  const lines = await subscriptionsToRemind(d.db, max);
+  const zones = new Map<string, string>();
+  let queued = 0;
+  for (const line of lines) {
+    if (!zones.has(line.market_code)) zones.set(line.market_code, (await getMarket(d.db, line.market_code)).time_zone);
+    const r = subscriptionReminder({ renewDay: line.renew_day, now, timeZone: zones.get(line.market_code)! });
+    if (!r) continue;
+    const kind = r.stage === "soon" ? "subscription_soon" : "subscription_tomorrow";
+    const fresh = await queueNotice(d.db, {
+      key: noticeKey(line.id, kind, r.renewsAt),
+      userId: line.user_id,
+      lineId: line.id,
+      kind,
+      params: {
+        line: label(line),
+        renewsAt: iso(r.renewsAt),
+        ...(line.amount_minor !== null ? { priceMinor: line.amount_minor.toString() } : {}),
+        currency: line.currency,
+      },
+    });
+    if (fresh) queued += 1;
   }
   return queued;
 }

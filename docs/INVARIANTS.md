@@ -157,3 +157,4 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 116 | Every new account is welcomed exactly once, even when its first requests overlap. | api (overlapping first sign-ins) |
 | 117 | While bill payments are switched off, no message promises that a bill will be paid. | copy · api |
 | 118 | A bill paid from a person's stablecoins says what left their account, from the confirmed charge; one paid in naira doesn't mention stablecoins. | copy · worker |
+| 119 | A tracked subscription gets a renewal reminder two or three days ahead and another the day before, each once a renewal, only 9 am to 8 pm local, never for a paused one, and never saying ConstantUnits pays it. | rules (property) · copy · worker |

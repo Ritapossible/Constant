@@ -5,9 +5,11 @@
  */
 
 import { renderStables, type StableNoticeKind, type StableParams } from "./stables.js";
+import { renderSubscription, type SubscriptionNoticeKind, type SubscriptionParams } from "./subscriptions.js";
 
 export { isGsm7, smsParts, toSmsText } from "./sms.js";
 export { emailFor, type Email, type EmailContext } from "./email.js";
+export { merchantPrice, SUBSCRIPTION_KINDS } from "./subscriptions.js";
 
 export type NoticeKind =
   | "renewed"
@@ -28,6 +30,7 @@ export type NoticeKind =
   | "bill_last_call"
   | "running_low"
   | "welcome"
+  | SubscriptionNoticeKind
   | StableNoticeKind;
 
 export interface Message {
@@ -194,6 +197,9 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
         subject: `We're checking ${who}`,
         text: `ConstantUnits: a payment for ${who} needs a person to confirm it. We've paused this bill and will message you soon. Your money is safe.`,
       };
+    case "subscription_soon":
+    case "subscription_tomorrow":
+      return renderSubscription(kind, p as SubscriptionParams);
     default:
       return renderStables(kind, p as StableParams);
   }

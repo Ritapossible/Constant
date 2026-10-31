@@ -74,11 +74,34 @@ describe("SMS in the GSM-7 alphabet (INV-24)", () => {
     expect(toSmsText("ok 👍")).toBe("ok ");
   });
 
-  const params = { line: "Living room DSTV", provider: "dstv", last4: "4821", amountMinor: "1995000", capMinor: "2500000", shortMinor: "500000", dueAt: "2026-11-15T17:30:00Z", balanceMinor: "100", setAsideMinor: "2500000", token: "1234-5678-9012-3456-7890", units: "45.2", bank: "GTBank", held: "insufficient", likelyAt: "2026-11-15T17:30:00Z", paidWith: "14.75 USDC on Stellar", preview: "1", reason: "The BVN and account number didn't match." };
-  it.each([...KINDS, "token", "bill_due_soon", "bill_last_call", "kyc_verified", "kyc_failed", "running_low", "welcome"] as NoticeKind[])("%s goes by SMS as one GSM-7 message", (kind) => {
+  const params = { line: "Living room DSTV", provider: "dstv", last4: "4821", amountMinor: "1995000", capMinor: "2500000", shortMinor: "500000", dueAt: "2026-11-15T17:30:00Z", balanceMinor: "100", setAsideMinor: "2500000", token: "1234-5678-9012-3456-7890", units: "45.2", bank: "GTBank", held: "insufficient", likelyAt: "2026-11-15T17:30:00Z", paidWith: "14.75 USDC on Stellar", preview: "1", reason: "The BVN and account number didn't match.", renewsAt: "2026-11-09T06:00:00Z", priceMinor: "2000", currency: "USD" };
+  it.each([...KINDS, "token", "bill_due_soon", "bill_last_call", "kyc_verified", "kyc_failed", "running_low", "welcome", "subscription_soon", "subscription_tomorrow"] as NoticeKind[])("%s goes by SMS as one GSM-7 message", (kind) => {
     const sms = toSmsText(render(kind, params).text);
     expect(isGsm7(sms)).toBe(true);
     expect(smsParts(sms)).toBe(1);
+  });
+});
+
+describe("subscription renewals (D-096)", () => {
+  const p = { line: "ChatGPT Plus", renewsAt: "2026-11-09T06:00:00Z", priceMinor: "2000", currency: "USD" };
+  it("says when, the merchant's price, and that the card on that account is charged", () => {
+    expect(render("subscription_soon", p)).toEqual({
+      subject: "ChatGPT Plus renews on Mon, 9 Nov",
+      text: "ConstantUnits: ChatGPT Plus renews on Mon, 9 Nov for $20, charged to the card on that account. To stop it, cancel before then.",
+    });
+    expect(render("subscription_tomorrow", { ...p, priceMinor: "1999" })).toEqual({
+      subject: "ChatGPT Plus renews tomorrow",
+      text: "ConstantUnits: ChatGPT Plus renews tomorrow for $19.99, charged to the card on that account. Check the card can pay, or cancel today.",
+    });
+  });
+
+  it("never says ConstantUnits pays it, and still reads well without a price", () => {
+    for (const kind of ["subscription_soon", "subscription_tomorrow"] as const) {
+      const m = render(kind, { line: "A very long subscription name, Claude Max", renewsAt: p.renewsAt });
+      expect(m.text).not.toMatch(/we'll pay|we pay|ConstantUnits pays/i);
+      expect(m.text).not.toContain(" for ");
+      expect(smsParts(toSmsText(m.text))).toBe(1);
+    }
   });
 });
 
@@ -157,7 +180,7 @@ describe("welcome and paid-with (D-093)", () => {
 
   it("no message shouts: no exclamation marks anywhere, in any channel", () => {
     const p = { line: "Living room DSTV", amountMinor: "1995000", capMinor: "2500000", shortMinor: "500000", dueAt: "2026-11-15T17:30:00Z", likelyAt: "2026-11-15T17:30:00Z", token: "1234-5678-9012-3456-7890", held: "insufficient" };
-    for (const kind of [...KINDS, "token", "bill_due_soon", "bill_last_call", "running_low", "kyc_verified", "kyc_failed", "welcome"] as NoticeKind[]) {
+    for (const kind of [...KINDS, "token", "bill_due_soon", "bill_last_call", "running_low", "kyc_verified", "kyc_failed", "welcome", "subscription_soon", "subscription_tomorrow"] as NoticeKind[]) {
       for (const q of [p, { ...p, preview: "1" }]) {
         const m = render(kind, q);
         const e = emailFor(kind, m, q, { appUrl: "https://constantunits.xyz" });

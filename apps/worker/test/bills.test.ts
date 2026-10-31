@@ -6,7 +6,7 @@ import { Secrets, freeBalance, freshDatabase, insertLedger, insertLine, insertRe
 import { FakeCableVending, FakeMessaging } from "@constant/partners";
 import { isGsm7, smsParts } from "@constant/copy";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { CHECK_BACKOFF_MIN, clearPlanCache, processOrders, remindRunningLow, scanRenewals, sendNotices, silentLog, type Deps } from "../src/index.js";
+import { CHECK_BACKOFF_MIN, clearPlanCache, processOrders, remindRunningLow, remindSubscriptions, scanRenewals, sendNotices, silentLog, type Deps } from "../src/index.js";
 
 let db: Db;
 let drop: () => Promise<void>;
@@ -298,6 +298,56 @@ describe("running low, sent to the person (D-092)", () => {
     const due = await lowDataLine({ nextRunAt: new Date(NOON.getTime() - 60_000) });
     expect(await remindRunningLow(deps)).toBe(1); // the earlier line, now in waking hours; not the due one
     expect((await noticeRows(due.u.id)).filter((x) => x.kind === "running_low")).toHaveLength(0);
+  });
+});
+
+describe("INV-119 subscription renewal reminders (D-096)", () => {
+  // Lagos local time → instant.
+  const lagos = (iso: string) => new Date(`${iso}+01:00`);
+  const sub = async (u: { id: string }, renewDay: number) =>
+    line(u.id, { kind: "subscription", provider: "chatgpt", schedule: "none", renewDay, amountMinor: 2_000n, currency: "USD", nickname: "ChatGPT Plus", nextRunAt: null }, `sub${n++}@example.com`);
+
+  it("reminds three days ahead and the day before, once each, by the person's channel, and never pays", async () => {
+    const u = await user();
+    const l = await sub(u, 9);
+
+    clock = lagos("2026-11-05T12:00:00"); // four days out
+    expect(await remindSubscriptions(deps)).toBe(0);
+    clock = lagos("2026-11-06T09:30:00"); // three days out
+    expect(await remindSubscriptions(deps)).toBe(1);
+    clock = lagos("2026-11-07T15:00:00"); // two days out: same renewal, same stage, already told
+    expect(await remindSubscriptions(deps)).toBe(0);
+    clock = lagos("2026-11-08T21:00:00"); // the day before, but after 8 pm
+    expect(await remindSubscriptions(deps)).toBe(0);
+    clock = lagos("2026-11-08T10:00:00"); // the day before, in waking hours
+    expect(await remindSubscriptions(deps)).toBe(1);
+    expect(await remindSubscriptions(deps)).toBe(0); // not twice
+
+    const rows = (await noticeRows(u.id)).filter((x) => x.kind.startsWith("subscription_"));
+    expect(rows.map((x) => x.kind)).toEqual(["subscription_soon", "subscription_tomorrow"]);
+    expect(rows[0].params).toMatchObject({ line: "ChatGPT Plus", priceMinor: "2000", currency: "USD", renewsAt: lagos("2026-11-09T07:00:00").toISOString() });
+
+    await sendNotices(deps);
+    const email = messaging.sent.find((m) => m.subject === "ChatGPT Plus renews tomorrow")!;
+    expect(email.channel).toBe("email");
+    expect(email.text).toContain("ChatGPT Plus renews tomorrow for $20, charged to the card on that account.");
+    // Reminder only: no order, no money moved (D-039).
+    expect(await orders(l.id)).toHaveLength(0);
+    expect(await scanRenewals(deps)).toBe(0);
+  });
+
+  it("starts again for next month's renewal, and not for a paused subscription", async () => {
+    const u = await user();
+    await sub(u, 9);
+    clock = lagos("2026-11-08T10:00:00");
+    expect(await remindSubscriptions(deps)).toBe(1);
+    clock = lagos("2026-12-06T10:00:00");
+    expect(await remindSubscriptions(deps)).toBe(1); // a new renewal, a new key
+
+    const paused = await sub(u, 9);
+    await db.query("UPDATE lines SET status = 'paused' WHERE id = $1", [paused.id]);
+    clock = lagos("2026-12-08T10:00:00");
+    expect(await remindSubscriptions(deps)).toBe(1); // only the active one
   });
 });
 

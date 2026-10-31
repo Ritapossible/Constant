@@ -672,7 +672,7 @@ function BillForm({
         <p className="ap-fine">
           {onServer
             ? kind === "subscription"
-              ? "Saved to your account as a reminder. Paying subscriptions opens later. "
+              ? "We'll remind you three days before it renews and again the day before, by your chosen channel. It's still charged to the card on that account: paying subscriptions opens later. "
               : `Nothing is paid now. ${kind === "electricity" ? "The meter is checked before it's saved. " : ""}Saved to your account, with the ${REF_LABEL[kind].toLowerCase()} encrypted. `
             : `Nothing is paid now. Before the first payment, ConstantUnits checks the ${REF_LABEL[kind].toLowerCase()} and shows you the name on it. `}
           {feeNote(kind, isFirst)} If a payment isn&apos;t delivered, you pay nothing.{" "}

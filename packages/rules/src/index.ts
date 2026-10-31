@@ -16,3 +16,4 @@ export * from "./pricing.js";
 export * from "./session.js";
 export * from "./pots.js";
 export * from "./kyc.js";
+export * from "./subscriptions.js";

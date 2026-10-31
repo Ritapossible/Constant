@@ -8,7 +8,7 @@ import { screenPending, sweepSpender } from "./guards.js";
 import { notifyOps } from "./ops.js";
 import { reconcileBooks } from "./reconcile.js";
 import { processWithdrawals } from "./withdrawals.js";
-import { processOrders, recover, remindRunningLow, scanRenewals, sendNotices, type Deps } from "./jobs.js";
+import { processOrders, recover, remindRunningLow, remindSubscriptions, scanRenewals, sendNotices, type Deps } from "./jobs.js";
 import { jsonLog } from "./log.js";
 import { newBeats, startHealthServer } from "./health.js";
 
@@ -53,6 +53,7 @@ if (dollars?.stellar && screeningApplies(dollars, "stellar")) {
     every("orders", 10_000, () => processOrders(deps)),
     every("notices", 10_000, () => sendNotices(deps)),
     every("running low", 15 * 60_000, () => remindRunningLow(deps)),
+    every("subscription renewals", 15 * 60_000, () => remindSubscriptions(deps)),
     every("ops alerts", 60_000, () => notifyOps(deps, process.env.OPS_EMAIL)),
     every("reconciliation", 60_000, () => reconcileBooks(deps)),
     ...(deps.payouts ? [every("withdrawals", 15_000, () => processWithdrawals(deps, deps.payouts))] : []),

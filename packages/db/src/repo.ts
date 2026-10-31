@@ -283,6 +283,17 @@ export async function linesToCheckLow(q: Q, now: Date, limit = 200): Promise<(Li
   return r.rows;
 }
 
+/** Active subscriptions with a renewal day, for renewal reminders (D-096). Few rows: one per subscription a person tracks. */
+export async function subscriptionsToRemind(q: Q, limit = 500): Promise<(LineRow & { market_code: string })[]> {
+  const r = await q.query<LineRow & { market_code: string }>(
+    `SELECT l.*, u.market_code FROM lines l JOIN users u ON u.id = l.user_id
+     WHERE l.status = 'active' AND u.status = 'active' AND l.kind = 'subscription' AND l.renew_day IS NOT NULL
+     ORDER BY l.id LIMIT $1`,
+    [limit],
+  );
+  return r.rows;
+}
+
 export async function recentReadings(q: Q, lineIds: string[], perLine = 30): Promise<ReadingRow[]> {
   if (lineIds.length === 0) return [];
   return (
