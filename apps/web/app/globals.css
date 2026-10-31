@@ -1002,15 +1002,6 @@ button {
   font-weight: 400;
   color: var(--ink-2);
 }
-.works-row {
-  list-style: none;
-  margin: 40px auto 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-}
 .sub {
   display: flex;
   align-items: center;
@@ -1314,7 +1305,25 @@ button {
   }
 }
 
-/* provider chips */
+/* Moving strips (the founder's choice over a still, wrapping row on phones). */
+.marquee {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  margin-top: clamp(40px, 6vw, 64px);
+}
+.marquee-track {
+  display: flex;
+  gap: 12px;
+  width: max-content;
+  animation: marquee 36s linear infinite;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
 .marquee-item {
   display: inline-flex;
   align-items: center;
@@ -1634,6 +1643,9 @@ button {
 @keyframes word-up {
   to { transform: translateY(0); }
 }
+@keyframes marquee {
+  to { transform: translateX(-50%); }
+}
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: none; }
@@ -1646,7 +1658,7 @@ button {
   flex: none;
 }
 
-/* Built with: the infrastructure strip under the hero (D-073). Quiet and still. */
+/* Built with: the infrastructure strip under the hero (D-073), always moving. */
 .built {
   padding-block: clamp(28px, 5vw, 56px);
   border-block: 1px solid var(--line);
@@ -1660,14 +1672,12 @@ button {
   text-transform: none;
   color: var(--muted);
 }
-.built-row {
-  list-style: none;
-  margin: 20px auto 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 16px 32px;
+.built-marquee {
+  margin-top: clamp(16px, 3vw, 28px);
+}
+.built-marquee .marquee-track {
+  gap: clamp(28px, 5vw, 56px);
+  animation-duration: 42s;
 }
 .built-item {
   display: inline-flex;
@@ -1680,9 +1690,9 @@ button {
   color: var(--ink-2);
 }
 .built-item img {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   object-fit: contain;
   background: #fff;
   box-shadow: inset 0 0 0 1px var(--line);

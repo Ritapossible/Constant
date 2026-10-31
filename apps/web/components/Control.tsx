@@ -50,14 +50,16 @@ export function Control() {
           ))}
         </Reveal>
       </div>
-      <ul className="container works-row" aria-label="Networks, DisCos and services">
-        {WORKS_WITH.map((w) => (
-          <li className="marquee-item" key={w.name}>
-            <img src={w.logo} alt="" width={28} height={28} loading="lazy" decoding="async" />
-            {w.name}
-          </li>
-        ))}
-      </ul>
+      <div className="marquee" aria-label="Networks, DisCos and services">
+        <div className="marquee-track">
+          {[...WORKS_WITH, ...WORKS_WITH].map((w, i) => (
+            <span className="marquee-item" key={i} aria-hidden={i >= WORKS_WITH.length}>
+              <img src={w.logo} alt="" width={28} height={28} loading="lazy" decoding="async" />
+              {w.name}
+            </span>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }

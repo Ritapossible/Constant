@@ -1,5 +1,5 @@
 /**
- * The infrastructure ConstantUnits is built on, as one still row (D-095: nothing loops). Only services the code actually integrates
+ * The infrastructure ConstantUnits is built on, as a moving strip. Only services the code actually integrates
  * (packages/partners, packages/chains, the app); logos from each company's own website, unaltered (D-073).
  * "Built with", never "partners": none of these endorse ConstantUnits.
  */
@@ -25,12 +25,19 @@ export function BuiltWith() {
           Built with
         </p>
       </div>
-      <ul className="container built-row">
+      <div className="marquee built-marquee">
+        <div className="marquee-track">
+          {[...BRANDS, ...BRANDS].map((b, i) => (
+            <span className="built-item" key={i} aria-hidden={i >= BRANDS.length}>
+              <img src={b.logo} alt="" width={36} height={36} loading="lazy" decoding="async" />
+              <span>{b.name}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+      <ul className="sr-only">
         {BRANDS.map((b) => (
-          <li className="built-item" key={b.name}>
-            <img src={b.logo} alt="" width={24} height={24} loading="lazy" decoding="async" />
-            <span>{b.name}</span>
-          </li>
+          <li key={b.name}>{b.name}</li>
         ))}
       </ul>
     </section>
