@@ -18,7 +18,9 @@ export function Hero() {
     <section className="hero" id="top">
       <div className="container hero-grid">
         <div className="hero-copy">
-          <span className="eyebrow fade-in">Autopay for bills in Nigeria</span>
+          <span className="eyebrow fade-in">
+            Autopay for utilities
+          </span>
           <h1 className="h1">
             <Words text="Set it once." />
             <br />
@@ -27,8 +29,8 @@ export function Hero() {
             </span>
           </h1>
           <p className="lead fade-in" style={{ ["--d" as string]: "420ms" }}>
-            ConstantUnits pays data, airtime, light and TV for you, a friend or family, from money you set aside, on the
-            day you choose. Subscriptions like ChatGPT and Claude get a reminder before they renew.
+            ConstantUnits pays your data, light and cable from money you set aside, on the day you choose, and tells you
+            before a bill can&apos;t be paid.
           </p>
           <div className="hero-actions fade-in" style={{ ["--d" as string]: "540ms" }}>
             <a href="/app" className="btn btn-primary">
