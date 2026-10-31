@@ -12,6 +12,8 @@ export function SmoothScroll() {
       anchors: { offset: -88 },
       respectReducedMotion: true,
     });
+    // Lenis keeps its own position: start it at the top too, unless the address points at a section.
+    if (!window.location.hash) lenis.scrollTo(0, { immediate: true, force: true });
     return () => lenis.destroy();
   }, []);
   return null;

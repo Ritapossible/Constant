@@ -47,11 +47,16 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+const SCROLL_TOP =
+  "try{if('scrollRestoration' in history)history.scrollRestoration='manual';if(!location.hash)window.scrollTo(0,0)}catch(e){}";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
+        {/* A refresh starts at the top, not where the reader was; a link to a section (#pricing) still lands there. */}
+        <script dangerouslySetInnerHTML={{ __html: SCROLL_TOP }} />
         <a href="#main" className="skip-link">
           Skip to content
         </a>
