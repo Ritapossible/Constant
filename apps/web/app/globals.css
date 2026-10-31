@@ -1,6 +1,7 @@
 /* ─────────────────────────────────────────────────────────────
    ConstantUnits | design system
-   Black and white. One sans, one italic serif accent, one mono.
+   Black and white. One sans for everything, one mono for figures. Weights 400 to 600;
+   hierarchy from size and colour. Sentence case, no tracked capitals (D-095).
    ───────────────────────────────────────────────────────────── */
 
 :root {
@@ -19,7 +20,6 @@
   --good: #16a34a;
 
   --font-sans: "Inter Tight Variable", "Inter Tight", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --radius-sm: 12px;
@@ -131,7 +131,7 @@ button {
   z-index: 100;
   background: var(--ink);
   color: var(--on-inverse);
-  padding: 10px 16px;
+  padding: 12px 16px;
   border-radius: var(--pill);
   transition: top 0.2s var(--ease-out);
 }
@@ -158,22 +158,21 @@ button {
 
 .eyebrow {
   display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
   color: var(--muted);
 }
 
 .h1 {
-  font-size: clamp(44px, 8.4vw, 104px);
+  text-wrap: balance;
+  font-size: clamp(44px, 6.4vw, 88px);
   line-height: 0.96;
   letter-spacing: -0.045em;
   font-weight: 600;
   margin: 0;
 }
 .h2 {
+  text-wrap: balance;
   font-size: clamp(34px, 5.4vw, 64px);
   line-height: 1.02;
   letter-spacing: -0.04em;
@@ -181,17 +180,16 @@ button {
   margin: 0;
 }
 .h3 {
+  text-wrap: balance;
   font-size: clamp(20px, 2vw, 24px);
   line-height: 1.2;
   letter-spacing: -0.02em;
   font-weight: 600;
   margin: 0;
 }
+/* The second beat of a headline: same face, quieter colour. Works on light and dark. */
 .serif {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  color: color-mix(in srgb, currentColor 52%, transparent);
 }
 .lead {
   font-size: clamp(17px, 1.6vw, 20px);
@@ -210,7 +208,7 @@ button {
 
 .section-head {
   display: grid;
-  gap: 18px;
+  gap: 20px;
   justify-items: center;
   text-align: center;
   margin-bottom: clamp(40px, 6vw, 72px);
@@ -225,12 +223,12 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   height: 52px;
-  padding: 0 26px;
+  padding: 0 28px;
   border-radius: var(--pill);
   font-size: 16px;
-  font-weight: 550;
+  font-weight: 500;
   letter-spacing: -0.01em;
   white-space: nowrap;
   transition:
@@ -270,7 +268,7 @@ button {
 }
 .btn-sm {
   height: 40px;
-  padding: 0 18px;
+  padding: 0 20px;
   font-size: 14.5px;
 }
 .btn .arrow {
@@ -300,7 +298,7 @@ button {
   justify-content: space-between;
   gap: 16px;
   height: 64px;
-  padding: 0 10px 0 18px;
+  padding: 0 12px 0 20px;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: saturate(160%) blur(16px);
   -webkit-backdrop-filter: saturate(160%) blur(16px);
@@ -322,7 +320,7 @@ button {
 }
 .nav-link {
   position: relative;
-  padding: 8px 14px;
+  padding: 8px 16px;
   font-size: 15px;
   color: var(--ink-2);
   border-radius: var(--pill);
@@ -379,7 +377,7 @@ button {
 .menu-sheet {
   pointer-events: auto;
   max-width: 880px;
-  margin: 10px auto 0;
+  margin: 12px auto 0;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 20px;
@@ -390,7 +388,7 @@ button {
   display: block;
   padding: 16px 0;
   font-size: 30px;
-  font-weight: 550;
+  font-weight: 500;
   letter-spacing: -0.03em;
   border-bottom: 1px dashed var(--line);
 }
@@ -425,8 +423,8 @@ button {
 .logo {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 650;
+  gap: 12px;
+  font-weight: 600;
   font-size: 21px;
   letter-spacing: -0.035em;
 }
@@ -454,7 +452,7 @@ button {
 }
 .hero-copy {
   display: grid;
-  gap: 26px;
+  gap: 28px;
   justify-items: center;
   text-align: center;
 }
@@ -463,31 +461,6 @@ button {
   flex-wrap: wrap;
   gap: 12px;
   justify-content: center;
-}
-.hero-note {
-  font-size: 13.5px;
-  color: var(--muted);
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-.hero-note span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.hero-bg {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-image:
-    linear-gradient(to right, var(--line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, #000 30%, transparent 75%);
-  -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, #000 30%, transparent 75%);
-  opacity: 0.55;
 }
 
 .word {
@@ -517,8 +490,7 @@ button {
     justify-items: start;
     text-align: left;
   }
-  .hero-actions,
-  .hero-note {
+  .hero-actions {
     justify-content: flex-start;
   }
 }
@@ -537,7 +509,7 @@ button {
   aspect-ratio: 9 / 18.5;
   border-radius: 46px;
   background: var(--inverse);
-  padding: 10px;
+  padding: 12px;
   box-shadow: var(--shadow-lg), 0 0 0 1px #000;
 }
 .phone-screen {
@@ -586,16 +558,16 @@ button {
 }
 .balance {
   font-size: 34px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 1;
 }
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 11.5px;
-  padding: 5px 10px;
+  padding: 4px 12px;
   border-radius: var(--pill);
   background: var(--surface);
   border: 1px solid var(--line);
@@ -616,7 +588,7 @@ button {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 16px;
-  padding: 11px 12px;
+  padding: 12px 12px;
   display: grid;
   gap: 8px;
 }
@@ -670,9 +642,9 @@ button {
 }
 .toast {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
-  padding: 12px 14px;
+  padding: 12px 16px;
   border-radius: 18px;
   background: rgba(10, 10, 10, 0.92);
   color: var(--on-inverse);
@@ -700,45 +672,16 @@ button {
   font-size: 12px;
 }
 
-.float-card {
-  position: absolute;
-  display: none;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 12px 14px;
-  box-shadow: var(--shadow);
-  font-size: 13px;
-  animation: float 6s var(--ease-in-out) infinite alternate;
-}
 .phone-wrap {
   position: relative;
 }
-.float-card {
-  z-index: 4;
-}
-.float-card.left {
-  left: -96px;
-  top: 30%;
-}
-.float-card.right {
-  right: -92px;
-  bottom: 16%;
-  animation-delay: -3s;
-}
-@media (min-width: 640px) {
-  .float-card {
-    display: block;
-  }
-}
-
 /* ── Compare ─────────────────────────────────────────────── */
 
 .compare-intro {
   font-size: clamp(28px, 4vw, 46px);
   line-height: 1.16;
   letter-spacing: -0.035em;
-  font-weight: 550;
+  font-weight: 500;
   margin: 0 0 clamp(32px, 5vw, 56px);
   max-width: 24ch;
 }
@@ -752,7 +695,7 @@ button {
   width: 74px;
   height: 40px;
   padding: 4px;
-  margin: 0 6px;
+  margin: 0 8px;
   border-radius: var(--pill);
   background: var(--line-strong);
   transition: background-color 0.35s var(--ease-out);
@@ -797,13 +740,13 @@ button {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  padding: 14px 0;
+  padding: 16px 0;
   border-top: 1px dashed var(--line);
   font-size: 16px;
 }
 .compare-col li svg {
   flex: none;
-  margin-top: 3px;
+  margin-top: 4px;
 }
 .compare-col.them {
   color: var(--muted);
@@ -846,7 +789,7 @@ button {
 
 .bento {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   grid-template-columns: 1fr;
 }
 .card {
@@ -854,11 +797,11 @@ button {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  padding: clamp(22px, 2.6vw, 30px);
+  padding: clamp(24px, 2.6vw, 32px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
   min-height: 300px;
   transition: transform 0.6s var(--ease-out), box-shadow 0.6s var(--ease-out);
 }
@@ -876,7 +819,7 @@ button {
 }
 .card-head {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 .card-head p {
   margin: 0;
@@ -889,8 +832,8 @@ button {
 .card-tag {
   font-family: var(--font-mono);
   font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--muted);
 }
 .card-dark .card-tag {
@@ -922,17 +865,17 @@ button {
 /* data meter */
 .meter {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 .meter-num {
   font-size: 44px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 1;
 }
 .meter-num small {
   font-size: 18px;
-  font-weight: 550;
+  font-weight: 500;
   color: var(--muted);
   margin-left: 4px;
 }
@@ -969,7 +912,7 @@ button {
   font-weight: 600;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 /* light keypad */
@@ -977,14 +920,14 @@ button {
   border-radius: 18px;
   background: #121212;
   border: 1px solid #1f1f1f;
-  padding: 14px;
+  padding: 16px;
   display: grid;
   gap: 12px;
 }
 .lcd {
   border-radius: 10px;
   background: #1c1c1c;
-  padding: 14px 16px;
+  padding: 16px 16px;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
@@ -1003,22 +946,22 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 12px 12px;
   border-radius: 12px;
   border: 1px dashed #3a3a3a;
   font-size: 12.5px;
   color: var(--on-inverse);
 }
 .token-chip .mono {
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
 }
 
 /* calendar */
 .cal {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
+  gap: 8px;
 }
 .cal-day {
   aspect-ratio: 1;
@@ -1041,7 +984,6 @@ button {
   inset: -4px;
   border-radius: 14px;
   border: 1.5px solid var(--ink);
-  animation: ring 2.4s var(--ease-out) infinite;
 }
 
 /* subscriptions */
@@ -1049,11 +991,31 @@ button {
   display: grid;
   gap: 8px;
 }
+/* A message as it arrives: channel icon, the words, the channel. */
+.sub-msg {
+  justify-content: flex-start;
+  gap: 12px;
+}
+.sub-msg-text {
+  flex: 1;
+  min-width: 0;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.works-row {
+  list-style: none;
+  margin: 40px auto 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
 .sub {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 11px 12px;
+  padding: 12px 12px;
   border-radius: 14px;
   background: var(--surface-2);
   font-size: 14px;
@@ -1061,7 +1023,7 @@ button {
 .sub-name {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   font-weight: 600;
 }
 .sub-badge {
@@ -1073,7 +1035,7 @@ button {
   display: grid;
   place-items: center;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 /* A network's mark on the left of its row (Base, Arc). */
 .sub-net {
@@ -1101,7 +1063,7 @@ button {
   box-shadow: 0 0 0 2px var(--surface-2);
 }
 .sub-tokens img + img {
-  margin-left: -6px;
+  margin-left: -8px;
 }
 /* A service's own logo, on white like in the app. */
 .sub-logo {
@@ -1127,7 +1089,7 @@ button {
 /* pots */
 .pots {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 .pot {
   display: grid;
@@ -1146,50 +1108,7 @@ button {
   background: #fafafa;
 }
 
-/* orbit (channels) */
-.orbit {
-  position: relative;
-  width: 220px;
-  height: 220px;
-  margin: 0 auto;
-}
-.orbit-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 1px dashed var(--line-strong);
-}
-.orbit-ring.inner {
-  inset: 50px;
-}
-.orbit-spin {
-  position: absolute;
-  inset: 0;
-  animation: spin 28s linear infinite;
-}
-.orbit-node {
-  position: absolute;
-  width: 46px;
-  height: 46px;
-  margin: -23px 0 0 -23px;
-  border-radius: 14px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  display: grid;
-  place-items: center;
-  box-shadow: var(--shadow-sm);
-}
-.orbit-node > * {
-  animation: spin 28s linear infinite reverse;
-}
-.orbit-core {
-  position: absolute;
-  inset: 76px;
-  border-radius: 20px;
-  background: var(--ink);
-  display: grid;
-  place-items: center;
-}
+
 
 /* ── Reminders (dark band) ───────────────────────────────── */
 
@@ -1214,7 +1133,7 @@ button {
 }
 .remind-copy {
   display: grid;
-  gap: 22px;
+  gap: 24px;
 }
 .remind-points {
   display: grid;
@@ -1236,7 +1155,7 @@ button {
 .ring-wrap {
   display: grid;
   place-items: center;
-  gap: 22px;
+  gap: 24px;
 }
 .prob {
   position: relative;
@@ -1257,7 +1176,7 @@ button {
 }
 .prob-num {
   font-size: 54px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.05em;
   line-height: 1;
 }
@@ -1269,18 +1188,18 @@ button {
   font-size: 12.5px;
   color: var(--on-inverse-muted);
   max-width: 13ch;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 .notes {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   width: min(420px, 100%);
 }
 .note {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  padding: 14px 16px;
+  padding: 16px 16px;
   border-radius: 18px;
   background: #141414;
   border: 1px solid var(--inverse-line);
@@ -1312,161 +1231,62 @@ button {
 
 /* ── Steps (scroll-pinned) ───────────────────────────────── */
 
-.steps {
-  position: relative;
-}
-.steps-track {
-  position: relative;
-}
-.steps-sticky {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  height: 100svh;
+.steps-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
-  align-content: center;
-  overflow: hidden;
+  gap: 12px;
 }
-.steps-stage {
-  position: relative;
-  max-width: 760px;
-  margin: 0 auto;
-  width: 100%;
-  min-height: 380px;
-}
-.arc {
-  position: absolute;
-  left: 50%;
-  top: 45px;
-  width: 1100px;
-  height: 1100px;
-  margin-left: -550px;
-  border-radius: 50%;
-  border: 1px solid var(--line-strong);
-  background: radial-gradient(closest-side, var(--surface-2), transparent 70%);
-  transition: transform 0.9s var(--ease-out);
-}
-.arc-node {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 38px;
-  height: 38px;
-  margin: -19px 0 0 -19px;
-  border-radius: 12px;
+.steps-list li {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 24px;
   background: var(--surface);
   border: 1px solid var(--line);
-  display: grid;
-  place-items: center;
+  border-radius: var(--radius);
+}
+.steps-n {
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--muted);
-  transform-origin: 19px 569px;
+  font-variant-numeric: tabular-nums;
 }
-.step-pin {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-}
-.step-label {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  color: var(--muted);
-}
-.step-num {
-  display: grid;
-  place-items: center;
-  min-width: 46px;
-  height: 46px;
-  padding: 0 10px;
-  border-radius: 14px;
-  background: var(--ink);
-  color: var(--on-inverse);
-  font-family: var(--font-mono);
-  font-size: 17px;
-  font-weight: 600;
-}
-.step-body {
-  position: relative;
-  z-index: 2;
-  text-align: center;
-  display: grid;
-  justify-items: center;
-  gap: 14px;
-  margin-top: 64px;
-  padding-inline: 8px;
-}
-.step-title {
-  font-size: clamp(30px, 4.2vw, 48px);
-  font-weight: 600;
-  letter-spacing: -0.04em;
+.steps-title {
   margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+  font-weight: 500;
 }
-.step-text {
-  max-width: 36ch;
+.steps-list p {
   margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
   color: var(--muted);
-  font-size: 17px;
 }
-.step-tags {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: 4px;
+@media (min-width: 720px) {
+  .steps-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
-.step-tags span {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  padding: 7px 11px;
-  border-radius: var(--pill);
-  border: 1px solid var(--line);
-  background: var(--surface);
-}
-.step-dots {
-  display: flex;
-  gap: 6px;
-  justify-content: center;
-  margin-top: 36px;
-  position: relative;
-  z-index: 2;
-}
-.step-dots i {
-  width: 6px;
-  height: 6px;
-  border-radius: 6px;
-  background: var(--line-strong);
-  transition: width 0.5s var(--ease-out), background-color 0.3s ease;
-}
-.step-dots i[data-on="true"] {
-  width: 22px;
-  background: var(--ink);
-}
-.step-count {
-  text-align: center;
-  margin-top: 12px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--muted);
-  position: relative;
-  z-index: 2;
+@media (min-width: 1080px) {
+  .steps-list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 
 /* ── Control (trust) ─────────────────────────────────────── */
 
 .control {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 .control-item {
   display: grid;
-  gap: 10px;
-  padding: 26px;
+  align-content: start;
+  gap: 12px;
+  padding: 28px;
   border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--line);
@@ -1494,35 +1314,17 @@ button {
   }
 }
 
-/* marquee */
-.marquee {
-  position: relative;
-  z-index: 0;
-  isolation: isolate;
-  overflow: hidden;
-  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
-  margin-top: clamp(40px, 6vw, 64px);
-}
-.marquee-track {
-  display: flex;
-  gap: 12px;
-  width: max-content;
-  animation: marquee 36s linear infinite;
-}
-.marquee:hover .marquee-track {
-  animation-play-state: paused;
-}
+/* provider chips */
 .marquee-item {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 18px;
+  gap: 12px;
+  padding: 12px 20px;
   border-radius: var(--pill);
   background: var(--surface);
   border: 1px solid var(--line);
   font-size: 15px;
-  font-weight: 550;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -1532,7 +1334,7 @@ button {
   max-width: 760px;
   margin: 0 auto;
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 .faq-item {
   border-radius: 20px;
@@ -1550,10 +1352,10 @@ button {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  padding: 20px 22px;
+  padding: 20px 24px;
   text-align: left;
   font-size: 17px;
-  font-weight: 550;
+  font-weight: 500;
   letter-spacing: -0.015em;
 }
 .faq-plus {
@@ -1573,7 +1375,7 @@ button {
   top: 50%;
   width: 11px;
   height: 1.6px;
-  margin: -0.8px 0 0 -5.5px;
+  margin: -0.8px 0 0 -4px;
   background: #fff;
   border-radius: 2px;
 }
@@ -1588,7 +1390,7 @@ button {
   transform: rotate(0deg);
 }
 .faq-a {
-  padding: 0 22px 22px;
+  padding: 0 24px 24px;
   color: var(--muted);
   max-width: 62ch;
 }
@@ -1632,52 +1434,17 @@ button {
   margin: 0;
   max-width: 44ch;
 }
-.cta-orbit {
-  position: absolute;
-  right: -160px;
-  top: -160px;
-  width: 460px;
-  height: 460px;
-  border-radius: 50%;
-  border: 1px solid var(--inverse-line);
-  pointer-events: none;
-}
-.cta-orbit::before {
-  content: "";
-  position: absolute;
-  inset: 60px;
-  border-radius: 50%;
-  border: 1px dashed var(--inverse-line);
-  animation: spin 40s linear infinite;
-}
-.cta-orbit::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: -5px;
-  width: 10px;
-  height: 10px;
-  margin-left: -5px;
-  border-radius: 50%;
-  background: #fafafa;
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.6);
-}
-.cta-orbit-spin {
-  position: absolute;
-  inset: 0;
-  animation: spin 18s linear infinite;
-}
 
 .signup {
   position: relative;
   display: grid;
-  gap: 10px;
+  gap: 12px;
   max-width: 520px;
 }
 .signup-row {
   display: flex;
   gap: 8px;
-  padding: 6px;
+  padding: 8px;
   border-radius: var(--pill);
   background: #161616;
   border: 1px solid var(--inverse-line);
@@ -1733,11 +1500,11 @@ button {
 .status {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   font-family: var(--font-mono);
   font-size: 11.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--on-inverse-muted);
 }
 
@@ -1760,7 +1527,7 @@ button {
 }
 .footer-tag {
   color: var(--muted);
-  margin: 14px 0 0;
+  margin: 16px 0 0;
   max-width: 32ch;
   font-size: 16px;
 }
@@ -1778,14 +1545,14 @@ button {
 .footer-socials {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   margin-top: 20px;
 }
 .footer-socials-label {
   font-family: var(--font-mono);
   font-size: 11.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--muted);
 }
 .footer-socials ul {
@@ -1828,13 +1595,13 @@ button {
   margin: 0 0 8px;
   font-family: var(--font-mono);
   font-size: 11.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--muted);
   font-weight: 500;
 }
 .footer-links a {
-  padding: 10px 0;
+  padding: 12px 0;
   border-bottom: 1px solid var(--line);
   font-size: 15px;
   transition: color 0.2s ease, padding 0.35s var(--ease-out);
@@ -1852,83 +1619,24 @@ button {
   font-size: 13.5px;
   color: var(--muted);
 }
-.footer-word span {
-  font-weight: 400;
-}
-.footer-word {
-  /* Sized so "ConstantUnits" fits the container at every width; it must never widen the page. */
-  font-size: clamp(36px, 12.4vw, 180px);
-  white-space: nowrap;
-  overflow: hidden;
-  font-weight: 650;
-  letter-spacing: -0.06em;
-  line-height: 0.8;
-  text-align: center;
-  color: #ecece8;
-  user-select: none;
-  margin-top: 8px;
-}
 @media (min-width: 820px) {
   .footer-top {
     grid-template-columns: 1.2fr 1fr;
   }
 }
 
-/* ── Scroll reveal (like Obscura: blur in, then rise, staggered) ── */
-
-.reveal {
-  opacity: 0;
-}
-.reveal.is-in {
-  opacity: 1;
-  animation: reveal-blur 0.5s var(--ease-out) backwards;
-}
-/* "backwards" so hover transforms work once the entrance has finished. */
-.reveal.is-in > * {
-  animation: reveal-rise 0.7s var(--ease-out) backwards;
-}
-.reveal.is-in > :nth-child(1) { animation-delay: 60ms; }
-.reveal.is-in > :nth-child(2) { animation-delay: 120ms; }
-.reveal.is-in > :nth-child(3) { animation-delay: 180ms; }
-.reveal.is-in > :nth-child(4) { animation-delay: 240ms; }
-.reveal.is-in > :nth-child(5) { animation-delay: 300ms; }
-.reveal.is-in > :nth-child(6) { animation-delay: 360ms; }
-.reveal.is-in > :nth-child(n + 7) { animation-delay: 420ms; }
+/* ── Scroll reveal ──────────────────────────────────────────
+   Sections are visible from the start: no blur-in on scroll, nothing hidden until a script runs (D-095).
+   The hero's one entrance on load is the only motion on arrival. */
 
 /* ── Keyframes ───────────────────────────────────────────── */
 
-@keyframes reveal-blur {
-  from { opacity: 0; filter: blur(8px); }
-  to { opacity: 1; filter: none; }
-}
-@keyframes reveal-rise {
-  from { opacity: 0; transform: translateY(22px); }
-  to { opacity: 1; transform: none; }
-}
 @keyframes word-up {
   to { transform: translateY(0); }
 }
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: none; }
-}
-@keyframes ping {
-  0% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
-  100% { transform: translate(-50%, -50%) scale(3.2); opacity: 0; }
-}
-@keyframes ring {
-  0% { transform: scale(0.9); opacity: 0.8; }
-  100% { transform: scale(1.25); opacity: 0; }
-}
-@keyframes float {
-  from { transform: translateY(0); }
-  to { transform: translateY(-14px); }
-}
-@keyframes spin {
-  to { transform: rotate(1turn); }
-}
-@keyframes marquee {
-  to { transform: translateX(-50%); }
 }
 .marquee-item img {
   width: 28px;
@@ -1938,7 +1646,7 @@ button {
   flex: none;
 }
 
-/* Built with: the infrastructure strip under the hero (D-073). Quiet, letter-spaced, always moving. */
+/* Built with: the infrastructure strip under the hero (D-073). Quiet and still. */
 .built {
   padding-block: clamp(28px, 5vw, 56px);
   border-block: 1px solid var(--line);
@@ -1947,18 +1655,19 @@ button {
 .built-title {
   margin: 0;
   text-align: center;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  font-size: 14px;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--muted);
 }
-.built-marquee {
-  margin-top: clamp(18px, 3vw, 28px);
-}
-.built-marquee .marquee-track {
-  gap: clamp(28px, 5vw, 56px);
-  animation-duration: 42s;
+.built-row {
+  list-style: none;
+  margin: 20px auto 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px 32px;
 }
 .built-item {
   display: inline-flex;
@@ -1966,15 +1675,14 @@ button {
   gap: 12px;
   white-space: nowrap;
   font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--ink-2);
   color: var(--ink-2);
 }
 .built-item img {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
   object-fit: contain;
   background: #fff;
   box-shadow: inset 0 0 0 1px var(--line);
@@ -1984,23 +1692,23 @@ button {
 /* Pricing on the home page (D-075): four numbers, each with what it means. */
 .fair {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 .fair-item {
   display: grid;
   gap: 8px;
   align-content: start;
-  padding: 26px;
+  padding: 28px;
   border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--line);
 }
 .fair-big {
   font-size: clamp(36px, 5vw, 48px);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 1;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 .fair-item .h3 {
   font-size: 18px;
@@ -2010,7 +1718,7 @@ button {
   color: var(--muted);
 }
 .fair-note {
-  margin: 22px auto 0;
+  margin: 24px auto 0;
   max-width: 60ch;
   text-align: center;
   color: var(--muted);
@@ -2038,12 +1746,12 @@ button {
 /* People: real photos, one story each (D-074). Two wide, two tall, in alternating rows on desktop. */
 .people {
   display: grid;
-  gap: clamp(14px, 2vw, 20px);
+  gap: clamp(16px, 2vw, 20px);
 }
 .people-card {
   margin: 0;
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 .people-photo {
   position: relative;
@@ -2110,7 +1818,7 @@ button {
 .page-header {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   padding-top: 28px;
 }
 .page-back {
@@ -2134,6 +1842,10 @@ button {
   outline-offset: 2px;
 }
 
+/* The page title sits apart from what follows it. */
+.prose > .h2 {
+  margin-bottom: 16px;
+}
 .prose h2 {
   font-size: 20px;
   letter-spacing: -0.02em;
@@ -2159,7 +1871,7 @@ button {
   font-size: 17px;
 }
 .prose li + li {
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 /* Pricing (D-075): rows that stack on phones. */
@@ -2169,13 +1881,13 @@ button {
   border-radius: var(--radius-lg);
   background: var(--surface);
   overflow: hidden;
-  margin: 8px 0 18px;
+  margin: 8px 0 20px;
 }
 .price-row {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 4px 16px;
-  padding: 14px 18px;
+  padding: 16px 20px;
   font-size: 15.5px;
 }
 .price-row + .price-row {
@@ -2184,8 +1896,8 @@ button {
 .price-head {
   font-family: var(--font-mono);
   font-size: 11.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--muted);
 }
 .price-name {
@@ -2251,7 +1963,7 @@ button {
 .proof-steps {
   list-style: none;
   counter-reset: step;
-  margin: 8px 0 18px;
+  margin: 8px 0 20px;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -2293,10 +2005,10 @@ button {
 }
 .prose .prose-ol {
   margin: 0 0 12px;
-  padding-left: 22px;
+  padding-left: 24px;
   color: var(--ink-2);
   font-size: 17px;
 }
 .prose .prose-ol li + li {
-  margin-top: 6px;
+  margin-top: 8px;
 }

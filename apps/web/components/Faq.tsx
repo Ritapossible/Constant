@@ -56,7 +56,7 @@ export function Faq() {
         <Reveal className="section-head">
           <span className="eyebrow">Questions</span>
           <h2 id="faq-title" className="h2">
-            Good <span className="serif">questions.</span>
+            Before you start
           </h2>
         </Reveal>
         <Reveal className="faq">

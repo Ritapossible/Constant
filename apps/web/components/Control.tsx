@@ -35,7 +35,7 @@ export function Control() {
         <Reveal className="section-head">
           <span className="eyebrow">You stay in control</span>
           <h2 id="control-title" className="h2">
-            Your money. <span className="serif">Your rules.</span>
+            Nothing moves past <span className="serif">the limit you set</span>
           </h2>
         </Reveal>
         <Reveal className="control">
@@ -50,16 +50,14 @@ export function Control() {
           ))}
         </Reveal>
       </div>
-      <div className="marquee" aria-label="Networks, DisCos and services">
-        <div className="marquee-track">
-          {[...WORKS_WITH, ...WORKS_WITH].map((w, i) => (
-            <span className="marquee-item" key={i} aria-hidden={i >= WORKS_WITH.length}>
-              <img src={w.logo} alt="" width={28} height={28} loading="lazy" decoding="async" />
-              {w.name}
-            </span>
-          ))}
-        </div>
-      </div>
+      <ul className="container works-row" aria-label="Networks, DisCos and services">
+        {WORKS_WITH.map((w) => (
+          <li className="marquee-item" key={w.name}>
+            <img src={w.logo} alt="" width={28} height={28} loading="lazy" decoding="async" />
+            {w.name}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

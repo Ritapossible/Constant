@@ -33,25 +33,6 @@ export function PhoneMock() {
   return (
     <div className="phone-stage fade-in" style={{ ["--d" as string]: "350ms" }}>
       <div className="phone-wrap">
-      <div className="float-card left">
-        <div className="mono muted" style={{ fontSize: 11, letterSpacing: "0.1em" }}>
-          YOUR LINE
-        </div>
-        <div style={{ fontWeight: 650, fontSize: 22, letterSpacing: "-0.03em" }}>300 MB</div>
-        <div className="muted" style={{ fontSize: 12 }}>
-          data tops up here
-        </div>
-      </div>
-      <div className="float-card right">
-        <div className="mono muted" style={{ fontSize: 11, letterSpacing: "0.1em" }}>
-          WEEKLY CAP
-        </div>
-        <div style={{ fontWeight: 650, fontSize: 22, letterSpacing: "-0.03em" }}>₦25,000</div>
-        <div className="muted" style={{ fontSize: 12 }}>
-          never more than you set
-        </div>
-      </div>
-
       <div className="phone" role="img" aria-label="ConstantUnits app showing money set aside and what it covers">
         <div className="phone-notch" />
         <div className="toast-stack" aria-hidden="true">

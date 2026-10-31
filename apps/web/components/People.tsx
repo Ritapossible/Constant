@@ -9,27 +9,27 @@ const PEOPLE = [
   {
     src: "/people/woman-phone.jpg",
     alt: "A smiling woman on a sofa, reading her phone",
-    title: "Data that never runs out mid-chat.",
+    title: "Data that never runs out mid-chat",
     text: "Your line is topped up before it hits zero.",
     wide: true,
   },
   {
     src: "/people/man-laptop.jpg",
     alt: "A smiling man at his desk with a laptop",
-    title: "Work doesn't stop for a recharge.",
+    title: "Work doesn't stop for a recharge",
     text: "Airtime and data, handled in the background.",
   },
   {
     src: "/people/woman-macbook.jpg",
     alt: "A smiling woman lying on the grass beside her laptop and phone",
-    title: "Subscriptions, never a surprise.",
-    text: "ChatGPT, Spotify, Netflix: every renewal date in one place.",
+    title: "Subscriptions, never a surprise",
+    text: "ChatGPT, Claude, Spotify, Netflix: every renewal date in one place, with a reminder before each.",
   },
   {
     src: "/people/hand-phone.jpg",
     alt: "A hand holding a smartphone above a laptop",
-    title: "One app for every bill.",
-    text: "Data, light, TV and subscriptions, within limits you set.",
+    title: "One app for every bill, yours or theirs",
+    text: "Data, airtime, light, TV and subscriptions, for you, a friend or family, within limits you set.",
     wide: true,
   },
 ];
@@ -39,9 +39,9 @@ export function People() {
     <section className="section" aria-labelledby="people-title">
       <div className="container">
         <Reveal className="section-head">
-          <span className="eyebrow">Made for everyday life</span>
+          <span className="eyebrow">Who it&apos;s for</span>
           <h2 id="people-title" className="h2">
-            Less checking. <span className="serif">More living.</span>
+            Bills for your home <span className="serif">and the people you look after</span>
           </h2>
         </Reveal>
         <Reveal className="people">

@@ -1,22 +1,14 @@
 import { Reveal } from "./Reveal";
-import { Scramble } from "./Scramble";
 import { IconArrow } from "./icons";
-
-const WORDS = ["data", "light", "DStv", "airtime", "GOtv"];
 
 export function Cta() {
   return (
     <section className="section" id="early" aria-labelledby="early-title">
       <div className="container">
         <Reveal className="cta">
-          <div className="cta-orbit" aria-hidden="true">
-            <div className="cta-orbit-spin" />
-          </div>
-          <span className="status">
-            Preview open
-          </span>
+          <span className="status">Preview open</span>
           <h2 id="early-title" className="cta-title">
-            Never run out of <Scramble words={WORDS} /> again.
+            Set up your bills today
           </h2>
           <p className="cta-sub">Sign in with Google, email, your phone number or a passkey. No seed phrase, no forms. In the preview you set up your bills; payments switch on with our licensed partner.</p>
           <div>

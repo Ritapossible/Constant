@@ -32,7 +32,7 @@ export function Reminders() {
             Running-low reminders
           </span>
           <h2 id="remind-title" className="h2">
-            Know <span className="serif">before</span> it runs low.
+            Know before it runs low
           </h2>
           <p className="lead">ConstantUnits learns how fast you use data and light, and tells you when running out is likely. Not after.</p>
           <ul className="remind-points">

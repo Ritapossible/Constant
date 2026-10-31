@@ -3,7 +3,7 @@
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
 import { useEffect, useState } from "react";
 import { Reveal, useInViewOnce } from "./Reveal";
-import { IconBank, IconBolt, IconChat, IconData, IconMail, IconSend, IconSms, IconSpark, IconTv } from "./icons";
+import { IconBank, IconBolt, IconData, IconMail, IconSend, IconSms, IconSpark, IconTv } from "./icons";
 
 export function Bento() {
   return (
@@ -12,7 +12,7 @@ export function Bento() {
         <Reveal className="section-head">
           <span className="eyebrow">What it pays</span>
           <h2 id="pays-title" className="h2">
-            Everything you <span className="serif">keep re‑buying.</span>
+            Everything you <span className="serif">keep re‑buying</span>
           </h2>
         </Reveal>
         <Reveal className="bento">
@@ -65,7 +65,7 @@ function DataCard() {
         <span className="card-tag">
           <IconData size={14} style={{ display: "inline", verticalAlign: -2 }} /> Data & airtime
         </span>
-        <h3 className="h3">Tops up before your call drops.</h3>
+        <h3 className="h3">Tops up before your call drops</h3>
         <p>On the schedule you set, or the moment you tap Top up now. Lands on your SIM in seconds.</p>
       </div>
       <div className="card-visual meter" aria-hidden="true">
@@ -107,7 +107,7 @@ function LightCard() {
         <span className="card-tag">
           <IconBolt size={14} style={{ display: "inline", verticalAlign: -2 }} /> Light
         </span>
-        <h3 className="h3">The token arrives the moment it&apos;s bought.</h3>
+        <h3 className="h3">The token arrives the moment it&apos;s bought</h3>
       </div>
       <div className="card-visual keypad" aria-hidden="true">
         <div className="lcd">
@@ -132,7 +132,7 @@ function CableCard() {
         <span className="card-tag">
           <IconTv size={14} style={{ display: "inline", verticalAlign: -2 }} /> Cable TV
         </span>
-        <h3 className="h3">DStv, GOtv, StarTimes. Renewed the day before.</h3>
+        <h3 className="h3">DStv, GOtv, StarTimes, renewed the day before</h3>
       </div>
       <div className="card-visual" aria-hidden="true">
         <div className="cal">
@@ -164,7 +164,7 @@ function SubsCard() {
         <span className="card-tag">
           <IconSpark size={14} style={{ display: "inline", verticalAlign: -2 }} /> Subscriptions
         </span>
-        <h3 className="h3">Your AI tools, with no surprise renewals.</h3>
+        <h3 className="h3">ChatGPT, Claude and Gemini, with no surprise renewals</h3>
       </div>
       <div className="card-visual subs" aria-hidden="true">
         {subs.map((s) => (
@@ -197,7 +197,7 @@ function PotsCard() {
     <article className="card card-dark span-2" ref={ref}>
       <div className="card-head">
         <span className="card-tag">Set aside</span>
-        <h3 className="h3">One pot per bill. It can't be spent on anything else.</h3>
+        <h3 className="h3">One pot per bill, never spent on anything else</h3>
       </div>
       <div className="card-visual pots" aria-hidden="true">
         {pots.map((p, i) => (
@@ -216,48 +216,28 @@ function PotsCard() {
   );
 }
 
-/* Delivery channels orbit. */
+/* Delivery: the messages as people get them. */
 function ChannelsCard() {
   const nodes = [
-    { icon: <IconChat size={20} />, label: "In the app", a: 0 },
-    { icon: <IconSend size={20} />, label: "Telegram", a: 90 },
-    { icon: <IconSms size={20} />, label: "SMS", a: 180 },
-    { icon: <IconMail size={20} />, label: "Email", a: 270 },
+    { icon: <IconSend size={14} />, channel: "Telegram", text: "Ikeja Electric token 4410 2938 5521 0076 1189, 37.2 kWh" },
+    { icon: <IconSms size={14} />, channel: "SMS", text: "DStv renewed for N19,950. Next renewal 15 Jan." },
+    { icon: <IconMail size={14} />, channel: "Email", text: "Receipt: MTN data, 1.5 GB, ₦1,000" },
   ];
   return (
     <article className="card span-3">
       <div className="card-head">
         <span className="card-tag">Delivery</span>
-        <h3 className="h3">Tokens and receipts where you already are.</h3>
+        <h3 className="h3">Tokens and receipts where you already are</h3>
         <p>Telegram, SMS or email, your choice. Every receipt is in the app too.</p>
       </div>
-      <div className="card-visual" aria-hidden="true">
-        <div className="orbit">
-          <div className="orbit-ring" />
-          <div className="orbit-ring inner" />
-          <div className="orbit-spin">
-            {nodes.map((n) => {
-              const r = 110;
-              const rad = (n.a * Math.PI) / 180;
-              return (
-                <div
-                  key={n.label}
-                  className="orbit-node"
-                  title={n.label}
-                  style={{ left: 110 + r * Math.cos(rad), top: 110 + r * Math.sin(rad) }}
-                >
-                  <span style={{ display: "grid" }}>{n.icon}</span>
-                </div>
-              );
-            })}
+      <div className="card-visual subs" aria-hidden="true">
+        {nodes.map((n) => (
+          <div className="sub sub-msg" key={n.channel}>
+            <span className="sub-badge">{n.icon}</span>
+            <span className="sub-msg-text">{n.text}</span>
+            <span className="sub-meta">{n.channel}</span>
           </div>
-          <div className="orbit-core">
-            <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
-              <path d="M22.5 10.6A8.5 8.5 0 1 0 22.5 21.4" fill="none" stroke="#fafafa" strokeWidth="2.4" strokeLinecap="round" />
-              <path d="M13.5 16H25.5" stroke="#fafafa" strokeWidth="2.4" strokeLinecap="round" />
-            </svg>
-          </div>
-        </div>
+        ))}
       </div>
     </article>
   );
@@ -274,7 +254,7 @@ function FundCard() {
     <article className="card span-3">
       <div className="card-head">
         <span className="card-tag">Add money</span>
-        <h3 className="h3">Naira at home. Stables from anywhere.</h3>
+        <h3 className="h3">Naira at home, stablecoins from anywhere</h3>
         <p>Send a bank transfer, or USDC and USDT on Base, or USDC on Arc. Family abroad can keep home covered.</p>
       </div>
       <div className="card-visual subs" aria-hidden="true">

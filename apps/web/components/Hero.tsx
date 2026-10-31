@@ -1,4 +1,4 @@
-import { IconArrow, IconCheck } from "./icons";
+import { IconArrow } from "./icons";
 import { PhoneMock } from "./PhoneMock";
 
 function Words({ text, start = 0 }: { text: string; start?: number }) {
@@ -16,12 +16,9 @@ function Words({ text, start = 0 }: { text: string; start?: number }) {
 export function Hero() {
   return (
     <section className="hero" id="top">
-      <div className="hero-bg" />
       <div className="container hero-grid">
         <div className="hero-copy">
-          <span className="eyebrow fade-in">
-            Autopay for utilities
-          </span>
+          <span className="eyebrow fade-in">Autopay for bills in Nigeria</span>
           <h1 className="h1">
             <Words text="Set it once." />
             <br />
@@ -30,8 +27,8 @@ export function Hero() {
             </span>
           </h1>
           <p className="lead fade-in" style={{ ["--d" as string]: "420ms" }}>
-            ConstantUnits pays your data, light and cable from money you set aside, on the day you choose, and tells you
-            before a bill can&apos;t be paid.
+            ConstantUnits pays data, airtime, light and TV for you, a friend or family, from money you set aside, on the
+            day you choose. Subscriptions like ChatGPT and Claude get a reminder before they renew.
           </p>
           <div className="hero-actions fade-in" style={{ ["--d" as string]: "540ms" }}>
             <a href="/app" className="btn btn-primary">
@@ -40,17 +37,6 @@ export function Hero() {
             <a href="#how" className="btn btn-ghost">
               How it works
             </a>
-          </div>
-          <div className="hero-note fade-in" style={{ ["--d" as string]: "660ms" }}>
-            <span>
-              <IconCheck size={15} /> Caps you set
-            </span>
-            <span>
-              <IconCheck size={15} /> Pause any time
-            </span>
-            <span>
-              <IconCheck size={15} /> Naira or stables
-            </span>
           </div>
         </div>
         <PhoneMock />

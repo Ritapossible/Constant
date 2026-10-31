@@ -44,7 +44,7 @@ export function Footer({ base = "" }: { base?: string }) {
                 Questions? <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
               </p>
               <div className="footer-socials">
-                <span className="footer-socials-label">Socials</span>
+                
                 <ul>
                   {SOCIALS.map((x) => (
                     <li key={x.name}>
@@ -75,9 +75,6 @@ export function Footer({ base = "" }: { base?: string }) {
             <span>© {new Date().getFullYear()} ConstantUnits. All rights reserved.</span>
             <span>Early access. Money is only ever held by a licensed partner.</span>
           </div>
-        </div>
-        <div className="footer-word" aria-hidden="true">
-          Constant<span>Units</span>
         </div>
       </div>
     </footer>

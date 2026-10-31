@@ -61,7 +61,7 @@ export function Compare() {
             <h3>
               With ConstantUnits
               <span className="mono" style={{ fontSize: 12, opacity: 0.7 }}>
-                {on ? "ON" : "OFF"}
+                {on ? "On" : "Off"}
               </span>
             </h3>
             <ul>

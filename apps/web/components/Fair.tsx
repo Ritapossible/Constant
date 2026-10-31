@@ -17,7 +17,7 @@ export function Fair() {
         <Reveal className="section-head">
           <span className="eyebrow">Pricing</span>
           <h2 id="fair-title" className="h2">
-            Pay for what&apos;s delivered. <span className="serif">Nothing else.</span>
+            Pay only for what&apos;s delivered
           </h2>
           <p className="lead">One small fee per bill, only when it&apos;s delivered. No subscription.</p>
         </Reveal>

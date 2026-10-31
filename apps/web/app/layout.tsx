@@ -1,6 +1,5 @@
 import "@fontsource-variable/inter-tight";
 import "@fontsource-variable/jetbrains-mono";
-import "@fontsource/instrument-serif/400-italic.css";
 import "./globals.css";
 
 import type { Metadata, Viewport } from "next";
