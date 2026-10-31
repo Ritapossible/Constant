@@ -152,6 +152,68 @@ export function decideLowReminder(i: LowReminderInput): LowReminderDecision {
   return { kind: "remind", tone: i.coveredByAutopilot ? "heads_up" : "act", probability };
 }
 
+// ── Running low, sent to the person (D-092) ────────────────────────────────
+
+/** What the person reported was left on a line, in its own unit. */
+export interface Reading {
+  at: Date | string;
+  value: number;
+}
+
+/** Usage per day between consecutive readings. Rises (top-ups) and readings hours apart are skipped. */
+export function dailyRates(readings: readonly Reading[]): number[] {
+  const rs = [...readings].sort((a, b) => +new Date(a.at) - +new Date(b.at));
+  const out: number[] = [];
+  for (let i = 1; i < rs.length; i++) {
+    const a = rs[i - 1]!;
+    const b = rs[i]!;
+    const days = (+new Date(b.at) - +new Date(a.at)) / DAY_MS;
+    if (days < 0.25 || b.value > a.value) continue;
+    out.push((a.value - b.value) / days);
+  }
+  return out;
+}
+
+/** A reading older than this says too little about today: the person is asked for a fresh one in the app instead. */
+export const READING_STALE_DAYS = 7;
+
+export type RunningLowDecision =
+  | { kind: "remind"; likely: Date; probability: number }
+  | { kind: "none"; reason: "no_reading" | "stale" | "learning" | "unlikely" | "cooldown" | "quiet_hours" };
+
+/**
+ * Whether to tell the person a data, airtime or power line is likely to run low (D-092). Nothing measures the line:
+ * the forecast is the person's own readings, so what's left now is the last reading less the usual use since it.
+ * Reminds at most once a day, never at night, and only when running low within 48 hours is likely.
+ */
+export function decideRunningLow(i: {
+  readings: readonly Reading[];
+  /** The level the person set; reaching it is "low". Zero when none. */
+  threshold: number | null;
+  lastRemindedAt: Date | null;
+  now: Date;
+  timeZone: string;
+}): RunningLowDecision {
+  const rs = [...i.readings].sort((a, b) => +new Date(b.at) - +new Date(a.at));
+  const last = rs[0];
+  if (!last) return { kind: "none", reason: "no_reading" };
+  const sinceDays = (i.now.getTime() - +new Date(last.at)) / DAY_MS;
+  if (sinceDays > READING_STALE_DAYS) return { kind: "none", reason: "stale" };
+  const stats = usageStats(dailyRates(rs));
+  const remainingNow = Math.max(0, last.value - (i.threshold ?? 0) - (stats ? stats.meanPerDay * Math.max(0, sinceDays) : 0));
+  const d = decideLowReminder({
+    remaining: remainingNow,
+    stats,
+    coveredByAutopilot: false,
+    lastReminderAt: i.lastRemindedAt,
+    now: i.now,
+    policy: { ...DEFAULT_REMINDER_POLICY, timeZone: i.timeZone },
+  });
+  if (d.kind === "none") return d;
+  const w = runOutWindow(remainingNow, stats!, i.now);
+  return { kind: "remind", likely: w?.likely ?? i.now, probability: d.probability };
+}
+
 // ── Wallet runway ──────────────────────────────────────────────────────────
 
 export interface UpcomingCharge {

@@ -21,13 +21,13 @@ export class HttpMessaging implements Messaging {
     this.channels = [...(c.resend ? (["email"] as const) : []), ...(c.termii ? (["sms"] as const) : [])];
   }
 
-  async send(channel: MessageChannel, to: string, subject: string, text: string): Promise<{ providerId: string }> {
+  async send(channel: MessageChannel, to: string, subject: string, text: string, html?: string): Promise<{ providerId: string }> {
     if (channel === "email" && this.c.resend) {
       const res = await fetchJson(this.f, "https://api.resend.com/emails", {
         method: "POST",
         headers: { authorization: `Bearer ${this.c.resend.apiKey}`, "content-type": "application/json" },
         // Replies go to a real inbox (EMAIL_REPLY_TO), not to the sending address, which has none.
-        body: JSON.stringify({ from: this.c.resend.from, to: [to], subject, text, ...(this.c.resend.replyTo ? { reply_to: this.c.resend.replyTo } : {}) }),
+        body: JSON.stringify({ from: this.c.resend.from, to: [to], subject, text, ...(html ? { html } : {}), ...(this.c.resend.replyTo ? { reply_to: this.c.resend.replyTo } : {}) }),
         timeoutMs: 15_000,
       });
       const id = (res.body as { id?: string })?.id;
@@ -51,15 +51,15 @@ export class HttpMessaging implements Messaging {
 
 export class FakeMessaging implements Messaging {
   readonly channels: readonly MessageChannel[] = ["email", "sms"];
-  readonly sent: { channel: MessageChannel; to: string; subject: string; text: string }[] = [];
+  readonly sent: { channel: MessageChannel; to: string; subject: string; text: string; html?: string }[] = [];
   failNext = 0;
 
-  async send(channel: MessageChannel, to: string, subject: string, text: string): Promise<{ providerId: string }> {
+  async send(channel: MessageChannel, to: string, subject: string, text: string, html?: string): Promise<{ providerId: string }> {
     if (this.failNext > 0) {
       this.failNext -= 1;
       throw new Error("fake send failure");
     }
-    this.sent.push({ channel, to, subject, text });
+    this.sent.push({ channel, to, subject, text, ...(html ? { html } : {}) });
     return { providerId: `msg-${this.sent.length}` };
   }
 }

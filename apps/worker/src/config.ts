@@ -12,7 +12,7 @@ function need(env: NodeJS.ProcessEnv, name: string): string {
 }
 
 /** Builds the real dependencies from the environment. Fakes only when explicitly asked for. */
-export function fromEnv(env: NodeJS.ProcessEnv = process.env): { db: Db; vending: CableVending; messaging: Messaging; secrets: Secrets; fallbackPhone: string; payouts?: Payouts } {
+export function fromEnv(env: NodeJS.ProcessEnv = process.env): { db: Db; vending: CableVending; messaging: Messaging; secrets: Secrets; fallbackPhone: string; payouts?: Payouts; appUrl?: string } {
   const db = createPool(need(env, "DATABASE_URL"));
   const vending: CableVending =
     env.VENDING_PROVIDER === "vtpass"
@@ -33,7 +33,7 @@ export function fromEnv(env: NodeJS.ProcessEnv = process.env): { db: Db; vending
   const messagingWithTelegram = env.TELEGRAM_BOT_TOKEN ? withTelegram(messaging, new Telegram({ botToken: env.TELEGRAM_BOT_TOKEN })) : messaging;
   // Withdrawals go out through Paystack transfers when its key is set (still gated by payouts_enabled).
   const payouts = env.PAYSTACK_SECRET_KEY ? new Paystack({ secretKey: env.PAYSTACK_SECRET_KEY, preferredBank: env.PAYSTACK_PREFERRED_BANK ?? "wema-bank" }) : undefined;
-  return { db, vending, messaging: messagingWithTelegram, secrets: new Secrets(keysFromEnv(env)), fallbackPhone: need(env, "VEND_FALLBACK_PHONE"), ...(payouts ? { payouts } : {}) };
+  return { db, vending, messaging: messagingWithTelegram, secrets: new Secrets(keysFromEnv(env)), fallbackPhone: need(env, "VEND_FALLBACK_PHONE"), ...(payouts ? { payouts } : {}), ...(env.APP_URL ? { appUrl: env.APP_URL } : {}) };
 }
 
 /**

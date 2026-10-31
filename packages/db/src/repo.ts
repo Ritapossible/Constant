@@ -155,6 +155,8 @@ export interface LineRow {
   held_since: Date | null;
   /** When the person was last told about this hold. */
   held_notified_at: Date | null;
+  /** When the person was last told this line is likely to run low (D-092). */
+  low_reminded_at: Date | null;
   created_at: Date;
 }
 
@@ -241,6 +243,7 @@ export async function updateLine(
     last_renewed_at: Date; plan_name: string | null; renew_day: number | null; amount_minor: bigint | null; variation_code: string | null;
     threshold: number | null; weekly_cap_minor: bigint | null; setup_needed: "bundle" | null; paused_by: "user" | "stop" | null; pot_target_minor: bigint | null;
     held_reason: "insufficient" | "above_cap" | "weekly_cap" | null; held_since: Date | null; held_notified_at: Date | null;
+    low_reminded_at: Date;
   }>,
 ): Promise<void> {
   // Moving a bill's schedule ends any hold (D-091): paid, rescheduled, resumed. Only the hold itself keeps it.
@@ -264,6 +267,22 @@ export async function insertReading(q: Q, lineId: string, value: number, at: Dat
 }
 
 /** The latest readings of each of these lines, newest first, at most `perLine` each. */
+/**
+ * Lines a running-low reminder could be about (D-092): active data, airtime and power lines of active accounts, with
+ * a reading in the last week, not reminded in the last 20 hours. The rules decide; this only narrows the scan.
+ */
+export async function linesToCheckLow(q: Q, now: Date, limit = 200): Promise<(LineRow & { market_code: string })[]> {
+  const r = await q.query<LineRow & { market_code: string }>(
+    `SELECT l.*, u.market_code FROM lines l JOIN users u ON u.id = l.user_id
+     WHERE l.status = 'active' AND u.status = 'active' AND l.kind IN ('data', 'airtime', 'electricity')
+       AND (l.low_reminded_at IS NULL OR l.low_reminded_at < $1::timestamptz - interval '20 hours')
+       AND EXISTS (SELECT 1 FROM line_readings r WHERE r.line_id = l.id AND r.at > $1::timestamptz - interval '7 days')
+     ORDER BY l.low_reminded_at NULLS FIRST, l.id LIMIT $2`,
+    [now, limit],
+  );
+  return r.rows;
+}
+
 export async function recentReadings(q: Q, lineIds: string[], perLine = 30): Promise<ReadingRow[]> {
   if (lineIds.length === 0) return [];
   return (

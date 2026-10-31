@@ -65,8 +65,8 @@ export function parseTelegramUpdate(raw: string): TelegramMessage | null {
 export function withTelegram(base: Messaging, tg: Telegram): Messaging {
   return {
     channels: [...base.channels.filter((c) => c !== "telegram"), "telegram"] as MessageChannel[],
-    async send(channel, to, subject, text) {
-      if (channel !== "telegram") return base.send(channel, to, subject, text);
+    async send(channel, to, subject, text, html) {
+      if (channel !== "telegram") return base.send(channel, to, subject, text, html);
       const r = await tg.sendMessage(to, text);
       return { providerId: r.messageId };
     },

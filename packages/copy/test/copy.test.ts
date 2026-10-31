@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isGsm7, naira, render, smsParts, toSmsText, type NoticeKind } from "../src/index.js";
+import { emailFor, isGsm7, naira, render, smsParts, toSmsText, type NoticeKind } from "../src/index.js";
 
 const KINDS: NoticeKind[] = ["renewed", "renewal_failed", "insufficient", "above_cap", "funded", "needs_attention", "withdrawal_sent", "withdrawal_failed", "topped_up", "bill_paid", "weekly_cap"];
 
@@ -74,10 +74,58 @@ describe("SMS in the GSM-7 alphabet (INV-24)", () => {
     expect(toSmsText("ok 👍")).toBe("ok ");
   });
 
-  const params = { line: "Living room DSTV", provider: "dstv", last4: "4821", amountMinor: "1995000", capMinor: "2500000", shortMinor: "500000", dueAt: "2026-11-15T17:30:00Z", balanceMinor: "100", setAsideMinor: "2500000", token: "1234-5678-9012-3456-7890", units: "45.2", bank: "GTBank", held: "insufficient", reason: "The BVN and account number didn't match." };
-  it.each([...KINDS, "token", "bill_due_soon", "bill_last_call", "kyc_verified", "kyc_failed"] as NoticeKind[])("%s goes by SMS as one GSM-7 message", (kind) => {
+  const params = { line: "Living room DSTV", provider: "dstv", last4: "4821", amountMinor: "1995000", capMinor: "2500000", shortMinor: "500000", dueAt: "2026-11-15T17:30:00Z", balanceMinor: "100", setAsideMinor: "2500000", token: "1234-5678-9012-3456-7890", units: "45.2", bank: "GTBank", held: "insufficient", likelyAt: "2026-11-15T17:30:00Z", reason: "The BVN and account number didn't match." };
+  it.each([...KINDS, "token", "bill_due_soon", "bill_last_call", "kyc_verified", "kyc_failed", "running_low"] as NoticeKind[])("%s goes by SMS as one GSM-7 message", (kind) => {
     const sms = toSmsText(render(kind, params).text);
     expect(isGsm7(sms)).toBe(true);
     expect(smsParts(sms)).toBe(1);
+  });
+});
+
+describe("running low (D-092)", () => {
+  it("says when, and the two things that help: top up now, or a fresh reading", () => {
+    const m = render("running_low", { line: "My MTN data", likelyAt: "2026-11-12T17:30:00Z" });
+    expect(m.subject).toBe("My MTN data is running low");
+    expect(m.text).toBe("ConstantUnits: My MTN data will likely run low by Thu 12 Nov, 6:30 pm. Tap Top up now in the app, or add today's balance.");
+  });
+});
+
+describe("emails (D-092)", () => {
+  const ctx = { appUrl: "https://constantunits.xyz/", name: "Rita Egwuatu" };
+
+  it("greets by first name, keeps the words, links to the app, and says how to change channels", () => {
+    const m = render("running_low", { line: "My MTN data", likelyAt: "2026-11-12T17:30:00Z" });
+    const e = emailFor("running_low", m, {}, ctx);
+    expect(e.subject).toBe(m.subject);
+    expect(e.text.startsWith("Hi Rita,\n\nMy MTN data will likely run low by Thu 12 Nov, 6:30 pm.")).toBe(true);
+    expect(e.text).toContain("Open ConstantUnits: https://constantunits.xyz/app");
+    expect(e.text).toContain("open the app, then Account");
+    expect(e.html).toContain('href="https://constantunits.xyz/app"');
+    expect(e.html).toContain("Hi Rita,");
+    expect(e.html).not.toContain("ConstantUnits: My MTN"); // the SMS-style prefix is for SMS only
+  });
+
+  it("says Hello without a name, and puts an electricity token in its own box", () => {
+    const p = { line: "Home meter", amountMinor: "500000", token: "1234-5678-9012-3456-7890", units: "45.2" };
+    const e = emailFor("token", render("token", p), p, { appUrl: "https://constantunits.xyz" });
+    expect(e.text.startsWith("Hello,")).toBe(true);
+    expect(e.html.match(/1234-5678-9012-3456-7890/g)).toHaveLength(2); // in the sentence and in the box
+    expect(e.html).toContain("₦5,000"); // email keeps the naira sign
+  });
+
+  it("escapes everything that came from a person, so a bill name can't inject HTML", () => {
+    const p = { line: `<img src=x onerror="alert(1)">`, likelyAt: "2026-11-12T17:30:00Z" };
+    const e = emailFor("running_low", render("running_low", p), p, { appUrl: "https://constantunits.xyz", name: "<b>Ada</b>" });
+    expect(e.html).not.toContain("<img");
+    expect(e.html).not.toContain("<b>Ada");
+    expect(e.html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+  });
+
+  it.each([...KINDS, "token", "bill_due_soon", "bill_last_call", "running_low", "kyc_verified"] as NoticeKind[])("%s has a complete email", (kind) => {
+    const p = { line: "Living room DSTV", amountMinor: "1995000", capMinor: "2500000", shortMinor: "500000", dueAt: "2026-11-15T17:30:00Z", likelyAt: "2026-11-15T17:30:00Z", token: "1234-5678-9012-3456-7890", held: "insufficient" };
+    const e = emailFor(kind, render(kind, p), p, ctx);
+    expect(e.html.startsWith("<!doctype html>")).toBe(true);
+    expect(e.html).toContain("Open ConstantUnits");
+    expect(e.text.split("\n\n")).toHaveLength(4);
   });
 });

@@ -4,7 +4,7 @@
  * Money rules (CLAUDE.md): rules decide, the order row is persisted before every partner call, only a
  * "delivered" from the partner settles, anything unclear is asked again and then handed to a person.
  */
-import { render, toSmsText, type NoticeKind } from "@constant/copy";
+import { emailFor, render, toSmsText, type NoticeKind } from "@constant/copy";
 import {
   freeBalance,
   freeCommittedToOpenOrders,
@@ -18,6 +18,7 @@ import {
   getOrder,
   getUser,
   hasOpenOrder,
+  linesToCheckLow,
   insertOrder,
   lockLine,
   lockOrder,
@@ -25,6 +26,7 @@ import {
   markNotice,
   ordersInState,
   queueNotice,
+  recentReadings,
   spentLast7Days,
   raiseOpsAlert,
   receiptId,
@@ -48,6 +50,7 @@ import {
   USAGE_MIN_DAYS_BETWEEN_TOPUPS,
   availableForBill,
   decideRenewal,
+  decideRunningLow,
   holdReminder,
   nextDueAfter,
   nextMonthlyRunAt,
@@ -74,6 +77,8 @@ export interface Deps {
   dollars?: DollarDeps;
   /** Naira withdrawals (D-067). Absent: requests wait. */
   payouts?: import("@constant/partners").Payouts;
+  /** The site emails link to (their button opens /app). Default: the live site. */
+  appUrl?: string;
 }
 
 const MIN = 60_000;
@@ -88,6 +93,7 @@ export const MAX_FAILURES_PER_CYCLE = 3;
 export const RECHECK_HOLD_MIN = 60;
 export const MAX_NOTICE_ATTEMPTS = 5;
 
+const APP_URL = "https://constantunits.xyz";
 const iso = (d: Date | null) => (d ? d.toISOString() : undefined);
 const label = (l: LineRow) => l.nickname;
 const prepaidMeter = (l: LineRow) => l.kind === "electricity" && l.meter_type !== "postpaid";
@@ -480,6 +486,48 @@ export async function recover(d: Deps): Promise<void> {
   }
 }
 
+// ── Running low (D-092) ──────────────────────────────────────────────────────
+
+/**
+ * Tells people a data, airtime or power line is likely to run low within two days, from their own readings: at
+ * most once a day per line, never at night. A line already being topped up, or due now, isn't mentioned: it's
+ * being handled. Returns how many reminders were queued.
+ */
+export async function remindRunningLow(d: Deps, max = 200): Promise<number> {
+  const now = d.now();
+  const lines = await linesToCheckLow(d.db, now, max);
+  if (lines.length === 0) return 0;
+  const readings = await recentReadings(d.db, lines.map((l) => l.id), 15);
+  const zones = new Map<string, string>();
+  let queued = 0;
+  for (const line of lines) {
+    if (line.next_run_at && line.next_run_at.getTime() <= now.getTime()) continue;
+    if (await hasOpenOrder(d.db, line.id)) continue;
+    if (!zones.has(line.market_code)) zones.set(line.market_code, (await getMarket(d.db, line.market_code)).time_zone);
+    const decision = decideRunningLow({
+      readings: readings.filter((r) => r.line_id === line.id).map((r) => ({ at: r.at, value: Number(r.value) })),
+      threshold: line.threshold === null ? null : Number(line.threshold),
+      lastRemindedAt: line.low_reminded_at,
+      now,
+      timeZone: zones.get(line.market_code)!,
+    });
+    if (decision.kind !== "remind") continue;
+    await withTx(d.db, async (tx) => {
+      const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const fresh = await queueNotice(tx, {
+        key: noticeKey(line.id, "running_low", day),
+        userId: line.user_id,
+        lineId: line.id,
+        kind: "running_low",
+        params: { line: label(line), likelyAt: iso(decision.likely), kind: line.kind },
+      });
+      await updateLine(tx, line.id, { low_reminded_at: now });
+      if (fresh) queued += 1;
+    });
+  }
+  return queued;
+}
+
 // ── Notices ──────────────────────────────────────────────────────────────────
 
 /** Sends pending messages. Email first, then SMS. A delivered renewal settles its order once told. */
@@ -507,8 +555,12 @@ export async function sendNotices(d: Deps, max = 20): Promise<number> {
       } else {
         const msg = render(n.kind as NoticeKind, params);
         try {
-          // SMS goes in the GSM-7 alphabet: one "₦" would double what each message costs (INV-24).
-          const r = await d.messaging.send(target.channel, target.to, msg.subject, target.channel === "sms" ? toSmsText(msg.text) : msg.text);
+          // SMS goes in the GSM-7 alphabet: one "₦" would double what each message costs (INV-24). Email gets the
+          // formatted version with its plain text (D-092).
+          const email = target.channel === "email" ? emailFor(n.kind as NoticeKind, msg, params, { appUrl: d.appUrl ?? APP_URL, name: user?.display_name ?? null }) : null;
+          const r = email
+            ? await d.messaging.send("email", target.to, email.subject, email.text, email.html)
+            : await d.messaging.send(target.channel, target.to, msg.subject, target.channel === "sms" ? toSmsText(msg.text) : msg.text);
           await markNotice(tx, n.id, { status: "sent", attempts, channel: target.channel, provider_msg_id: r.providerId });
           ok = true;
           sent += 1;

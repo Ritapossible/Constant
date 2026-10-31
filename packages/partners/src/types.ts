@@ -162,7 +162,8 @@ export type MessageChannel = "email" | "sms" | "telegram";
 
 export interface Messaging {
   readonly channels: readonly MessageChannel[];
-  send(channel: MessageChannel, to: string, subject: string, text: string): Promise<{ providerId: string }>;
+  /** `html` is an email's formatted version; `text` always goes too, and is all other channels send. */
+  send(channel: MessageChannel, to: string, subject: string, text: string, html?: string): Promise<{ providerId: string }>;
 }
 
 export interface IdentityUser {

@@ -7,6 +7,7 @@
 import { renderStables, type StableNoticeKind, type StableParams } from "./stables.js";
 
 export { isGsm7, smsParts, toSmsText } from "./sms.js";
+export { emailFor, type Email, type EmailContext } from "./email.js";
 
 export type NoticeKind =
   | "renewed"
@@ -25,6 +26,7 @@ export type NoticeKind =
   | "kyc_failed"
   | "bill_due_soon"
   | "bill_last_call"
+  | "running_low"
   | StableNoticeKind;
 
 export interface Message {
@@ -76,6 +78,8 @@ export interface NoticeParams {
   reason?: string;
   /** Why a bill is waiting on the person: "insufficient", "above_cap" or "weekly_cap" (D-091). */
   held?: string;
+  /** Running low (D-092): when the line will likely run low, from the person's readings. */
+  likelyAt?: string;
 }
 
 /** One message per notice kind. Short enough for one SMS where it may go by SMS. */
@@ -129,6 +133,14 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
       return kind === "bill_due_soon"
         ? { subject: `${who} ends ${ends}`, text: `ConstantUnits: reminder, ${who} ends ${ends}, unpaid. ${fix}` }
         : { subject: `Last reminder: ${who}`, text: `ConstantUnits: last reminder, ${who} ends ${ends}. ${fix}` };
+    }
+    case "running_low": {
+      // From the person's own readings (D-092): nothing measures the line, so the fix includes a fresh reading.
+      const when = p.likelyAt ? `by ${dayTime(p.likelyAt)}` : "soon";
+      return {
+        subject: `${who} is running low`,
+        text: `ConstantUnits: ${who} will likely run low ${when}. Tap Top up now in the app, or add today's balance.`,
+      };
     }
     case "weekly_cap":
       return {

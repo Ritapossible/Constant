@@ -151,3 +151,6 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 110 | Money credited to a person makes their bills held for money due at once; a bill held above its limit is not paid because money arrived. | worker · db |
 | 111 | A held bill's reminders are sent at most once each per cycle, never between 10 pm and 7 am, and a bill with a known end gets a last call before it lapses. | rules (property) · worker |
 | 112 | Moving a bill's schedule ends its hold: a resumed bill is never paid for a day it missed. | worker |
+| 113 | A running-low reminder is sent at most once a day per line, never between 10 pm and 7 am, never from a reading over a week old, and never about a line already due or being topped up. | rules (property) · worker |
+| 114 | Every email carries a plain-text version, and nothing a person typed reaches an email's HTML unescaped. | copy · partners |
+| 115 | The server's running-low forecast and the app's are the same maths (`dailyRates`, `decideLowReminder` in packages/rules). | rules · web |

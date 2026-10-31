@@ -4,6 +4,7 @@
  */
 import {
   DEFAULT_REMINDER_POLICY,
+  dailyRates,
   addDays,
   decideLowReminder,
   lightForecastMode,
@@ -19,19 +20,8 @@ import type { Line, Reading } from "./store";
 const TZ = "Africa/Lagos";
 const DAY = 86_400_000;
 
-/** Usage per day between consecutive readings. Rises (top-ups) are skipped. */
-export function dailyRates(readings: readonly Reading[]): number[] {
-  const rs = [...readings].sort((a, b) => +new Date(a.at) - +new Date(b.at));
-  const out: number[] = [];
-  for (let i = 1; i < rs.length; i++) {
-    const a = rs[i - 1]!;
-    const b = rs[i]!;
-    const days = (+new Date(b.at) - +new Date(a.at)) / DAY;
-    if (days < 0.25 || b.value > a.value) continue;
-    out.push((a.value - b.value) / days);
-  }
-  return out;
-}
+/** Usage per day between consecutive readings: the same maths the server reminds with (D-092). */
+export { dailyRates };
 
 export function latest(readings: readonly Reading[]): Reading | null {
   if (readings.length === 0) return null;

@@ -2,11 +2,11 @@
  * Data, airtime and electricity on the server (D-079): monthly bills, top-ups when a line is reported low,
  * the weekly cap, data bundle prices, and electricity tokens (encrypted, sent only to the owner).
  */
-import { Secrets, freeBalance, freshDatabase, insertLedger, insertLine, ledgerSum, movePot, potBalance, withTx, setChannels, setVendingEnabled, testKeyB64, upsertUser, type Db, type NewLine } from "@constant/db";
+import { Secrets, freeBalance, freshDatabase, insertLedger, insertLine, insertReading, ledgerSum, movePot, potBalance, withTx, setChannels, setVendingEnabled, testKeyB64, upsertUser, type Db, type NewLine } from "@constant/db";
 import { FakeCableVending, FakeMessaging } from "@constant/partners";
 import { isGsm7, smsParts } from "@constant/copy";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { CHECK_BACKOFF_MIN, clearPlanCache, processOrders, scanRenewals, sendNotices, silentLog, type Deps } from "../src/index.js";
+import { CHECK_BACKOFF_MIN, clearPlanCache, processOrders, remindRunningLow, scanRenewals, sendNotices, silentLog, type Deps } from "../src/index.js";
 
 let db: Db;
 let drop: () => Promise<void>;
@@ -256,6 +256,48 @@ describe("pots (D-083)", () => {
     expect((await noticeRows(u.id)).map((x) => x.kind)).toContain("insufficient");
     expect(await potBalance(db, saved.id)).toBe(250_000n);
     void other;
+  });
+});
+
+describe("running low, sent to the person (D-092)", () => {
+  const NOON = new Date("2026-11-10T11:00:00Z"); // noon in Lagos
+  /** A data line whose readings fall 1,000 MB a day, ending with 1,200 MB left this morning. */
+  async function lowDataLine(opts: { nextRunAt?: Date | null } = {}) {
+    const u = await user();
+    await setChannels(db, u.id, ["email"]);
+    const l = await line(u.id, { kind: "data", provider: "mtn", schedule: "usage", threshold: 0, amountMinor: 150_000n, nextRunAt: opts.nextRunAt ?? null }, "08031230001");
+    for (let k = 0; k < 5; k++) await insertReading(db, l.id, 5_200 - 1_000 * k, new Date(NOON.getTime() - (4 - k) * 86_400_000 - 4 * 3_600_000));
+    return { u, l };
+  }
+
+  it("tells the person once a day, by their channel, as a formatted email", async () => {
+    clock = NOON;
+    const { u, l } = await lowDataLine();
+    expect(await remindRunningLow(deps)).toBe(1);
+    expect(await remindRunningLow(deps)).toBe(0); // not twice
+    const rows = (await noticeRows(u.id)).filter((x) => x.kind === "running_low");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].params).toMatchObject({ line: "My data", kind: "data" });
+    expect((await lineRow(l.id)).low_reminded_at.toISOString()).toBe(NOON.toISOString());
+
+    await sendNotices(deps);
+    const email = messaging.sent.find((m) => m.channel === "email" && m.subject === "My data is running low")!;
+    expect(email.text).toMatch(/^Hello,\n\nMy data will likely run low by .+\. Tap Top up now in the app, or add today's balance\./);
+    expect(email.html).toContain("Open ConstantUnits");
+
+    clock = new Date(NOON.getTime() + 86_400_000); // the next day: may remind again
+    await insertReading(db, l.id, 400, new Date(clock.getTime() - 3_600_000));
+    expect(await remindRunningLow(deps)).toBe(1);
+  });
+
+  it("stays quiet at night, and about a line that's already being topped up", async () => {
+    clock = new Date("2026-11-10T22:30:00Z"); // 11:30 pm in Lagos
+    await lowDataLine();
+    expect(await remindRunningLow(deps)).toBe(0);
+    clock = NOON;
+    const due = await lowDataLine({ nextRunAt: new Date(NOON.getTime() - 60_000) });
+    expect(await remindRunningLow(deps)).toBe(1); // the earlier line, now in waking hours; not the due one
+    expect((await noticeRows(due.u.id)).filter((x) => x.kind === "running_low")).toHaveLength(0);
   });
 });
 

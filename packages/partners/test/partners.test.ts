@@ -351,6 +351,15 @@ describe("email (Resend)", () => {
     expect(JSON.parse(seen[0]!.init.body as string)).not.toHaveProperty("reply_to");
     await expect(m.send("email", "b@example.com", "s", "t")).rejects.toThrow("email failed (422)");
   });
+
+  it("sends the formatted version with its plain text when there is one (D-092)", async () => {
+    const seen: { url: string; init: RequestInit }[] = [];
+    const m = new HttpMessaging({ resend: { apiKey: "re_test", from: "a@example.com" }, fetch: stubFetch([{ body: { id: "em_3" } }, { body: { id: "em_4" } }], seen) });
+    await m.send("email", "b@example.com", "Low", "plain words", "<p>formatted</p>");
+    expect(JSON.parse(seen[0]!.init.body as string)).toMatchObject({ text: "plain words", html: "<p>formatted</p>" });
+    await m.send("email", "b@example.com", "Low", "plain words");
+    expect(JSON.parse(seen[1]!.init.body as string)).not.toHaveProperty("html");
+  });
 });
 
 describe("Telegram (D-082)", () => {

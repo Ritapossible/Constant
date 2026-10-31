@@ -64,6 +64,7 @@ Redeploy after changing any `NEXT_PUBLIC_` value.
 | ☐ | `VEND_FALLBACK_PHONE` | VTpass needs a phone | A Constant number |
 | ☐ | `RESEND_API_KEY`, `EMAIL_FROM` | Email to users | Resend API key; `ConstantUnits <hello@your-domain>` (a domain verified in Resend) |
 | ☐ | `EMAIL_REPLY_TO` (optional) | Where users' replies land | `constantunitshq@gmail.com` |
+| ☐ | `APP_URL` (optional) | The button in every email | `https://constantunits.xyz` (the default) |
 | ☐ | `TERMII_API_KEY`, `TERMII_SENDER_ID` (optional) | SMS to users | Termii; sender ID `ConstUnits` (11 characters max) once approved |
 | ☐ | `CHAINS` | Deposit indexing | `base,arc` |
 | ☐ | `BASE_RPC_URL`, `ARC_RPC_URL` | Deposits, charges | Paid Base RPC; Arc default |
