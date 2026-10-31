@@ -28,7 +28,7 @@ describe("logs never hold a full number (INV-14)", () => {
 
   it("hides fields named like secrets, whatever their value", () => {
     const lines = printed();
-    jsonLog("worker").info("sent", { token: "1234-5678", smartcardRef: "abc", phone: "0803", apiKey: "sk_live_x", partnerRef: "vt-123" });
+    jsonLog("worker").info("sent", { token: "1234-5678", smartcardRef: "abc", phone: "0803", apiKey: "not-a-real-key", partnerRef: "vt-123" });
     const row = JSON.parse(lines()[0]!);
     expect(row).toMatchObject({ token: "[redacted]", smartcardRef: "[redacted]", phone: "[redacted]", apiKey: "[redacted]", partnerRef: "vt-123" });
   });
