@@ -4,6 +4,7 @@
  * Money rules (CLAUDE.md): rules decide, the order row is persisted before every partner call, only a
  * "delivered" from the partner settles, anything unclear is asked again and then handed to a person.
  */
+import { STABLES } from "@constant/chains";
 import { emailFor, render, toSmsText, type NoticeKind } from "@constant/copy";
 import {
   freeBalance,
@@ -17,6 +18,7 @@ import {
   getMarket,
   getOrder,
   getUser,
+  chargeForOrder,
   hasOpenOrder,
   linesToCheckLow,
   insertOrder,
@@ -94,6 +96,20 @@ export const RECHECK_HOLD_MIN = 60;
 export const MAX_NOTICE_ATTEMPTS = 5;
 
 const APP_URL = "https://constantunits.xyz";
+const NETWORK: Record<string, string> = { base: "Base", arc: "Arc", stellar: "Stellar" };
+
+/**
+ * What left the person's own account when a bill was paid from stablecoins (D-093), e.g. "14.75 USDC on Base".
+ * Only a confirmed charge counts; a bill paid from naira says nothing more.
+ */
+async function paidWith(q: Tx, orderId: string): Promise<string | undefined> {
+  const c = await chargeForOrder(q, orderId);
+  if (!c || c.status !== "confirmed") return undefined;
+  const micro = BigInt(c.amount_micro);
+  const symbol = c.chain === "stellar" ? "USDC" : (STABLES.find((t) => t.chain === c.chain && t.address.toLowerCase() === c.token.toLowerCase())?.symbol ?? "USDC");
+  const amount = `${micro / 1_000_000n}.${((micro % 1_000_000n) / 10_000n).toString().padStart(2, "0")}`;
+  return `${amount} ${symbol} on ${NETWORK[c.chain] ?? c.chain}`;
+}
 const iso = (d: Date | null) => (d ? d.toISOString() : undefined);
 const label = (l: LineRow) => l.nickname;
 const prepaidMeter = (l: LineRow) => l.kind === "electricity" && l.meter_type !== "postpaid";
@@ -399,7 +415,8 @@ async function settleDelivered(
     "worker",
   );
   await transition(tx, stored, { type: "notify_start" }, {}, "worker");
-  const base = { line: label(line), amountMinor: order.amount_minor.toString() };
+  const paid = await paidWith(tx, order.id);
+  const base = { line: label(line), amountMinor: order.amount_minor.toString(), ...(paid ? { paidWith: paid } : {}) };
 
   if (line.kind === "tv") {
     const due = nextDueAfter(line.due_at ?? order.scheduled_for ?? now, timeZone);

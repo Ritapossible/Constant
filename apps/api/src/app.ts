@@ -439,6 +439,7 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
       if (!verified) throw new HttpError(401, "unauthenticated", "Sign in again");
       const did = verified.did;
       let user = await getUserByDid(d.db, did);
+      const isNew = !user;
       // Contact details and wallet addresses come from the identity provider, never from the browser.
       // Re-read them while either is missing (the wallet is created just after first sign-in), at most once a minute.
       const missing = !user || (!user.email && !user.phone_e164) || (await addressesOf(d.db, user.id)).length === 0;
@@ -455,6 +456,11 @@ export async function buildApp(d: ApiDeps): Promise<FastifyInstance> {
         }
       }
       if (!user) user = await upsertUser(d.db, { privyDid: did });
+      // A new account gets one welcome (D-093). Keyed by the account, so a retried first request can't send two.
+      if (isNew) {
+        const live = await flag(d.db, "vending_enabled");
+        await queueNotice(d.db, { key: `notice:welcome:${user.id}`, userId: user.id, kind: "welcome", params: live ? {} : { preview: "1" } });
+      }
       req.user = user;
       req.sid = verified.sid;
 

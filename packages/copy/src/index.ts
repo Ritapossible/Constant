@@ -27,6 +27,7 @@ export type NoticeKind =
   | "bill_due_soon"
   | "bill_last_call"
   | "running_low"
+  | "welcome"
   | StableNoticeKind;
 
 export interface Message {
@@ -80,7 +81,14 @@ export interface NoticeParams {
   held?: string;
   /** Running low (D-092): when the line will likely run low, from the person's readings. */
   likelyAt?: string;
+  /** A bill paid from the person's own stablecoins (D-093): what left their account: "<amount> <token> on <network>". */
+  paidWith?: string;
+  /** Welcome (D-093): "1" while bill payments are still switched off (the preview). */
+  preview?: string;
 }
+
+/** " Paid with <amount> <token> on <network>." when a bill was paid from the person's own stablecoins (D-093). */
+const paid = (p: NoticeParams) => (p.paidWith ? ` Paid with ${p.paidWith}.` : "");
 
 /** One message per notice kind. Short enough for one SMS where it may go by SMS. */
 export function render(kind: NoticeKind, p: NoticeParams & Record<string, string | undefined>): Message {
@@ -90,7 +98,7 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
     case "renewed":
       return {
         subject: `${who} renewed`,
-        text: `ConstantUnits: ${who} renewed for ${amt}.${p.dueAt ? ` Next renewal ${day(p.dueAt)}.` : ""}`,
+        text: `ConstantUnits: ${who} renewed for ${amt}.${p.dueAt ? ` Next renewal ${day(p.dueAt)}.` : ""}${paid(p)}`,
       };
     case "renewal_failed":
       return {
@@ -110,7 +118,7 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
     case "topped_up":
       return {
         subject: `${who} topped up`,
-        text: `ConstantUnits: ${who} topped up with ${amt}.${p.nextAt ? ` Next on ${day(p.nextAt)}.` : ""}`,
+        text: `ConstantUnits: ${who} topped up with ${amt}.${p.nextAt ? ` Next on ${day(p.nextAt)}.` : ""}${paid(p)}`,
       };
     case "token":
       return {
@@ -120,7 +128,7 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
     case "bill_paid":
       return {
         subject: `${who} paid`,
-        text: `ConstantUnits: ${who} paid, ${amt}.${p.nextAt ? ` Next on ${day(p.nextAt)}.` : ""}`,
+        text: `ConstantUnits: ${who} paid, ${amt}.${p.nextAt ? ` Next on ${day(p.nextAt)}.` : ""}${paid(p)}`,
       };
     case "bill_due_soon":
     case "bill_last_call": {
@@ -134,6 +142,15 @@ export function render(kind: NoticeKind, p: NoticeParams & Record<string, string
         ? { subject: `${who} ends ${ends}`, text: `ConstantUnits: reminder, ${who} ends ${ends}, unpaid. ${fix}` }
         : { subject: `Last reminder: ${who}`, text: `ConstantUnits: last reminder, ${who} ends ${ends}. ${fix}` };
     }
+    case "welcome":
+      // Sent once, when the account is made (D-093). Never promises payments while they're switched off.
+      return {
+        subject: "Welcome to ConstantUnits",
+        text:
+          p.preview === "1"
+            ? "ConstantUnits: welcome! Add a bill, set its limit and add money. Bill payments switch on soon, and we'll tell you when they do."
+            : "ConstantUnits: welcome! Add a bill, set its limit and add money. We'll pay it on the day you choose, and warn you before anything can't be paid.",
+      };
     case "running_low": {
       // From the person's own readings (D-092): nothing measures the line, so the fix includes a fresh reading.
       const when = p.likelyAt ? `by ${dayTime(p.likelyAt)}` : "soon";

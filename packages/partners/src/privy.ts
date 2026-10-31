@@ -89,7 +89,10 @@ export class FakeIdentity implements Identity {
     const [did, sid] = accessToken.slice(5).split("#") as [string, string | undefined];
     return { did, sid: sid ?? `fake-session-${did}` };
   }
+  /** Tests: make the profile lookup slow, so two first requests really overlap. */
+  userDelayMs = 0;
   async user(did: string): Promise<IdentityUser> {
+    if (this.userDelayMs > 0) await new Promise((r) => setTimeout(r, this.userDelayMs));
     return this.users.get(did) ?? { did, email: `${did.slice(10)}@example.com`, phoneE164: null, wallets: [] };
   }
   deleted: string[] = [];

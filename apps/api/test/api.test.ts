@@ -49,6 +49,35 @@ const as = (did: string) => ({ authorization: `Bearer fake:${did}`, "content-typ
 const call = (method: "GET" | "POST" | "PATCH" | "DELETE", url: string, did: string | null, body?: unknown) =>
   app.inject({ method, url, headers: did ? as(did) : { "content-type": "application/json" }, ...(body !== undefined ? { payload: JSON.stringify(body) } : {}) });
 
+describe("welcome (D-093)", () => {
+  const welcomes = async (did: string) =>
+    (await db.query("SELECT n.params FROM notices n JOIN users u ON u.id = n.user_id WHERE u.privy_did = $1 AND n.kind = 'welcome'", [did])).rows;
+
+  it("a new account gets one welcome, however many requests its first sign-in makes", async () => {
+    // The first request waits on the identity provider while the others create the account: all see it as new.
+    identity.userDelayMs = 80;
+    try {
+      await Promise.all([1, 2, 3].map(() => call("GET", "/v1/me", "did:privy:newcomer")));
+    } finally {
+      identity.userDelayMs = 0;
+    }
+    await call("GET", "/v1/me", "did:privy:newcomer");
+    const rows = await welcomes("did:privy:newcomer");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].params).toEqual({ preview: "1" }); // payments start switched off: no promise of payment
+  });
+
+  it("once payments are on, the welcome says so", async () => {
+    await db.query("UPDATE system_flags SET value = true WHERE key = 'vending_enabled'");
+    try {
+      await call("GET", "/v1/me", "did:privy:newcomer2");
+      expect(await welcomes("did:privy:newcomer2")).toEqual([{ params: {} }]);
+    } finally {
+      await db.query("UPDATE system_flags SET value = false WHERE key = 'vending_enabled'");
+    }
+  });
+});
+
 describe("auth", () => {
   it("rejects missing and bad tokens", async () => {
     expect((await call("GET", "/v1/me", null)).statusCode).toBe(401);
@@ -167,7 +196,7 @@ describe("funding", () => {
     const stored = await db.query("SELECT count(*)::int AS n FROM inbound_webhooks WHERE provider = 'paystack'");
     expect(stored.rows[0].n - storedBefore).toBe(6);
     const notices = await db.query("SELECT kind FROM notices WHERE user_id = $1 ORDER BY id", [me.user.id]);
-    expect(notices.rows.map((r) => r.kind)).toEqual(["kyc_verified", "funded"]);
+    expect(notices.rows.map((r) => r.kind)).toEqual(["welcome", "kyc_verified", "funded"]); // every new account is welcomed first (D-093)
   });
 
   it("a transfer to an unknown account is recorded and paged, not credited", async () => {

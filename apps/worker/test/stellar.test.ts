@@ -117,6 +117,11 @@ describe("USDC on Stellar", () => {
     expect(await rail.balanceMicro(owner)).toBe(50_000_000n - usdc);
     expect((await rail.getMandate(id))!.spentMicro).toBe(usdc);
     expect(stellarMandateId(perm)).toBe(id);
+    // The person is told what left their own account (D-093).
+    const renewed = (await db.query("SELECT params FROM notices WHERE user_id = $1 AND kind = 'renewed'", [user.id])).rows;
+    expect(renewed).toHaveLength(1);
+    expect(renewed[0].params.paidWith).toBe(`${usdc / 1_000_000n}.${((usdc % 1_000_000n) / 10_000n).toString().padStart(2, "0")} USDC on Stellar`);
+    expect(renewed[0].params.paidWith).toBe("14.75 USDC on Stellar");
   });
 
   it("in production on testnet it still charges: testnet USDC isn't screened (D-090)", async () => {

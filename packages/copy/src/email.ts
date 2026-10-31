@@ -37,7 +37,12 @@ export function emailFor(kind: NoticeKind, m: Message, p: NoticeParams, ctx: Ema
   const main = body(m);
   const footer = "You're getting this because you use ConstantUnits. To choose where messages go (email, SMS or Telegram), open the app, then Account.";
 
-  const text = [hello, main, `Open ConstantUnits: ${appLink}`, footer].join("\n\n");
+  // The welcome email also says how to start, in three steps (D-093).
+  const steps = kind === "welcome" ? ["Add a bill: data, airtime, light or TV.", "Set its limit: the most it may ever cost.", "Add money: a bank transfer to your own account number, card or USSD."] : [];
+  const text = [hello, main, ...(steps.length ? [steps.map((x, i) => `${i + 1}. ${x}`).join("\n")] : []), `Open ConstantUnits: ${appLink}`, footer].join("\n\n");
+  const stepsHtml = steps.length
+    ? `<tr><td style="padding:0 32px 12px"><ol style="margin:0;padding-left:20px;font-size:15px;line-height:1.6;color:#2b2b2b">${steps.map((x) => `<li style="margin:0 0 6px">${esc(x)}</li>`).join("")}</ol></td></tr>`
+    : "";
 
   const token =
     kind === "token" && p.token
@@ -55,7 +60,7 @@ export function emailFor(kind: NoticeKind, m: Message, p: NoticeParams, ctx: Ema
 <tr><td style="padding:16px 32px 4px;font-size:22px;line-height:1.3;font-weight:600;letter-spacing:-0.01em">${esc(m.subject)}</td></tr>
 <tr><td style="padding:12px 32px 4px;font-size:16px;line-height:1.55;color:#2b2b2b">${esc(hello)}</td></tr>
 <tr><td style="padding:8px 32px 16px;font-size:16px;line-height:1.55;color:#2b2b2b">${esc(main)}</td></tr>
-${token}
+${token}${stepsHtml}
 <tr><td style="padding:8px 32px 28px"><a href="${esc(appLink)}" style="display:inline-block;background:#0a0a0a;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 22px;border-radius:999px">Open ConstantUnits</a></td></tr>
 <tr><td style="padding:18px 32px 26px;border-top:1px solid #efefeb;font-size:12.5px;line-height:1.5;color:#6b6b6b">${esc(footer)}</td></tr>
 </table>

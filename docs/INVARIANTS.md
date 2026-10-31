@@ -154,3 +154,6 @@ If any of these ever fails, it is a bug that costs a customer money or their lig
 | 113 | A running-low reminder is sent at most once a day per line, never between 10 pm and 7 am, never from a reading over a week old, and never about a line already due or being topped up. | rules (property) · worker |
 | 114 | Every email carries a plain-text version, and nothing a person typed reaches an email's HTML unescaped. | copy · partners |
 | 115 | The server's running-low forecast and the app's are the same maths (`dailyRates`, `decideLowReminder` in packages/rules). | rules · web |
+| 116 | Every new account is welcomed exactly once, even when its first requests overlap. | api (overlapping first sign-ins) |
+| 117 | While bill payments are switched off, no message promises that a bill will be paid. | copy · api |
+| 118 | A bill paid from a person's stablecoins says what left their account, from the confirmed charge; one paid in naira doesn't mention stablecoins. | copy · worker |

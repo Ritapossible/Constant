@@ -74,8 +74,8 @@ describe("SMS in the GSM-7 alphabet (INV-24)", () => {
     expect(toSmsText("ok 👍")).toBe("ok ");
   });
 
-  const params = { line: "Living room DSTV", provider: "dstv", last4: "4821", amountMinor: "1995000", capMinor: "2500000", shortMinor: "500000", dueAt: "2026-11-15T17:30:00Z", balanceMinor: "100", setAsideMinor: "2500000", token: "1234-5678-9012-3456-7890", units: "45.2", bank: "GTBank", held: "insufficient", likelyAt: "2026-11-15T17:30:00Z", reason: "The BVN and account number didn't match." };
-  it.each([...KINDS, "token", "bill_due_soon", "bill_last_call", "kyc_verified", "kyc_failed", "running_low"] as NoticeKind[])("%s goes by SMS as one GSM-7 message", (kind) => {
+  const params = { line: "Living room DSTV", provider: "dstv", last4: "4821", amountMinor: "1995000", capMinor: "2500000", shortMinor: "500000", dueAt: "2026-11-15T17:30:00Z", balanceMinor: "100", setAsideMinor: "2500000", token: "1234-5678-9012-3456-7890", units: "45.2", bank: "GTBank", held: "insufficient", likelyAt: "2026-11-15T17:30:00Z", paidWith: "14.75 USDC on Stellar", preview: "1", reason: "The BVN and account number didn't match." };
+  it.each([...KINDS, "token", "bill_due_soon", "bill_last_call", "kyc_verified", "kyc_failed", "running_low", "welcome"] as NoticeKind[])("%s goes by SMS as one GSM-7 message", (kind) => {
     const sms = toSmsText(render(kind, params).text);
     expect(isGsm7(sms)).toBe(true);
     expect(smsParts(sms)).toBe(1);
@@ -127,5 +127,33 @@ describe("emails (D-092)", () => {
     expect(e.html.startsWith("<!doctype html>")).toBe(true);
     expect(e.html).toContain("Open ConstantUnits");
     expect(e.text.split("\n\n")).toHaveLength(4);
+  });
+});
+
+describe("welcome and paid-with (D-093)", () => {
+  it("welcomes without promising payments while they're switched off", () => {
+    const preview = render("welcome", { preview: "1" });
+    expect(preview.subject).toBe("Welcome to ConstantUnits");
+    expect(preview.text).toContain("Bill payments switch on soon");
+    expect(preview.text).not.toContain("We'll pay");
+    const live = render("welcome", {});
+    expect(live.text).toContain("We'll pay it on the day you choose");
+    for (const m of [preview, live]) expect(smsParts(toSmsText(m.text))).toBe(1);
+  });
+
+  it("the welcome email adds the three steps to start, in HTML and plain text", () => {
+    const e = emailFor("welcome", render("welcome", { preview: "1" }), { preview: "1" }, { appUrl: "https://constantunits.xyz", name: "Ada Obi" });
+    expect(e.text).toContain("1. Add a bill: data, airtime, light or TV.\n2. Set its limit");
+    expect(e.html.match(/<li /g)).toHaveLength(3);
+    expect(e.text.startsWith("Hi Ada,")).toBe(true);
+  });
+
+  it("a bill paid from stablecoins says what left the person's account; one paid in naira doesn't", () => {
+    const p = { line: "Living room DSTV", amountMinor: "1995000", dueAt: "2026-12-11T23:00:00Z" };
+    expect(render("renewed", { ...p, paidWith: "14.75 USDC on Stellar" }).text).toBe(
+      "ConstantUnits: Living room DSTV renewed for ₦19,950. Next renewal Sat, 12 Dec. Paid with 14.75 USDC on Stellar.",
+    );
+    expect(render("renewed", p).text).not.toContain("Paid with");
+    for (const kind of ["topped_up", "bill_paid"] as const) expect(render(kind, { ...p, paidWith: "3.00 USDT on Base" }).text).toContain("Paid with 3.00 USDT on Base.");
   });
 });

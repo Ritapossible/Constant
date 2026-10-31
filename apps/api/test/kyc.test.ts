@@ -74,7 +74,7 @@ describe("identity tiers (D-086)", () => {
     expect(k.check).toMatchObject({ status: "failed", bvnLast4: "1111", accountLast4: "6789" });
     expect(k.check.reason).toContain("didn't match");
     const id = await userId("did:privy:k1");
-    expect((await db.query("SELECT kind FROM notices WHERE user_id = $1", [id])).rows.map((r) => r.kind)).toEqual(["kyc_failed"]);
+    expect((await db.query("SELECT kind FROM notices WHERE user_id = $1 AND kind <> 'welcome'", [id])).rows.map((r) => r.kind)).toEqual(["kyc_failed"]);
 
     expect((await call("POST", "/v1/kyc/bvn", "did:privy:k1", person("22211111111"))).statusCode).toBe(202);
     expect((await hook(funding.identificationEvent(funding.validations.at(-1)!.customerCode, true))).json().result).toBe("verified");

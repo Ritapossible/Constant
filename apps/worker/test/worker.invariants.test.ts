@@ -207,6 +207,9 @@ describe("money and price (INV-39, INV-23)", () => {
     expect(await scanRenewals(deps)).toBe(1);
     await processOrders(deps);
     expect(vending.calls.renew).toHaveLength(1);
+    // Paid in naira: the message says nothing about stablecoins (D-093).
+    const renewed = (await db.query("SELECT params FROM notices WHERE user_id = $1 AND kind = 'renewed'", [user.id])).rows;
+    expect(renewed[0].params).not.toHaveProperty("paidWith");
     expect((await orders(line.id))[0].scheduled_for.toISOString()).toBe(T0.toISOString()); // still this cycle's order
   });
 
